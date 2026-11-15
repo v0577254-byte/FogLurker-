@@ -33,6 +33,14 @@ When it stops pretending, its stolen shape flickers and peels away into **the cr
 |---|---|
 | ![The crawler, front](docs/images/crawler_front.jpg) | ![The crawler, side](docs/images/crawler_side.jpg) |
 
+## You cannot hide from it on a tower or in a bunker
+
+- **It climbs.** In its attacking form it climbs any wall it runs into, like a spider. If you pillar up, it climbs your tower and gets you at the top.
+- **It follows you down.** It takes no fall damage, so it drops straight into the hole you dug.
+- **It breaks in.** If you wall yourself in or seal the hole above you, it claws through: forward (two blocks high), down or up toward you. You see crack marks while it works, and harder blocks take longer (dirt about 1 s, stone about 1.7 s, iron about 4 s).
+- **Except protected blocks.** It never breaks anything in the `foglurker:unbreakable` block tag: all deepslate (bricks, tiles, ores, stairs and so on), obsidian, crying obsidian, bedrock, reinforced deepslate, netherite blocks, ancient debris, respawn anchors, portals and portal frames, spawners, barriers and command blocks. It also skips anything as hard as obsidian or harder, and anything with an inventory or other data (chests, furnaces, beds, shulker boxes...). **A deepslate or obsidian bunker keeps it out.** Server owners can add blocks to the tag with a data pack.
+- It respects the `mobGriefing` gamerule and the `breakBlocks` config option, plus claim/protection mods that use Forge's block-breaking event.
+
 ## Water is its weakness
 
 - **It never appears in, on or next to water.** Every spawn spot, and the "woods" it leads you to, is checked to be dry ground.
@@ -55,7 +63,12 @@ When it stops pretending, its stolen shape flickers and peels away into **the cr
 - It can never spam attacks: the time between hits is enforced on the creature itself.
 - Hits ignore armour, so "5 hearts" really is 5 hearts. A Totem of Undying still saves you, even on Deathwish.
 - The grace period counts real play time from the very first time a world starts with the mod. Nothing appears during it, but it is already learning how everyone plays.
-- After the grace period it appears every 7–14 minutes (configurable). The timer pauses while it is out hunting.
+- **After the grace period it rolls every 5 minutes:**
+  1. 5 minutes after the grace period ends there is a **50/50** chance it appears.
+  2. If it did **not** appear, it is **guaranteed** to appear at the next roll 5 minutes later.
+  3. If it **did** appear, the next roll is a normal 50/50 again.
+
+  The timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
 - On vanilla Peaceful difficulty it never attacks, it only watches.
 
 ## Commands
@@ -66,7 +79,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 |---|---|---|
 | `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `watcher`, `crawler`, `random` |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
-| `/foglurker spawntimer` | cheats / op | Time until the next appearance (or who it is hunting right now) |
+| `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
 | `/foglurker geministatus` | op / host | Shows the masked key and tests it |
@@ -143,7 +156,9 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | Option | Default | |
 |---|---|---|
 | `defaultDifficulty` | `medium` | Mode for new worlds |
-| `spawnIntervalMinMinutes` / `Max` | 7 / 14 | Time between appearances |
+| `spawnRollMinutes` | 5 | Minutes between spawn rolls (a missed roll makes the next one guaranteed) |
+| `spawnChance` | 0.5 | Chance a normal roll makes it appear |
+| `breakBlocks` | true | Let the attacking form break blocks to reach you (never the protected list) |
 | `encounterMaxMinutes` | 5 | An appearance gives up after this long |
 | `overworldOnly` | true | Only appear on its own in the Overworld |
 | `allowDoppelganger` | true | When you are alone it can copy *you* |
@@ -176,6 +191,8 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - typing-style copying
 - hits are spaced exactly by the mode's cooldown (Very Easy: blocked at 1.5 s, allowed at 3 s)
 - water: spawn spots refuse water, the crawler will not path into it, and a crawler thrown in is driven off
+- the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50
+- it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - `/foglurker debugeverything` runs end to end
 
 `./gradlew runClient -PfoglurkerShowcase` (with a world named `FogShowcase`) lines up every shape and saves the screenshots in this README. The textures and the split-head logo are generated by the scripts in `tools/`.

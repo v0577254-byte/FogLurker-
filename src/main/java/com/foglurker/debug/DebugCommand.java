@@ -242,7 +242,8 @@ public final class DebugCommand {
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         LurkerDifficulty d = data.difficulty();
         r.pass("Current mode", d.displayName() + ", grace left " + (data.graceRemainingTicks() / 20) + "s, next spawn "
-                + (data.inGrace() ? "after grace" : data.nextSpawnTicks() < 0 ? "scheduling" : (data.nextSpawnTicks() / 20) + "s"));
+                + (data.inGrace() ? "after grace" : data.nextSpawnTicks() < 0 ? "scheduling" : (data.nextSpawnTicks() / 20) + "s")
+                + (data.nextIsGuaranteed() ? " (guaranteed)" : " (50/50)"));
         // name, grace min, hearts (-1 = one shot), cooldown s, attack chance
         Object[][] spec = {
                 {LurkerDifficulty.VERY_EASY, 45, 1F, 3.0F},
@@ -332,6 +333,22 @@ public final class DebugCommand {
             e.discard();
             rep.check(w, human == 0 && crawler < 0 && animal > 0, "human form swims (cost " + human + "), animals avoid it ("
                     + animal + "), crawler refuses water (" + crawler + ")");
+        });
+        r.run("Protected blocks", (rep, w) -> {
+            List<net.minecraft.world.level.block.Block> mustHold = List.of(net.minecraft.world.level.block.Blocks.DEEPSLATE,
+                    net.minecraft.world.level.block.Blocks.COBBLED_DEEPSLATE, net.minecraft.world.level.block.Blocks.DEEPSLATE_DIAMOND_ORE,
+                    net.minecraft.world.level.block.Blocks.OBSIDIAN, net.minecraft.world.level.block.Blocks.CRYING_OBSIDIAN,
+                    net.minecraft.world.level.block.Blocks.BEDROCK, net.minecraft.world.level.block.Blocks.REINFORCED_DEEPSLATE);
+            List<String> missing = new ArrayList<>();
+            for (var b : mustHold) {
+                if (!b.defaultBlockState().is(com.foglurker.registry.ModTags.UNBREAKABLE)) {
+                    missing.add(ForgeRegistries.BLOCKS.getKey(b).getPath());
+                }
+            }
+            boolean stoneOk = !net.minecraft.world.level.block.Blocks.STONE.defaultBlockState().is(com.foglurker.registry.ModTags.UNBREAKABLE);
+            rep.check(w, missing.isEmpty() && stoneOk, missing.isEmpty() ? "never breaks deepslate, obsidian, bedrock... (breaking "
+                    + (FogLurkerConfig.COMMON.breakBlocks.get() && level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_MOBGRIEFING)
+                    ? "on" : "off") + ")" : "not protected: " + missing);
         });
         r.run("You are in water now", (rep, w) -> rep.pass(w, SpotFinder.isInOrOnWater(player)
                 ? "yes: the crawler cannot reach you here" : "no"));
@@ -468,8 +485,9 @@ public final class DebugCommand {
             }
             r.pass("Active creatures", sb.toString().trim());
         }
-        r.pass("Config", "spawn every " + FogLurkerConfig.COMMON.spawnIntervalMinMinutes.get() + "-"
-                + FogLurkerConfig.COMMON.spawnIntervalMaxMinutes.get() + " min, chat "
+        r.pass("Config", "spawn roll every " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " min at "
+                + Math.round(FogLurkerConfig.COMMON.spawnChance.get() * 100) + "%, break blocks "
+                + FogLurkerConfig.COMMON.breakBlocks.get() + ", chat "
                 + FogLurkerConfig.COMMON.chatVisibility.get().name().toLowerCase(Locale.ROOT) + ", overworld only "
                 + FogLurkerConfig.COMMON.overworldOnly.get());
     }

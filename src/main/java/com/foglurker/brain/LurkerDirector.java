@@ -66,21 +66,27 @@ public final class LurkerDirector {
             return;
         }
         if (data.nextSpawnTicks() < 0) {
-            data.setNextSpawnTicks(randomInterval(server.overworld().getRandom()));
+            // The grace period just ended: first roll in 5 minutes.
+            data.setNextSpawnTicks(rollInterval());
             return;
         }
         data.countDownSpawn();
         if (data.nextSpawnTicks() == 0) {
-            boolean spawned = trySpawnNaturally(server, data);
-            // On failure (nobody eligible, no room), try again in 30 seconds.
-            data.setNextSpawnTicks(spawned ? randomInterval(server.overworld().getRandom()) : 600);
+            // Every 5 minutes: 50/50. If it did not come, the next roll is guaranteed.
+            boolean spawn = data.rollSpawn(server.overworld().getRandom().nextDouble(), FogLurkerConfig.COMMON.spawnChance.get());
+            if (spawn && !trySpawnNaturally(server, data)) {
+                // It wanted to come but nobody was eligible / there was no room: keep it owed, retry in 30 s.
+                data.setGuaranteedNext(true);
+                data.setNextSpawnTicks(600);
+                return;
+            }
+            data.setNextSpawnTicks(rollInterval());
         }
     }
 
-    public static int randomInterval(RandomSource r) {
-        int min = FogLurkerConfig.COMMON.spawnIntervalMinMinutes.get();
-        int max = Math.max(min, FogLurkerConfig.COMMON.spawnIntervalMaxMinutes.get());
-        return (min + r.nextInt(max - min + 1)) * 60 * 20 + r.nextInt(1200);
+    /** Ticks between two spawn rolls (5 minutes by default). */
+    public static int rollInterval() {
+        return FogLurkerConfig.COMMON.spawnRollMinutes.get() * 60 * 20;
     }
 
     @SubscribeEvent
@@ -92,7 +98,7 @@ public final class LurkerDirector {
     public static void onRemoved(FogLurkerEntity lurker) {
         if (ACTIVE.remove(lurker) && ACTIVE.isEmpty() && lurker.getServer() != null) {
             FogLurkerSavedData data = FogLurkerSavedData.get(lurker.getServer());
-            data.setNextSpawnTicks(randomInterval(lurker.getRandom()));
+            data.setNextSpawnTicks(rollInterval()); // next roll 5 minutes after it leaves
         }
     }
 

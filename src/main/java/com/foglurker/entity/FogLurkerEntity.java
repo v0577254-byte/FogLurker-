@@ -162,12 +162,26 @@ public class FogLurkerEntity extends PathfinderMob {
         brain.tick();
     }
 
+    /** Like a spider: in its attacking form it climbs any wall it runs into, including the tower you built. */
+    private boolean climbing;
+
     @Override
     public void tick() {
         super.tick();
         if (this.level().isClientSide) {
             clientTicker.accept(this);
+        } else {
+            this.climbing = isAttackForm() && this.horizontalCollision;
         }
+    }
+
+    @Override
+    public boolean onClimbable() {
+        return this.climbing || super.onClimbable();
+    }
+
+    public boolean isClimbing() {
+        return this.climbing;
     }
 
     @Override

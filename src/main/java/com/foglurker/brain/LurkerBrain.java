@@ -15,7 +15,13 @@ import com.foglurker.registry.ModSounds;
 import com.foglurker.voice.AudioFx;
 import com.foglurker.voice.VoiceBridge;
 import com.foglurker.world.FogLurkerSavedData;
+import com.foglurker.registry.ModTags;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.common.ForgeHooks;
+import net.minecraftforge.event.ForgeEventFactory;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -117,6 +123,16 @@ public final class LurkerBrain {
     // water: its weakness in the attacking form
     private int waterTicks;
     private int targetWaterTicks;
+
+    // chasing you up towers and through walls
+    private boolean directChase;
+    private int pushTicks;
+    @Nullable
+    private BlockPos breaking;
+    private int breakProgress;
+    private int breakTotal;
+    private double bestAttackDist = Double.MAX_VALUE;
+    private int attackStall;
 
     // stuck detection while closing in
     private double bestApproach = Double.MAX_VALUE;
@@ -301,7 +317,7 @@ public final class LurkerBrain {
         if (enc.mode() == Mode.ZOMBIE) {
             mob.setAggressive(true);
             stare(t);
-            if (dist < 3.0) {
+            if (revealDistance(t, dist) < 3.0) {
                 if (canAttack(t) && enc.willAttack()) {
                     if (canRevealNow(t)) {
                         setPhase(Phase.TRANSFORM);
@@ -469,7 +485,8 @@ public final class LurkerBrain {
         } else {
             stare(t);
         }
-        if ((dist <= 6 || (phaseAge > 20 * 25 && dist < 16)) && canRevealNow(t)) {
+        double near = revealDistance(t, dist);
+        if ((near <= 6 || (phaseAge > 20 * 25 && near < 16)) && canRevealNow(t)) {
             if (mimicking && random.nextFloat() < 0.6F) {
                 say(t, MimicChat.Intent.CREEPY, null);
             }
@@ -585,7 +602,8 @@ public final class LurkerBrain {
 
         if (enc.willAttack() && canAttack(t)) {
             boolean backTurned = !lookedAtNow && t.getViewVector(1F).dot(mob.position().subtract(t.position()).normalize()) < 0;
-            if ((dist < 5 || (dist < 10 && backTurned && phaseAge > 20 * 20 && isolated(t))) && canRevealNow(t)) {
+            double near = revealDistance(t, dist);
+            if ((near < 5 || (near < 10 && backTurned && phaseAge > 20 * 20 && isolated(t))) && canRevealNow(t)) {
                 setPhase(Phase.TRANSFORM);
             }
         } else if (dist < 4) {
@@ -650,12 +668,8 @@ public final class LurkerBrain {
             }
         } else {
             targetWaterTicks = 0;
-            if (age - lastRepath >= 5 || mob.getNavigation().isDone()) {
-                lastRepath = age;
-                if (!mob.getNavigation().moveTo(t, chase)) {
-                    mob.getMoveControl().setWantedPosition(t.getX(), t.getY(), t.getZ(), chase);
-                }
-            }
+            chase(t, chase);
+            dig(t);
         }
         if (age % 30 == 0) {
             mob.playSound(ModSounds.HEARTBEAT.get(), 1.0F, 1.2F);
@@ -669,11 +683,133 @@ public final class LurkerBrain {
             // 3 s / 2.5 s / 2 s / 1.75 s / 1.5 s between hits depending on the mode.
             attackCooldown = difficulty().attackCooldownTicks();
         }
+        if (dist < bestAttackDist - 0.5) {
+            bestAttackDist = dist;
+            attackStall = 0;
+        } else if (breaking == null) {
+            attackStall++;
+        }
         if (hits >= difficulty().maxHitsPerEncounter()) {
             setPhase(Phase.FLEE);
-        } else if (phaseAge > 20 * 60 || dist > 48) {
-            vanish(false);
+        } else if (phaseAge > 20 * 120 || attackStall > 20 * 30 || dist > 48) {
+            vanish(false); // a long hunt, or 30 s without getting any closer
         }
+    }
+
+    /**
+     * Normal pathfinding when it can reach you. When it cannot (you towered up, dug down, or walled
+     * yourself in) and you are close, it heads straight for you: walls and towers get climbed, holes
+     * get dropped into, and {@link #dig} handles the rest.
+     */
+    private void chase(ServerPlayer t, double speed) {
+        int every = directChase ? 20 : 5;
+        if (age - lastRepath >= every || (!directChase && mob.getNavigation().isDone())) {
+            lastRepath = age;
+            boolean pathed = mob.getNavigation().moveTo(t, speed);
+            var path = mob.getNavigation().getPath();
+            boolean unreachable = !pathed || path == null || !path.canReach();
+            double horizontal = Math.sqrt(Mth.square(t.getX() - mob.getX()) + Mth.square(t.getZ() - mob.getZ()));
+            directChase = unreachable && horizontal < 6;
+            if (directChase || !pathed) {
+                mob.getNavigation().stop();
+            }
+        }
+        if (directChase || mob.getNavigation().isDone()) {
+            mob.getMoveControl().setWantedPosition(t.getX(), t.getY(), t.getZ(), speed);
+        }
+    }
+
+    /** Breaks whatever stands between it and you, except protected blocks (deepslate, obsidian, bedrock...). */
+    private void dig(ServerPlayer t) {
+        if (!FogLurkerConfig.COMMON.breakBlocks.get() || !ForgeEventFactory.getMobGriefingEvent(level(), mob)) {
+            return;
+        }
+        ServerLevel level = level();
+        if (breaking != null) {
+            BlockState state = level.getBlockState(breaking);
+            if (state.isAir() || mob.distanceToSqr(Vec3.atCenterOf(breaking)) > 3.5 * 3.5 || !canBreak(breaking)) {
+                level.destroyBlockProgress(mob.getId(), breaking, -1);
+                breaking = null;
+                return;
+            }
+            breakProgress++;
+            mob.getLookControl().setLookAt(Vec3.atCenterOf(breaking));
+            if (breakProgress % 5 == 0) {
+                mob.swing(InteractionHand.MAIN_HAND);
+                level.playSound(null, breaking, state.getSoundType().getHitSound(), SoundSource.HOSTILE, 1.0F, 0.6F);
+            }
+            level.destroyBlockProgress(mob.getId(), breaking, Math.min(9, breakProgress * 10 / breakTotal));
+            if (breakProgress >= breakTotal) {
+                level.destroyBlockProgress(mob.getId(), breaking, -1);
+                level.destroyBlock(breaking, true, mob);
+                breaking = null;
+                pushTicks = 0;
+                attackStall = 0;
+            }
+            return;
+        }
+        // Pressing against something without managing to climb it (a ceiling stops the climb).
+        boolean pushing = mob.horizontalCollision && Math.abs(mob.getDeltaMovement().y) < 0.03;
+        pushTicks = pushing ? pushTicks + 1 : Math.max(0, pushTicks - 1);
+        double dy = t.getY() - mob.getY();
+        double horizontal = Math.sqrt(Mth.square(t.getX() - mob.getX()) + Mth.square(t.getZ() - mob.getZ()));
+        BlockPos feet = mob.blockPosition();
+        BlockPos pick = null;
+        boolean stalled = attackStall > 40 && !mob.isClimbing();
+        if (dy < -1.5 && mob.onGround() && (horizontal < 1.5 || stalled && horizontal < 3)) {
+            pick = solid(feet.below()) ? feet.below() : null;          // you are under it: dig down
+        } else if (dy > 1.5 && !mob.isClimbing() && (horizontal < 1.5 || stalled && horizontal < 3)) {
+            pick = solid(feet.above(2)) ? feet.above(2) : null;        // you are above a ceiling: dig up
+        }
+        if (pick == null && (pushTicks > 20 || stalled)) {
+            Direction dir = Direction.getNearest(t.getX() - mob.getX(), 0, t.getZ() - mob.getZ());
+            BlockPos front = feet.relative(dir);
+            // tunnel two high toward you, or down at an angle if you are below
+            pick = solid(front.above()) ? front.above() : solid(front) ? front
+                    : dy < -1 && solid(front.below()) ? front.below() : null;
+        }
+        if (pick != null && canBreak(pick)) {
+            float hardness = level.getBlockState(pick).getDestroySpeed(level, pick);
+            breaking = pick;
+            breakProgress = 0;
+            breakTotal = (int) Mth.clamp(15 + hardness * 12, 15, 120);
+        }
+    }
+
+    private boolean solid(BlockPos pos) {
+        BlockState s = level().getBlockState(pos);
+        return !s.isAir() && !s.getCollisionShape(level(), pos).isEmpty();
+    }
+
+    /** Never deepslate/obsidian/bedrock (tag), nothing as hard as obsidian, nothing holding items or data. */
+    public boolean canBreak(BlockPos pos) {
+        ServerLevel level = level();
+        BlockState s = level.getBlockState(pos);
+        if (s.isAir() || s.is(ModTags.UNBREAKABLE) || !s.getFluidState().isEmpty()) {
+            return false;
+        }
+        float hardness = s.getDestroySpeed(level, pos);
+        if (hardness < 0 || hardness >= 50.0F || level.getBlockEntity(pos) != null) {
+            return false;
+        }
+        return ForgeHooks.canEntityDestroy(level, pos, mob);
+    }
+
+    /** Skips straight to hunting in its attacking form (used by tests). */
+    public void huntNow() {
+        mob.setDisguise(Disguise.CRAWLER);
+        mob.clearEquipment();
+        mob.setAggressive(true);
+        setPhase(Phase.ATTACK);
+    }
+
+    /** Distance that counts for "close enough to reveal": height does not help you if you only towered up. */
+    private double revealDistance(ServerPlayer t, double dist) {
+        double dy = t.getY() - mob.getY();
+        if (dy > 2) {
+            return Math.sqrt(Mth.square(t.getX() - mob.getX()) + Mth.square(t.getZ() - mob.getZ()));
+        }
+        return dist;
     }
 
     private void flee(ServerPlayer t) {
@@ -755,6 +891,9 @@ public final class LurkerBrain {
                 12, mob.getBbWidth() / 2, h / 2, mob.getBbWidth() / 2, 0.01);
         mob.playSound(screaming ? ModSounds.SCREAM.get() : ModSounds.VANISH.get(), 1.5F, 0.8F);
         VoiceBridge.stop(mob);
+        if (breaking != null) {
+            level.destroyBlockProgress(mob.getId(), breaking, -1);
+        }
         ServerPlayer t = target();
         if (t != null) {
             ModNetwork.send(t, new FogPacket(0F));

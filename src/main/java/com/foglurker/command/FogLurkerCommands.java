@@ -224,8 +224,12 @@ public final class FogLurkerCommands {
             reply(src, Component.literal("The spawn timer is about to start.").withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        reply(src, Component.literal("Next appearance in: ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(time(next)).withStyle(ChatFormatting.WHITE)));
+        reply(src, Component.literal("Next spawn roll in: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(time(next)).withStyle(ChatFormatting.WHITE))
+                .append(data.nextIsGuaranteed()
+                        ? Component.literal(" (guaranteed: the last roll missed)").withStyle(ChatFormatting.RED)
+                        : Component.literal(" (" + Math.round(FogLurkerConfig.COMMON.spawnChance.get() * 100) + "% chance)")
+                        .withStyle(ChatFormatting.GRAY)));
         return next / 20;
     }
 

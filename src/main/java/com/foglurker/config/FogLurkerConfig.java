@@ -31,8 +31,9 @@ public final class FogLurkerConfig {
 
     public static final class Common {
         public final ForgeConfigSpec.ConfigValue<String> defaultDifficulty;
-        public final ForgeConfigSpec.IntValue spawnIntervalMinMinutes;
-        public final ForgeConfigSpec.IntValue spawnIntervalMaxMinutes;
+        public final ForgeConfigSpec.IntValue spawnRollMinutes;
+        public final ForgeConfigSpec.DoubleValue spawnChance;
+        public final ForgeConfigSpec.BooleanValue breakBlocks;
         public final ForgeConfigSpec.IntValue encounterMaxMinutes;
         public final ForgeConfigSpec.BooleanValue overworldOnly;
         public final ForgeConfigSpec.BooleanValue allowDoppelganger;
@@ -54,10 +55,15 @@ public final class FogLurkerConfig {
             defaultDifficulty = b.comment("Mode used for new worlds: very_easy, easy, medium, hard, deathwish.",
                             "Change it in game with /foglurker difficulty <mode>.")
                     .define("defaultDifficulty", "medium", o -> o instanceof String s && LurkerDifficulty.byId(s) != null);
-            spawnIntervalMinMinutes = b.comment("Shortest real-time wait between two appearances (after the grace period).")
-                    .defineInRange("spawnIntervalMinMinutes", 7, 1, 600);
-            spawnIntervalMaxMinutes = b.comment("Longest real-time wait between two appearances.")
-                    .defineInRange("spawnIntervalMaxMinutes", 14, 1, 600);
+            spawnRollMinutes = b.comment("After the grace period it rolls whether to appear every this many minutes.",
+                            "A roll that fails makes the next roll a guaranteed appearance.")
+                    .defineInRange("spawnRollMinutes", 5, 1, 600);
+            spawnChance = b.comment("Chance that a normal roll makes it appear (0.5 = 50/50).")
+                    .defineInRange("spawnChance", 0.5, 0.0, 1.0);
+            breakBlocks = b.comment("Let its attacking form break blocks to get to you (also needs the mobGriefing gamerule).",
+                            "It never breaks anything in the foglurker:unbreakable block tag (deepslate, obsidian, bedrock...),",
+                            "blocks as hard as obsidian or harder, or anything with an inventory or other block data.")
+                    .define("breakBlocks", true);
             encounterMaxMinutes = b.comment("An appearance gives up and fades away after this long.")
                     .defineInRange("encounterMaxMinutes", 5, 1, 60);
             overworldOnly = b.comment("Only appear on its own in the Overworld (/foglurker spawn works everywhere).")

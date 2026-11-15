@@ -29,6 +29,8 @@ public final class FogLurkerSavedData extends SavedData {
     private long graceElapsedTicks;
     /** Ticks until the next appearance; -1 = not scheduled yet. */
     private int nextSpawnTicks = -1;
+    /** Set when a roll failed: the next roll always spawns it. */
+    private boolean guaranteedNext;
     private int encounters;
     private final Map<UUID, PlayerBehaviorProfile> profiles = new HashMap<>();
     private EntityBehaviorStats entityStats = new EntityBehaviorStats();
@@ -86,6 +88,28 @@ public final class FogLurkerSavedData extends SavedData {
         }
     }
 
+    public boolean nextIsGuaranteed() {
+        return guaranteedNext;
+    }
+
+    public void setGuaranteedNext(boolean guaranteed) {
+        this.guaranteedNext = guaranteed;
+        setDirty();
+    }
+
+    /**
+     * One spawn roll: guaranteed if the previous roll failed, otherwise {@code chance}.
+     *
+     * @param roll a random number in [0, 1)
+     * @return true if it should appear now
+     */
+    public boolean rollSpawn(double roll, double chance) {
+        boolean spawn = guaranteedNext || roll < chance;
+        guaranteedNext = !spawn;
+        setDirty();
+        return spawn;
+    }
+
     public int encounters() {
         return encounters;
     }
@@ -126,6 +150,7 @@ public final class FogLurkerSavedData extends SavedData {
         }
         tag.putLong("graceElapsed", graceElapsedTicks);
         tag.putInt("nextSpawn", nextSpawnTicks);
+        tag.putBoolean("guaranteedNext", guaranteedNext);
         tag.putInt("encounters", encounters);
         CompoundTag prof = new CompoundTag();
         profiles.forEach((id, p) -> prof.put(id.toString(), p.save()));
@@ -146,6 +171,7 @@ public final class FogLurkerSavedData extends SavedData {
         }
         d.graceElapsedTicks = tag.getLong("graceElapsed");
         d.nextSpawnTicks = tag.contains("nextSpawn") ? tag.getInt("nextSpawn") : -1;
+        d.guaranteedNext = tag.getBoolean("guaranteedNext");
         d.encounters = tag.getInt("encounters");
         CompoundTag prof = tag.getCompound("profiles");
         for (String k : prof.getAllKeys()) {

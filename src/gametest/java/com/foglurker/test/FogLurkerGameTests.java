@@ -406,6 +406,131 @@ public final class FogLurkerGameTests {
         }));
     }
 
+    @GameTest(template = "empty", batch = "commands")
+    public static void spawnRollsEveryFiveMinutes(GameTestHelper h) {
+        logged(h, () -> {
+            check(com.foglurker.config.FogLurkerConfig.COMMON.spawnRollMinutes.get() == 5, "rolls must be 5 minutes apart");
+            check(LurkerDirector.rollInterval() == 5 * 60 * 20, "roll interval in ticks");
+            FogLurkerSavedData d = new FogLurkerSavedData();
+            check(!d.rollSpawn(0.9, 0.5), "a 0.9 roll on a 50/50 must not spawn");
+            check(d.nextIsGuaranteed(), "after a miss the next roll is guaranteed");
+            check(d.rollSpawn(0.99, 0.5), "a guaranteed roll spawns whatever the dice say");
+            check(!d.nextIsGuaranteed(), "after it spawned it goes back to 50/50");
+            check(d.rollSpawn(0.1, 0.5), "a 0.1 roll on a 50/50 spawns");
+            check(!d.rollSpawn(0.7, 0.5), "and the one after that is a normal 50/50 again");
+            check(d.rollSpawn(0.7, 0.5), "...which, having missed, guarantees the next");
+            h.succeed();
+        });
+    }
+
+    private static FogLurkerEntity hunter(GameTestHelper h, ServerPlayer p, double rx, double rz) {
+        FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.CRAWLER, Boolean.TRUE);
+        check(l != null, "no spawn");
+        Vec3 at = h.absoluteVec(new Vec3(rx, 0, rz));
+        l.teleportTo(at.x, at.y, at.z);
+        l.brain().huntNow();
+        return l;
+    }
+
+    private static void box(GameTestHelper h, net.minecraft.world.level.block.state.BlockState wall, int half, int height) {
+        ServerLevel level = h.getLevel();
+        net.minecraft.core.BlockPos c = h.absolutePos(new net.minecraft.core.BlockPos(1, 0, 1));
+        for (int x = -half; x <= half; x++) {
+            for (int z = -half; z <= half; z++) {
+                for (int y = 0; y <= height; y++) {
+                    boolean shell = Math.abs(x) == half || Math.abs(z) == half || y == height;
+                    if (shell) {
+                        level.setBlockAndUpdate(c.offset(x, y, z), wall);
+                    }
+                }
+            }
+        }
+    }
+
+    @GameTest(template = "empty", batch = "climb", timeoutTicks = 900)
+    public static void climbsYourTower(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerLevel level = h.getLevel();
+            // A 6 block deepslate tower (it cannot dig through it) with the player on top.
+            for (int y = 0; y < 6; y++) {
+                level.setBlockAndUpdate(h.absolutePos(new net.minecraft.core.BlockPos(1, y, 1)),
+                        net.minecraft.world.level.block.Blocks.DEEPSLATE.defaultBlockState());
+            }
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(level.getServer(), p);
+            Vec3 top = h.absoluteVec(new Vec3(1.5, 6, 1.5));
+            p.teleportTo(level, top.x, top.y, top.z, 0F, 0F);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = hunter(h, p, 6.5, 1.5);
+                h.succeedWhen(() -> {
+                    check(!l.isRemoved(), "it gave up (" + l.brain().describe() + ")");
+                    check(p.getHealth() < 20F, "it has not reached the top of the tower yet ("
+                            + l.brain().describe() + ", y " + l.getY() + " vs " + p.getY() + ")");
+                    l.brain().vanish(false);
+                });
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "dig", timeoutTicks = 1600)
+    public static void breaksIntoYourShelter(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            h.getLevel().getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_MOBGRIEFING).set(true, h.getLevel().getServer());
+            box(h, net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 2, 3);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = hunter(h, p, 8.5, 1.5);
+                h.succeedWhen(() -> {
+                    check(!l.isRemoved(), "it gave up (" + l.brain().describe() + ")");
+                    check(p.getHealth() < 20F, "it has not got into the stone shelter yet (" + l.brain().describe() + ")");
+                    l.brain().vanish(false);
+                });
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "deepslate", timeoutTicks = 700)
+    public static void deepslateShelterHolds(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            h.getLevel().getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_MOBGRIEFING).set(true, h.getLevel().getServer());
+            var deepslate = net.minecraft.world.level.block.Blocks.DEEPSLATE.defaultBlockState();
+            box(h, deepslate, 2, 3);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = hunter(h, p, 8.5, 1.5);
+                check(!l.brain().canBreak(h.absolutePos(new net.minecraft.core.BlockPos(3, 1, 1))), "deepslate must be protected");
+                h.runAfterDelay(500, () -> logged(h, () -> {
+                    net.minecraft.core.BlockPos c = h.absolutePos(new net.minecraft.core.BlockPos(1, 0, 1));
+                    int missing = 0;
+                    for (int x = -2; x <= 2; x++) {
+                        for (int z = -2; z <= 2; z++) {
+                            for (int y = 0; y <= 3; y++) {
+                                boolean shell = Math.abs(x) == 2 || Math.abs(z) == 2 || y == 3;
+                                if (shell && !h.getLevel().getBlockState(c.offset(x, y, z)).is(net.minecraft.world.level.block.Blocks.DEEPSLATE)) {
+                                    missing++;
+                                }
+                            }
+                        }
+                    }
+                    check(missing == 0, missing + " deepslate block(s) were broken");
+                    check(p.getHealth() >= 20F, "it got through deepslate");
+                    if (!l.isRemoved()) {
+                        l.brain().vanish(false);
+                    }
+                    h.succeed();
+                }));
+            }));
+        });
+    }
+
     @GameTest(template = "empty", batch = "secure", timeoutTicks = 200)
     public static void secureFolderConsentAndSnippets(GameTestHelper h) {
         logged(h, () -> secureFolderConsentAndSnippetsImpl(h));
