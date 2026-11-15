@@ -1,0 +1,56 @@
+{
+  "lurker.scream": {
+    "subtitle": "subtitles.foglurker.lurker.scream",
+    "sounds": [
+      {"name": "mob/endermen/scream1", "pitch": 0.5},
+      {"name": "mob/endermen/scream2", "pitch": 0.45},
+      {"name": "mob/endermen/scream3", "pitch": 0.55}
+    ]
+  },
+  "lurker.reveal": {
+    "subtitle": "subtitles.foglurker.lurker.reveal",
+    "sounds": [
+      {"name": "mob/warden/roar_1", "pitch": 1.35},
+      {"name": "mob/warden/roar_3", "pitch": 1.3},
+      {"name": "mob/warden/roar_5", "pitch": 1.4}
+    ]
+  },
+  "lurker.whisper": {
+    "subtitle": "subtitles.foglurker.lurker.whisper",
+    "sounds": [
+      {"name": "ambient/cave/cave13", "pitch": 0.8, "volume": 0.7},
+      {"name": "ambient/cave/cave14", "pitch": 0.7, "volume": 0.7},
+      {"name": "ambient/cave/cave18", "pitch": 0.75, "volume": 0.7}
+    ]
+  },
+  "lurker.vanish": {
+    "subtitle": "subtitles.foglurker.lurker.vanish",
+    "sounds": [
+      {"name": "mob/endermen/portal", "pitch": 0.5},
+      {"name": "mob/endermen/portal2", "pitch": 0.45}
+    ]
+  },
+  "lurker.heartbeat": {
+    "sounds": [
+      {"name": "mob/warden/heartbeat_1"},
+      {"name": "mob/warden/heartbeat_2"},
+      {"name": "mob/warden/heartbeat_3"},
+      {"name": "mob/warden/heartbeat_4"}
+    ]
+  },
+  "lurker.hurt": {
+    "subtitle": "subtitles.foglurker.lurker.hurt",
+    "sounds": [
+      {"name": "mob/endermen/hit1", "pitch": 0.5},
+      {"name": "mob/endermen/hit2", "pitch": 0.5},
+      {"name": "mob/endermen/hit3", "pitch": 0.45}
+    ]
+  },
+  "lurker.attack": {
+    "subtitle": "subtitles.foglurker.lurker.attack",
+    "sounds": [
+      {"name": "mob/warden/sonic_charge1", "pitch": 2.0, "volume": 0.8},
+      {"name": "mob/warden/sonic_charge2", "pitch": 2.0, "volume": 0.8}
+    ]
+  }
+}

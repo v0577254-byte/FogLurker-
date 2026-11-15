@@ -1,0 +1,199 @@
+package com.foglurker.brain;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+
+import javax.annotation.Nullable;
+
+/** Finds places to appear, places to hide, and "the woods" to lure people into. Never loads chunks. */
+public final class SpotFinder {
+    private SpotFinder() {
+    }
+
+    public record Woods(Vec3 pos, int canopy, String direction) {
+    }
+
+    public static boolean loaded(ServerLevel level, int x, int z) {
+        return level.hasChunk(x >> 4, z >> 4);
+    }
+
+    public static boolean isStandable(ServerLevel level, BlockPos feet) {
+        BlockPos below = feet.below();
+        if (!level.isInWorldBounds(feet)) {
+            return false;
+        }
+        BlockState ground = level.getBlockState(below);
+        if (!ground.isFaceSturdy(level, below, Direction.UP) || ground.is(BlockTags.LEAVES)) {
+            return false;
+        }
+        if (!level.getFluidState(feet).isEmpty() || !level.getFluidState(below).isEmpty()) {
+            return false;
+        }
+        return level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty();
+    }
+
+    /** Ground under a column near a reference height (surface if the reference is on the surface). */
+    @Nullable
+    public static BlockPos ground(ServerLevel level, int x, int z, int refY) {
+        if (!loaded(level, x, z)) {
+            return null;
+        }
+        int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        if (Math.abs(surface - refY) <= 8) {
+            BlockPos p = new BlockPos(x, surface, z);
+            if (isStandable(level, p)) {
+                return p;
+            }
+        }
+        for (int dy = 6; dy >= -8; dy--) {
+            BlockPos p = new BlockPos(x, refY + dy, z);
+            if (isStandable(level, p)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    public static boolean canSee(ServerPlayer viewer, Vec3 point) {
+        Vec3 eye = viewer.getEyePosition();
+        if (eye.distanceToSqr(point) > 128 * 128) {
+            return false;
+        }
+        return viewer.level().clip(new ClipContext(eye, point, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, viewer))
+                .getType() == HitResult.Type.MISS;
+    }
+
+    /**
+     * A spot between minR and maxR blocks from the player.
+     *
+     * @param preferDir  bias the direction (e.g. towards where the real friend is), may be null
+     * @param wantHidden prefer spots the player cannot currently see
+     * @param behind     prefer spots behind the player's back
+     */
+    @Nullable
+    public static Vec3 findSpawn(ServerLevel level, ServerPlayer target, double minR, double maxR,
+                                 @Nullable Vec3 preferDir, boolean wantHidden, boolean behind, RandomSource r) {
+        Vec3 origin = target.position();
+        Vec3 look = target.getViewVector(1F);
+        Vec3 best = null;
+        double bestScore = -Double.MAX_VALUE;
+        for (int i = 0; i < 40; i++) {
+            double angle;
+            if (preferDir != null && i < 24) {
+                angle = Math.atan2(preferDir.z, preferDir.x) + (r.nextDouble() - 0.5) * Math.PI * 0.6;
+            } else {
+                angle = r.nextDouble() * Math.PI * 2;
+            }
+            double radius = minR + r.nextDouble() * (maxR - minR);
+            int x = Mth.floor(origin.x + Math.cos(angle) * radius);
+            int z = Mth.floor(origin.z + Math.sin(angle) * radius);
+            BlockPos g = ground(level, x, z, Mth.floor(origin.y));
+            if (g == null) {
+                continue;
+            }
+            Vec3 spot = Vec3.atBottomCenterOf(g);
+            boolean visible = canSee(target, spot.add(0, 1.5, 0));
+            double score = r.nextDouble();
+            if (wantHidden) {
+                score += visible ? -5 : 5;
+            }
+            if (behind) {
+                Vec3 to = spot.subtract(origin).normalize();
+                score += look.x * to.x + look.z * to.z < 0 ? 2 : -2;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = spot;
+            }
+        }
+        return best;
+    }
+
+    /** How much tree canopy and how many trunks are around a point. */
+    public static int canopyScore(ServerLevel level, int cx, int cz) {
+        int score = 0;
+        for (int dx = -4; dx <= 4; dx += 2) {
+            for (int dz = -4; dz <= 4; dz += 2) {
+                int x = cx + dx;
+                int z = cz + dz;
+                if (!loaded(level, x, z)) {
+                    return -1;
+                }
+                int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
+                int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                if (top - ground >= 2) {
+                    score++;
+                }
+                if (level.getBlockState(new BlockPos(x, ground - 1, z)).is(BlockTags.LOGS)) {
+                    score++;
+                }
+            }
+        }
+        return score;
+    }
+
+    /** Picks the most "woods-like" place 28-64 blocks away, preferring directions away from {@code avoid}. */
+    public static Woods findWoods(ServerLevel level, Vec3 origin, @Nullable Vec3 avoid, RandomSource r) {
+        Vec3 bestPos = null;
+        int bestCanopy = 0;
+        double bestScore = -Double.MAX_VALUE;
+        Vec3 away = avoid == null ? null : origin.subtract(avoid).multiply(1, 0, 1);
+        if (away != null && away.lengthSqr() > 1e-4) {
+            away = away.normalize();
+        } else {
+            away = null;
+        }
+        for (int i = 0; i < 28; i++) {
+            double angle = r.nextDouble() * Math.PI * 2;
+            double radius = 28 + r.nextInt(4) * 12;
+            int x = Mth.floor(origin.x + Math.cos(angle) * radius);
+            int z = Mth.floor(origin.z + Math.sin(angle) * radius);
+            int canopy = canopyScore(level, x, z);
+            if (canopy < 0) {
+                continue;
+            }
+            BlockPos g = ground(level, x, z, Mth.floor(origin.y));
+            if (g == null) {
+                continue;
+            }
+            double score = canopy * 3 + r.nextDouble();
+            if (away != null) {
+                score += 4 * (away.x * Math.cos(angle) + away.z * Math.sin(angle));
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                bestCanopy = canopy;
+                bestPos = Vec3.atBottomCenterOf(g);
+            }
+        }
+        if (bestPos == null) {
+            // No loaded ground anywhere? Just go "that way".
+            Vec3 dir = away != null ? away : new Vec3(r.nextDouble() - 0.5, 0, r.nextDouble() - 0.5).normalize();
+            bestPos = origin.add(dir.scale(40));
+        }
+        return new Woods(bestPos, bestCanopy, compass(origin, bestPos));
+    }
+
+    /** "north", "south-east"... as seen from {@code from}. Minecraft north is -Z. */
+    public static String compass(Vec3 from, Vec3 to) {
+        double dx = to.x - from.x;
+        double dz = to.z - from.z;
+        double deg = Math.toDegrees(Math.atan2(dx, -dz));
+        if (deg < 0) {
+            deg += 360;
+        }
+        String[] names = {"north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"};
+        return names[(int) Math.round(deg / 45.0) % 8];
+    }
+}

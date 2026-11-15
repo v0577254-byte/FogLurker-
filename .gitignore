@@ -1,0 +1,23 @@
+# Gradle / build
+.gradle/
+build/
+out/
+run/
+runs/
+logs/
+*.log
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+bin/
+eclipse/
+
+# Never commit secrets or recorded voice data
+foglurker_secure/

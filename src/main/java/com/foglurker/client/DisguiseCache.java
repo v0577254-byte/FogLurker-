@@ -1,0 +1,176 @@
+package com.foglurker.client;
+
+import com.foglurker.entity.Disguise;
+import com.foglurker.entity.FogLurkerEntity;
+import com.mojang.authlib.GameProfile;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.Sheep;
+import net.minecraft.world.entity.animal.Wolf;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
+
+import javax.annotation.Nullable;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+
+/**
+ * Keeps one invisible "puppet" entity per creature (a cow, a wolf, a copy of your friend...) and
+ * moves it in lock-step with the creature, so the real vanilla renderer can draw the disguise.
+ */
+public final class DisguiseCache {
+    private record Key(Disguise disguise, @Nullable UUID mimic, int variant) {
+    }
+
+    private static final class Holder {
+        Key key;
+        LivingEntity dummy;
+    }
+
+    private static final Map<Integer, Holder> CACHE = new HashMap<>();
+
+    private DisguiseCache() {
+    }
+
+    public static void tick(FogLurkerEntity lurker) {
+        LivingEntity dummy = get(lurker);
+        if (dummy != null) {
+            sync(lurker, dummy, true);
+        }
+    }
+
+    public static void clear() {
+        CACHE.clear();
+    }
+
+    public static void cleanup(ClientLevel level) {
+        CACHE.entrySet().removeIf(e -> {
+            Entity live = level.getEntity(e.getKey());
+            return !(live instanceof FogLurkerEntity) || live.isRemoved();
+        });
+    }
+
+    @Nullable
+    public static LivingEntity get(FogLurkerEntity lurker) {
+        Disguise d = lurker.getDisguise();
+        if (d == Disguise.NONE || !(lurker.level() instanceof ClientLevel level)) {
+            CACHE.remove(lurker.getId());
+            return null;
+        }
+        Key key = new Key(d, d == Disguise.PLAYER ? lurker.getMimicUuid() : null, lurker.getVariant());
+        Holder h = CACHE.get(lurker.getId());
+        if (h == null || !h.key.equals(key) || h.dummy.level() != level) {
+            LivingEntity dummy = create(level, lurker, d);
+            if (dummy == null) {
+                return null;
+            }
+            h = new Holder();
+            h.key = key;
+            h.dummy = dummy;
+            CACHE.put(lurker.getId(), h);
+            sync(lurker, dummy, false);
+        }
+        return h.dummy;
+    }
+
+    @Nullable
+    private static LivingEntity create(ClientLevel level, FogLurkerEntity lurker, Disguise d) {
+        if (d == Disguise.PLAYER) {
+            UUID id = lurker.getMimicUuid();
+            String name = lurker.getMimicName();
+            ClientPacketListener conn = Minecraft.getInstance().getConnection();
+            PlayerInfo info = id == null || conn == null ? null : conn.getPlayerInfo(id);
+            GameProfile profile = info != null ? info.getProfile()
+                    : new GameProfile(id != null ? id : UUID.randomUUID(), name.isEmpty() ? "Player" : name);
+            return new MimicDummyPlayer(level, profile);
+        }
+        EntityType<?> type = d.renderType();
+        if (type == null) {
+            return null;
+        }
+        Entity e = type.create(level);
+        if (!(e instanceof LivingEntity living)) {
+            return null;
+        }
+        living.setSilent(true);
+        if (living instanceof Mob mob) {
+            mob.setNoAi(true);
+        }
+        if (living instanceof Sheep sheep) {
+            sheep.setColor(DyeColor.byId(lurker.getVariant()));
+        }
+        if (living instanceof Wolf wolf && d == Disguise.DOG) {
+            wolf.setTame(true);
+            wolf.setHealth(wolf.getMaxHealth()); // a healthy dog wags its tail high
+            wolf.setCollarColor(DyeColor.byId(lurker.getVariant()));
+        }
+        return living;
+    }
+
+    private static void sync(FogLurkerEntity src, LivingEntity dst, boolean ticking) {
+        dst.setPos(src.getX(), src.getY(), src.getZ());
+        dst.xo = src.xo;
+        dst.yo = src.yo;
+        dst.zo = src.zo;
+        dst.xOld = src.xOld;
+        dst.yOld = src.yOld;
+        dst.zOld = src.zOld;
+        dst.setYRot(src.getYRot());
+        dst.yRotO = src.yRotO;
+        dst.setXRot(src.getXRot());
+        dst.xRotO = src.xRotO;
+        dst.yBodyRot = src.yBodyRot;
+        dst.yBodyRotO = src.yBodyRotO;
+        dst.yHeadRot = src.yHeadRot;
+        dst.yHeadRotO = src.yHeadRotO;
+        dst.setOnGround(src.onGround());
+        dst.tickCount = src.tickCount;
+        dst.hurtTime = src.hurtTime;
+        dst.hurtDuration = src.hurtDuration;
+        dst.attackAnim = src.attackAnim;
+        dst.oAttackAnim = src.oAttackAnim;
+        dst.swinging = src.swinging;
+        dst.swingTime = src.swingTime;
+        dst.swingingArm = src.swingingArm;
+        dst.setPose(src.getPose());
+        dst.setShiftKeyDown(src.isShiftKeyDown());
+        dst.setInvisible(src.isInvisible());
+        if (ticking) {
+            // Same maths vanilla uses for leg swing, driven by the creature's real movement.
+            float moved = (float) Mth.length(src.getX() - src.xo, 0.0D, src.getZ() - src.zo);
+            dst.walkAnimation.update(Math.min(moved * 4.0F, 1.0F), 0.4F);
+        }
+        if (dst instanceof MimicDummyPlayer player) {
+            player.setLook(src.getSkinParts(), src.getMimicMainArm());
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                ItemStack want = src.getItemBySlot(slot);
+                if (!ItemStack.matches(want, player.getItemBySlot(slot))) {
+                    player.setItemSlot(slot, want.copy());
+                }
+            }
+        }
+        if (dst instanceof Mob mob) {
+            mob.setAggressive(src.isAggressive());
+        }
+        if (dst instanceof Wolf wolf) {
+            wolf.setInSittingPose(src.hasFlag(FogLurkerEntity.FLAG_SITTING));
+            boolean angry = src.hasFlag(FogLurkerEntity.FLAG_ANGRY);
+            if (angry != wolf.getRemainingPersistentAngerTime() > 0) {
+                wolf.setRemainingPersistentAngerTime(angry ? 400 : 0);
+            }
+        }
+        if (!Objects.equals(dst.getCustomName(), src.getCustomName()) && src.getDisguise() == Disguise.DOG) {
+            dst.setCustomName(src.getCustomName());
+        }
+    }
+}
