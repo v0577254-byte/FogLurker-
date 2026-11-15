@@ -10,6 +10,7 @@ import net.minecraft.client.model.geom.builders.CubeListBuilder;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.model.geom.builders.PartDefinition;
+import com.foglurker.entity.MacarenaDance;
 import net.minecraft.util.Mth;
 
 /**
@@ -145,6 +146,52 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
         }
     }
 
+    /** Rears up on its hind legs and does the Macarena with its far-too-long arms. */
+    private void dance(float t) {
+        float countF = t / MacarenaDance.TICKS_PER_COUNT;
+        int count = Math.floorMod((int) Math.floor(countF), MacarenaDance.COUNTS);
+        float within = countF - (float) Math.floor(countF);
+        float[] from = MacarenaDance.pose(count - 1);
+        float[] to = MacarenaDance.pose(count);
+        float k = Math.min(1F, within * 2.5F);
+        k = k * k * (3 - 2 * k);
+        float[] p = new float[8];
+        for (int i = 0; i < 8; i++) {
+            p[i] = Mth.lerp(k, from[i], to[i]);
+        }
+
+        float bounce = Mth.abs(Mth.sin(countF * Mth.PI)) * 0.8F;
+        float sway = count >= 12 && count <= 14 ? Mth.sin(countF * Mth.PI) * 1.6F : 0F;
+        float hop = count == 15 ? Mth.sin(within * Mth.PI) * 6F : 0F;
+        float lift = bounce + hop;
+
+        // Upright torso standing on bent hind legs (hips 18.5 px up, chest rising above them).
+        body.setPos(sway, 5.5F - lift, 1.0F);
+        body.setRotation(Mth.HALF_PI - 0.12F, 0F, -sway * 0.05F);
+        rightLeg.setPos(-3.5F + sway, 6.0F - lift, 1.0F);
+        rightLeg.setRotation(-0.6F, 0F, 0.12F);
+        rightShin.xRot = 1.2F;
+        leftLeg.setPos(3.5F + sway, 6.0F - lift, 1.0F);
+        leftLeg.setRotation(-0.6F, 0F, -0.12F);
+        leftShin.xRot = 1.2F;
+
+        // Head on top, grinning, jaw chomping on every beat.
+        neck.setPos(sway * 0.8F, -9.0F - lift, -0.5F);
+        neck.setRotation(-1.0F, 0F, 0F);
+        head.xRot = 1.0F + 0.12F * Mth.sin(countF * 2 * Mth.PI);
+        head.yRot = 0F;
+        head.zRot = 0.25F;
+        jaw.xRot = 0.35F + 0.35F * Mth.abs(Mth.sin(countF * Mth.PI));
+
+        // Shoulders at the top of the torso; the Macarena itself.
+        rightArm.setPos(-5.5F + sway, -6.5F - lift, 0.5F);
+        rightArm.setRotation(p[0], p[1], p[2]);
+        rightForearm.setRotation(p[3], 0F, 0F);
+        leftArm.setPos(5.5F + sway, -6.5F - lift, 0.5F);
+        leftArm.setRotation(p[4], p[5], p[6]);
+        leftForearm.setRotation(p[7], 0F, 0F);
+    }
+
     @Override
     public ModelPart root() {
         return root;
@@ -154,6 +201,10 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
     public void setupAnim(FogLurkerEntity e, float limbSwing, float limbSwingAmount, float ageInTicks,
                           float netHeadYaw, float headPitch) {
         this.root().getAllParts().forEach(ModelPart::resetPose);
+        if (e.isDancing()) {
+            dance(e.danceTime(ageInTicks - (int) ageInTicks));
+            return;
+        }
         boolean aggressive = e.isAggressive();
         float walk = limbSwing * 0.55F;
         float amount = Math.min(1.0F, limbSwingAmount * 1.6F);

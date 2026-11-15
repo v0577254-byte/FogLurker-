@@ -20,6 +20,43 @@ public final class MacarenaDance {
     private MacarenaDance() {
     }
 
+    // Upper arm {xRot, yRot, zRot, forearm bend} per move, right arm (left is mirrored).
+    private static final float[][] RIGHT_MOVES = {
+            {-1.5708F, 0F, 0F, 0F},          // arm out, palm down
+            {-1.42F, 0F, -0.35F, 0F},        // palm up
+            {-1.9F, -0.95F, 0F, 2.3F},       // hand to the other shoulder
+            {-3.35F, 0F, 0.55F, -2.2F},      // hand behind the head
+            {-0.55F, -0.55F, 0.35F, 0.3F},   // hand to the other hip
+            {0.55F, 0F, -0.15F, -0.4F},      // hand to the back pocket
+    };
+    private static final float[][] POSES = buildPoses();
+
+    /**
+     * Arm angles for a count: {right x, y, z, right forearm bend, left x, y, z, left forearm bend}.
+     * Each count moves one arm (right, left, right, left...); counts 12-15 hold.
+     */
+    public static float[] pose(int count) {
+        return POSES[Math.floorMod(count, COUNTS)];
+    }
+
+    private static float[][] buildPoses() {
+        float[][] poses = new float[COUNTS][];
+        float[] right = {0F, 0F, 0F, 0F};
+        float[] left = {0F, 0F, 0F, 0F};
+        for (int c = 0; c < COUNTS; c++) {
+            if (c < 12) {
+                float[] m = RIGHT_MOVES[c / 2];
+                if (c % 2 == 0) {
+                    right = m;
+                } else {
+                    left = new float[]{m[0], -m[1], -m[2], m[3]};
+                }
+            }
+            poses[c] = new float[]{right[0], right[1], right[2], right[3], left[0], left[1], left[2], left[3]};
+        }
+        return poses;
+    }
+
     public static int count(int danceTick) {
         return (danceTick / TICKS_PER_COUNT) % COUNTS;
     }

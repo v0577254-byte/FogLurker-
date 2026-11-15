@@ -84,7 +84,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
 | `/foglurker geministatus` | op / host | Shows the masked key and tests it |
 | `/foglurker despawn` | cheats / op | Sends it away |
-| `/foglurker-macarena [loops]` | cheats / op | It appears in front of you and does the Macarena (default 3 loops, max 20), then vanishes. Harmless and invulnerable, never counts as a hunt. Also `/foglurker macarena` |
+| `/foglurker-macarena [loops]` | cheats / op | The pale crawler appears in front of you and does the Macarena (default 3 loops, max 20), then vanishes. Harmless and invulnerable, never counts as a hunt. Also `/foglurker macarena` |
 | `/foglurker debugeverything` | op / host | **Temporary.** Checks everything on the server *and* in your game, and lists what passed and failed in chat (see below) |
 | `/flurk voicesnippets terms` | everyone | Shows the voice snippet terms with **[YES] [NO]** buttons |
 | `/fglurk optin` | everyone | Opt in to voice snippets |
@@ -97,7 +97,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 
 ![The Fog Lurker doing the Macarena](docs/images/macarena.png)
 
-It does the full 16-count dance: arms out palm down, palms up, hands to the shoulders, behind the head, to the hips and to the back pockets, then a hip wiggle and a hop with a quarter turn, bouncing on every beat. The music is an original note-block groove, not the song.
+The pale crawler rears up on its hind legs and does the full 16-count dance with its far-too-long arms (its jaw chomps to the beat): arms out palm down, palms up, hands to the shoulders, behind the head, to the hips and to the back pockets, then a hip wiggle and a hop with a quarter turn, bouncing on every beat. The music is an original note-block groove, not the song.
 
 ### `/foglurker debugeverything` (temporary)
 

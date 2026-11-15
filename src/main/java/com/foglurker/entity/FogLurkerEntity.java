@@ -216,7 +216,7 @@ public class FogLurkerEntity extends PathfinderMob {
 
     /** Harmless, invulnerable, dances {@code loops} times through, then vanishes. Never hunts. */
     public void startMacarena(int loops) {
-        setDisguise(Disguise.NONE);
+        setDisguise(Disguise.CRAWLER); // the pale one stands up on its hind legs to dance
         setDisguiseName(null);
         clearEquipment();
         setFlag(FLAG_DANCING, true);

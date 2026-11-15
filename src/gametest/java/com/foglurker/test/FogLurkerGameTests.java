@@ -547,7 +547,7 @@ public final class FogLurkerGameTests {
                     FogLurkerEntity::isDancing);
             check(dancers.size() == 1 && before == 0, "expected exactly one dancer, found " + dancers.size());
             FogLurkerEntity dancer = dancers.get(0);
-            check(dancer.isInvulnerable() && dancer.getDisguise() == Disguise.NONE, "dancer should be the harmless watcher");
+            check(dancer.isInvulnerable() && dancer.getDisguise() == Disguise.CRAWLER, "dancer should be the harmless pale crawler");
             float yaw = dancer.getYRot();
             h.runAfterDelay(com.foglurker.entity.MacarenaDance.TICKS_PER_COUNT * 15 + 4, () ->
                     check(Math.abs(net.minecraft.util.Mth.wrapDegrees(dancer.getYRot() - yaw + 90)) < 1,
