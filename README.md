@@ -1,11 +1,13 @@
 # Fog Lurker
 
+<img src="docs/images/split_head.png" alt="Half creature, half player" width="256" align="right">
+
 A horror mod for **Minecraft 1.20.1 (Forge 47.x)**.
 
 Something in the fog has been watching you play. It learns how you move and how you type. It learns what your friends sound like and what your dog is called. Then it uses all of that to lure you into the woods.
 
 ![Every disguise, lined up](docs/images/disguises.jpg)
-*Left to right: its true form, a wolf, a zombie, a chicken, a pig, a sheep, a cow, **your dog** (collar and name copied) and **your friend** (skin, armour and held item copied).*
+*Left to right: its pale attacking form, the watcher, a wolf, a zombie, a chicken, a pig, a sheep, a cow, **your dog** (collar and name copied) and **your friend** (skin, armour and held item copied).*
 
 ## What it does
 
@@ -23,16 +25,34 @@ Something in the fog has been watching you play. It learns how you move and how 
 
 It never really dies. Hurt it badly enough and it melts back into the fog until next time.
 
+## Its attacking form
+
+When it stops pretending, its stolen shape flickers and peels away into **the crawler**. The crawler is pale and albino with gray accents. It moves on all fours, with arms long enough to reach more than a block past its shoulders and grasshopper legs whose knees sit up by its ribs. Its long jaw hangs open, showing a blood-red mouth full of teeth with blood on them, and its eyes are pure white and glow in the dark.
+
+| Front | Side |
+|---|---|
+| ![The crawler, front](docs/images/crawler_front.jpg) | ![The crawler, side](docs/images/crawler_side.jpg) |
+
+## Water is its weakness
+
+- **It never appears in, on or next to water.** Every spawn spot, and the "woods" it leads you to, is checked to be dry ground.
+- **In human form it swims like a player**, sprint-swimming flat through the water to cross rivers.
+- **The crawler cannot swim.** It will not path into water. If it ends up in water it sinks, thrashes toward the shore, takes damage, and after three seconds the water drives it away.
+- **Jump in water to escape.** If you are swimming, wading out of reach or in a boat, the crawler can only pace the nearest shore and scream. After 20 seconds it gives up. It also never sheds its human skin while you or it are in water, because it knows.
+
+![A stolen player sprint-swimming](docs/images/swim.jpg)
+
 ## The five modes
 
-| Mode | Attacks on | Damage per hit | Grace period (first start) | Notes |
-|---|---|---|---|---|
-| **Very Easy** | rarely (1 in 10 appearances) | 1 heart | 45 minutes | mostly only watches |
-| **Easy** | rarely (1 in 5) | 3 hearts | 30 minutes | |
-| **Medium** *(default)* | 1 in 3 | 5 hearts | 20 minutes (one Minecraft day) | |
-| **Hard** | 1 in 2 | 6 hearts | 10 minutes | |
-| **Deathwish** | 3 in 4 | **one shot** | 5 minutes | **50% faster** than every other mode |
+| Mode | Attacks on | Damage per hit | Time between hits | Grace period (first start) | Notes |
+|---|---|---|---|---|---|
+| **Very Easy** | rarely (1 in 10 appearances) | 1 heart | 3 s | 45 minutes | mostly only watches |
+| **Easy** | rarely (1 in 5) | 3 hearts | 2.5 s | 30 minutes | |
+| **Medium** *(default)* | 1 in 3 | 5 hearts | 2 s | 20 minutes (one Minecraft day) | |
+| **Hard** | 1 in 2 | 6 hearts | 1.75 s | 10 minutes | |
+| **Deathwish** | 3 in 4 | **one shot** | 1.5 s | 5 minutes | **50% faster** than every other mode |
 
+- It can never spam attacks: the time between hits is enforced on the creature itself.
 - Hits ignore armour, so "5 hearts" really is 5 hearts. A Totem of Undying still saves you, even on Deathwish.
 - The grace period counts real play time from the very first time a world starts with the mod. Nothing appears during it, but it is already learning how everyone plays.
 - After the grace period it appears every 7–14 minutes (configurable). The timer pauses while it is out hunting.
@@ -44,19 +64,30 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 
 | Command | Who | What it does |
 |---|---|---|
-| `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `true_form`, `random` |
+| `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `watcher`, `crawler`, `random` |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
 | `/foglurker spawntimer` | cheats / op | Time until the next appearance (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
 | `/foglurker geministatus` | op / host | Shows the masked key and tests it |
 | `/foglurker despawn` | cheats / op | Sends it away |
+| `/foglurker debugeverything` | op / host | **Temporary.** Checks everything on the server *and* in your game, and lists what passed and failed in chat (see below) |
 | `/flurk voicesnippets terms` | everyone | Shows the voice snippet terms with **[YES] [NO]** buttons |
 | `/fglurk optin` | everyone | Opt in to voice snippets |
 | `/fglurk optout` | everyone | Opt out **and delete every stored snippet** |
 | `/fglurk voicesnippets status` | everyone | Whether you are opted in and how many snippets exist |
 
 `/flurk` and `/fglurk` both work for every voice command.
+
+### `/foglurker debugeverything` (temporary)
+
+![debugeverything output](docs/images/debug_chat.jpg)
+
+It runs about 50 checks and lists each one in chat with ✔ or ✘. It also plays a three-second fog and heartbeat test so you can see and hear the effects. The server results are also written to the server log.
+- **Server side:** registration, damage types and tags, mod files, every mode's numbers (damage, time between hits, grace), a dry-run spawn of every shape near you (nothing actually spawns), refusal of nearby water, the hit cooldown, water rules, what it has learned about you, chat-style copying, voice chat status, the secure folder and its encryption, snippet storage, voice effects, and Gemini (with a live test if a key is set).
+- **Your game:** renderer, crawler model, textures, sounds, language file, every disguise puppet and the swim animation.
+
+**Removing it before release:** delete `src/main/java/com/foglurker/debug/`, `network/DebugPacket.java` and `client/ClientDebug.java`, plus the two lines marked `TEMPORARY` in `command/FogLurkerCommands.java` and `network/ModNetwork.java`.
 
 ## Voice snippets (opt-in)
 
@@ -143,8 +174,11 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - each mode's damage is exact through diamond armour, and Deathwish one-shots
 - grace times, commands, encryption, tamper detection, consent and opt-out deletion
 - typing-style copying
+- hits are spaced exactly by the mode's cooldown (Very Easy: blocked at 1.5 s, allowed at 3 s)
+- water: spawn spots refuse water, the crawler will not path into it, and a crawler thrown in is driven off
+- `/foglurker debugeverything` runs end to end
 
-`./gradlew runClient -PfoglurkerShowcase` (with a world named `FogShowcase`) lines up every disguise and saves the screenshots in this README.
+`./gradlew runClient -PfoglurkerShowcase` (with a world named `FogShowcase`) lines up every shape and saves the screenshots in this README. The textures and the split-head logo are generated by the scripts in `tools/`.
 
 ![A stolen face and a stolen dog](docs/images/mimic_closeup.jpg)
 

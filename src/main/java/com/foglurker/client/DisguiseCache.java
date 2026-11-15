@@ -18,7 +18,10 @@ import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 
+import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
+
 import javax.annotation.Nullable;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +52,21 @@ public final class DisguiseCache {
         }
     }
 
+    public static void forget(int entityId) {
+        CACHE.remove(entityId);
+    }
+
+    /** True if the private swim fields can be reached (only affects how a swimming copy looks). */
+    public static boolean swimReflectionWorks() {
+        try {
+            ObfuscationReflectionHelper.findField(LivingEntity.class, "f_20931_");
+            ObfuscationReflectionHelper.findField(LivingEntity.class, "f_20932_");
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     public static void clear() {
         CACHE.clear();
     }
@@ -63,7 +81,7 @@ public final class DisguiseCache {
     @Nullable
     public static LivingEntity get(FogLurkerEntity lurker) {
         Disguise d = lurker.getDisguise();
-        if (d == Disguise.NONE || !(lurker.level() instanceof ClientLevel level)) {
+        if (d == Disguise.NONE || d == Disguise.CRAWLER || !(lurker.level() instanceof ClientLevel level)) {
             CACHE.remove(lurker.getId());
             return null;
         }
@@ -117,6 +135,29 @@ public final class DisguiseCache {
         return living;
     }
 
+    // LivingEntity.swimAmount / swimAmountO (private): copied so a stolen player visibly sprint-swims.
+    @Nullable
+    private static Field swimAmount;
+    @Nullable
+    private static Field swimAmountO;
+    private static boolean swimReflectionFailed;
+
+    private static void copySwimAmount(LivingEntity src, LivingEntity dst) {
+        if (swimReflectionFailed) {
+            return;
+        }
+        try {
+            if (swimAmount == null) {
+                swimAmount = ObfuscationReflectionHelper.findField(LivingEntity.class, "f_20931_");
+                swimAmountO = ObfuscationReflectionHelper.findField(LivingEntity.class, "f_20932_");
+            }
+            swimAmount.setFloat(dst, swimAmount.getFloat(src));
+            swimAmountO.setFloat(dst, swimAmountO.getFloat(src));
+        } catch (RuntimeException | IllegalAccessException e) {
+            swimReflectionFailed = true; // purely cosmetic; it still swims, just without the flat pose
+        }
+    }
+
     private static void sync(FogLurkerEntity src, LivingEntity dst, boolean ticking) {
         dst.setPos(src.getX(), src.getY(), src.getZ());
         dst.xo = src.xo;
@@ -152,6 +193,8 @@ public final class DisguiseCache {
         }
         if (dst instanceof MimicDummyPlayer player) {
             player.setLook(src.getSkinParts(), src.getMimicMainArm());
+            dst.setSwimming(src.isSwimming());
+            copySwimAmount(src, dst);
             for (EquipmentSlot slot : EquipmentSlot.values()) {
                 ItemStack want = src.getItemBySlot(slot);
                 if (!ItemStack.matches(want, player.getItemBySlot(slot))) {

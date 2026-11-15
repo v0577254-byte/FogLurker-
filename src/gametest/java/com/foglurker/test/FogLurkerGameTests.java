@@ -105,8 +105,46 @@ public final class FogLurkerGameTests {
         return p;
     }
 
+    /**
+     * The test world has real terrain and pits dug for other tests. Behaviour tests flatten a field
+     * around the player so they test the creature, not the scenery.
+     */
+    private static void flatten(GameTestHelper h, int radius) {
+        ServerLevel level = h.getLevel();
+        net.minecraft.core.BlockPos c = h.absolutePos(net.minecraft.core.BlockPos.ZERO);
+        var grass = net.minecraft.world.level.block.Blocks.GRASS_BLOCK.defaultBlockState();
+        var dirt = net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState();
+        var air = net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                level.setBlock(c.offset(x, -2, z), dirt, 2);
+                level.setBlock(c.offset(x, -1, z), grass, 2);
+                for (int y = 0; y < 20; y++) {
+                    level.setBlock(c.offset(x, y, z), air, 2);
+                }
+            }
+        }
+    }
+
+    /**
+     * The test world is persistent and its clock keeps running, so real zombies and creepers show
+     * up at night and kill the test players. Make it noon, stop mob spawning and clear monsters.
+     */
+    private static void calm(MinecraftServer server) {
+        ServerLevel level = server.overworld();
+        level.setDayTime(6000);
+        level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(false, server);
+        level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DAYLIGHT).set(false, server);
+        for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+            if (e instanceof net.minecraft.world.entity.monster.Enemy && !(e instanceof FogLurkerEntity)) {
+                e.discard();
+            }
+        }
+    }
+
     /** Leftover mock players from earlier tests would otherwise be picked as "friends" to copy. */
     private static void kickOtherPlayers(MinecraftServer server, ServerPlayer... keep) {
+        calm(server);
         List<ServerPlayer> all = new ArrayList<>(server.getPlayerList().getPlayers());
         for (ServerPlayer p : all) {
             if (Arrays.stream(keep).noneMatch(k -> k == p)) {
@@ -150,6 +188,10 @@ public final class FogLurkerGameTests {
         check(Math.abs(LurkerDifficulty.MEDIUM.attackChance() - 1 / 3D) < 1e-9, "medium attacks 1/3 spawns");
         check(LurkerDifficulty.DEATHWISH.attackChance() == 0.75, "deathwish attacks 3/4 spawns");
         check(LurkerDifficulty.DEATHWISH.speedMultiplier() == 1.5, "deathwish is 50% faster");
+        int[] cooldowns = {60, 50, 40, 35, 30}; // 3 s, 2.5 s, 2 s, 1.75 s, 1.5 s
+        for (LurkerDifficulty m : LurkerDifficulty.values()) {
+            check(m.attackCooldownTicks() == cooldowns[m.ordinal()], m + " has the wrong time between hits");
+        }
         check(LurkerDifficulty.byId("medium") == LurkerDifficulty.MEDIUM, "byId");
         data.setDifficulty(before);
         h.succeed();
@@ -197,6 +239,7 @@ public final class FogLurkerGameTests {
     }
 
     private static void mimicWalksUpGreetsAndLuresImpl(GameTestHelper h) throws Exception {
+        flatten(h, 44);
         ServerPlayer target = player(h, 1.5, 1.5);
         ServerPlayer friend = player(h, 121.5, 1.5); // "went to get wood"
         kickOtherPlayers(h.getLevel().getServer(), target, friend);
@@ -210,9 +253,10 @@ public final class FogLurkerGameTests {
         check(friend.getUUID().equals(l.getMimicUuid()), "it must wear the friend's skin");
         check(friend.getGameProfile().getName().equals(l.getMimicName()), "it must use the friend's name");
         h.succeedWhen(() -> {
-            check(!l.isRemoved(), "the mimic vanished before luring (phase " + l.brain().phase() + ")");
+            check(!l.isRemoved(), "the mimic vanished before luring (" + l.brain().describe() + ")");
             check(l.brain().phase().ordinal() >= LurkerBrain.Phase.LURE.ordinal(),
-                    "still in phase " + l.brain().phase() + " at distance " + l.distanceTo(target));
+                    "still " + l.brain().describe() + ", " + l.distanceTo(target) + " blocks from the target at "
+                            + target.blockPosition().toShortString());
             l.brain().vanish(false);
         });
     }
@@ -266,6 +310,7 @@ public final class FogLurkerGameTests {
     }
 
     private static void stalksTransformsAndAttacksImpl(GameTestHelper h) throws Exception {
+        flatten(h, 36);
         MinecraftServer server = h.getLevel().getServer();
         server.setDifficulty(Difficulty.NORMAL, true);
         ServerPlayer p = player(h, 1.5, 1.5);
@@ -281,11 +326,83 @@ public final class FogLurkerGameTests {
             check(l.brain().encounter().mode() == LurkerBrain.Mode.ZOMBIE, "wrong mode");
             h.succeedWhen(() -> {
                 check(!l.isRemoved(), "it left without attacking (phase " + l.brain().phase() + ")");
-                check(l.getDisguise() == Disguise.NONE, "it has not revealed itself yet (phase " + l.brain().phase()
+                check(l.getDisguise() == Disguise.CRAWLER, "it has not become the crawler yet (phase " + l.brain().phase()
                         + ", " + l.distanceTo(p) + " blocks away)");
                 check(p.getHealth() <= 10.01F, "no 5-heart hit landed yet (health " + p.getHealth() + ")");
                 l.brain().vanish(false);
             });
+        }));
+    }
+
+    @GameTest(template = "empty", batch = "cooldown", timeoutTicks = 200)
+    public static void hitsAreSpacedOut(GameTestHelper h) {
+        logged(h, () -> hitsAreSpacedOutImpl(h));
+    }
+
+    private static void hitsAreSpacedOutImpl(GameTestHelper h) throws Exception {
+        MinecraftServer server = h.getLevel().getServer();
+        FogLurkerSavedData data = FogLurkerSavedData.get(server);
+        LurkerDifficulty before = data.difficulty();
+        ServerPlayer p = player(h, 1.5, 1.5);
+        kickOtherPlayers(server, p);
+        h.runAfterDelay(80, () -> logged(h, () -> {
+            data.setDifficulty(LurkerDifficulty.VERY_EASY); // 3 seconds between hits
+            FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.COW, Boolean.TRUE);
+            data.setDifficulty(before);
+            check(l != null, "no spawn");
+            p.setHealth(20F);
+            check(l.doHurtTarget(p), "first hit should land");
+            p.invulnerableTime = 0;
+            check(!l.doHurtTarget(p), "a second hit straight away must be blocked");
+            check(Math.abs(p.getHealth() - 18F) < 0.01F, "only one heart should be gone, health " + p.getHealth());
+            h.runAfterDelay(30, () -> {
+                p.invulnerableTime = 0;
+                check(!l.doHurtTarget(p), "1.5 s later it must still be waiting (very easy = 3 s)");
+            });
+            h.runAfterDelay(65, () -> {
+                p.invulnerableTime = 0;
+                check(l.doHurtTarget(p), "after 3 s it may hit again");
+                l.brain().vanish(false);
+                h.succeed();
+            });
+        }));
+    }
+
+    @GameTest(template = "empty", batch = "water", timeoutTicks = 300)
+    public static void waterIsItsWeakness(GameTestHelper h) {
+        logged(h, () -> waterIsItsWeaknessImpl(h));
+    }
+
+    private static void waterIsItsWeaknessImpl(GameTestHelper h) throws Exception {
+        ServerLevel level = h.getLevel();
+        ServerPlayer p = player(h, 1.5, 1.5);
+        kickOtherPlayers(level.getServer(), p);
+        // A pool 6 blocks away.
+        net.minecraft.core.BlockPos pool = h.absolutePos(new net.minecraft.core.BlockPos(7, -1, 1));
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(pool.offset(dx, -1, dz), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(pool.offset(dx, 0, dz), net.minecraft.world.level.block.Blocks.WATER.defaultBlockState());
+                level.setBlockAndUpdate(pool.offset(dx, 1, dz), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            }
+        }
+        // It never chooses a spot on or next to water.
+        check(com.foglurker.brain.SpotFinder.ground(level, pool.getX(), pool.getZ(), pool.getY(), true) == null,
+                "a water column was accepted as a spawn spot");
+        check(!com.foglurker.brain.SpotFinder.isDry(level, pool.above()), "water was reported as dry");
+
+        h.runAfterDelay(80, () -> logged(h, () -> {
+            FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.CRAWLER, Boolean.FALSE);
+            check(l != null, "no spawn");
+            check(l.getPathfindingMalus(net.minecraft.world.level.pathfinder.BlockPathTypes.WATER) < 0,
+                    "the crawler must refuse to path through water");
+            // The debug command runs end to end next to real water (results go to the server log).
+            level.getServer().getCommands().getDispatcher().execute("foglurker debugeverything",
+                    p.createCommandSourceStack().withPermission(4));
+            l.teleportTo(pool.getX() + 0.5, pool.getY(), pool.getZ() + 0.5);
+            // Thrown in the water, the attacking form is driven away within a few seconds.
+            h.succeedWhen(() -> check(l.isRemoved(), "the crawler is still in the water ("
+                    + (l.isInWater() ? "in water" : "not in water") + ", health " + l.getHealth() + ")"));
         }));
     }
 

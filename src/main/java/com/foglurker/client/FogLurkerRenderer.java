@@ -16,11 +16,13 @@ import net.minecraft.world.phys.Vec3;
  * real skin and name tag. While it transforms, it flickers between the disguise and its true form.
  */
 public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity> {
-    private final TrueFormRenderer trueForm;
+    private final TrueFormRenderer watcher;
+    private final CrawlerRenderer crawler;
 
     public FogLurkerRenderer(EntityRendererProvider.Context ctx) {
         super(ctx);
-        this.trueForm = new TrueFormRenderer(ctx);
+        this.watcher = new TrueFormRenderer(ctx);
+        this.crawler = new CrawlerRenderer(ctx);
         this.shadowRadius = 0.5F;
     }
 
@@ -28,7 +30,8 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity> {
     public void render(FogLurkerEntity lurker, float yaw, float partialTick, PoseStack pose, MultiBufferSource buffers,
                        int light) {
         boolean transforming = lurker.isTransforming();
-        boolean showTrue = lurker.getDisguise() == Disguise.NONE;
+        Disguise disguise = lurker.getDisguise();
+        boolean showTrue = disguise == Disguise.NONE || disguise == Disguise.CRAWLER;
         if (transforming) {
             int t = lurker.tickCount;
             showTrue = ((t * 7 + (t >> 2)) % 5) < 2;
@@ -52,7 +55,12 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity> {
             }
         }
         if (showTrue) {
-            trueForm.render(lurker, yaw, partialTick, pose, buffers, light);
+            // While it transforms it flickers between the stolen shape and the crawler underneath.
+            if (transforming || disguise == Disguise.CRAWLER) {
+                crawler.render(lurker, yaw, partialTick, pose, buffers, light);
+            } else {
+                watcher.render(lurker, yaw, partialTick, pose, buffers, light);
+            }
         }
         if (transforming) {
             pose.popPose();

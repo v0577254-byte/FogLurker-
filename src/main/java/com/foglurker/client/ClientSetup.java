@@ -26,6 +26,11 @@ public final class ClientSetup {
     }
 
     @SubscribeEvent
+    public static void registerLayers(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(CrawlerModel.LAYER, CrawlerModel::createBodyLayer);
+    }
+
+    @SubscribeEvent
     public static void registerOverlays(RegisterGuiOverlaysEvent event) {
         event.registerAboveAll("scare", ClientEffects::renderOverlay);
     }

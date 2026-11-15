@@ -40,6 +40,9 @@ import net.minecraft.world.entity.player.PlayerModelPart;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
 import java.util.Optional;
@@ -76,6 +79,8 @@ public class FogLurkerEntity extends PathfinderMob {
 
     @Nullable
     private LurkerBrain brain;
+    /** Tick of the last hit; hits are spaced by the mode's cooldown so it can never spam attacks. */
+    private int lastAttackTick = -100_000;
 
     public FogLurkerEntity(EntityType<? extends FogLurkerEntity> type, Level level) {
         super(type, level);
@@ -86,8 +91,8 @@ public class FogLurkerEntity extends PathfinderMob {
         }
         if (this.getNavigation() instanceof GroundPathNavigation nav) {
             nav.setCanOpenDoors(true);
-            nav.setCanFloat(true);
         }
+        applyMovementRules(Disguise.NONE);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -114,7 +119,13 @@ public class FogLurkerEntity extends PathfinderMob {
 
     @Override
     protected void registerGoals() {
-        this.goalSelector.addGoal(0, new FloatGoal(this));
+        // Every form can stay afloat except the attacking form: water is its weakness.
+        this.goalSelector.addGoal(0, new FloatGoal(this) {
+            @Override
+            public boolean canUse() {
+                return !isAttackForm() && super.canUse();
+            }
+        });
         this.goalSelector.addGoal(1, new OpenDoorGoal(this, true));
     }
 
@@ -177,8 +188,74 @@ public class FogLurkerEntity extends PathfinderMob {
         this.entityData.set(DATA_DISGUISE, disguise.ordinal());
         if (disguise != Disguise.PLAYER) {
             setCrouching(false);
+            this.setSwimming(false);
         }
+        applyMovementRules(disguise);
         this.refreshDimensions();
+    }
+
+    public boolean isAttackForm() {
+        return getDisguise().isAttackForm();
+    }
+
+    /**
+     * Human forms happily swim across water like a player would; animals avoid it like animals do;
+     * the attacking form will not set foot in it.
+     */
+    private void applyMovementRules(Disguise d) {
+        boolean attackForm = d.isAttackForm();
+        if (this.getNavigation() instanceof GroundPathNavigation nav) {
+            nav.setCanFloat(!attackForm);
+        }
+        this.setPathfindingMalus(BlockPathTypes.WATER, attackForm ? -1.0F : d.isAnimal() ? 8.0F : 0.0F);
+        this.setPathfindingMalus(BlockPathTypes.WATER_BORDER, attackForm ? 16.0F : d.isAnimal() ? 8.0F : 0.0F);
+    }
+
+    // ------------------------------------------------------------------ swimming (human forms)
+
+    @Override
+    public void aiStep() {
+        super.aiStep();
+        if (!this.level().isClientSide) {
+            driveSwimming();
+        }
+    }
+
+    /** In a player's shape it sprint-swims exactly like a player: flat in the water and fast. */
+    private void driveSwimming() {
+        if (this.isNoAi()) {
+            return;
+        }
+        boolean canSprintSwim = getDisguise() == Disguise.PLAYER;
+        boolean wantSwim = canSprintSwim && this.isInWater() && this.getNavigation().isInProgress();
+        if (wantSwim) {
+            if (!this.isSwimming()) {
+                this.setSwimming(true);
+                this.setSprinting(true);
+                this.setPose(Pose.SWIMMING);
+            }
+            Path path = this.getNavigation().getPath();
+            if (path != null && !path.isDone()) {
+                Vec3 next = path.getNextEntityPos(this);
+                Vec3 dir = new Vec3(next.x - this.getX(), 0, next.z - this.getZ());
+                if (dir.lengthSqr() > 1.0E-4) {
+                    dir = dir.normalize();
+                    // Sprint-swim push; with water drag this tops out near a player's ~5.6 blocks/s.
+                    this.setDeltaMovement(this.getDeltaMovement().add(dir.x * 0.03, 0, dir.z * 0.03));
+                }
+            }
+        } else if (this.isSwimming()) {
+            this.setSwimming(false);
+            this.setSprinting(false);
+            if (this.level().noCollision(this, getDimensions(Pose.STANDING).makeBoundingBox(this.position()))) {
+                this.setPose(Pose.STANDING);
+            }
+        }
+    }
+
+    /** How far through the swim animation the client should draw it (0..1). */
+    public float swimAmountFor(float partialTick) {
+        return this.getSwimAmount(partialTick);
     }
 
     @Nullable
@@ -272,13 +349,19 @@ public class FogLurkerEntity extends PathfinderMob {
         if (d == Disguise.PLAYER && pose == Pose.CROUCHING) {
             return EntityDimensions.scalable(0.6F, 1.5F);
         }
+        if (d == Disguise.PLAYER && pose == Pose.SWIMMING) {
+            return EntityDimensions.scalable(0.6F, 0.6F);
+        }
         return d.dimensions();
     }
 
     @Override
     protected float getStandingEyeHeight(Pose pose, EntityDimensions dims) {
         if (getDisguise() == Disguise.PLAYER) {
-            return pose == Pose.CROUCHING ? 1.27F : 1.62F;
+            return pose == Pose.CROUCHING ? 1.27F : pose == Pose.SWIMMING ? 0.4F : 1.62F;
+        }
+        if (getDisguise() == Disguise.CRAWLER) {
+            return 0.95F; // the head hangs low and forward
         }
         return dims.height * 0.85F;
     }
@@ -312,8 +395,17 @@ public class FogLurkerEntity extends PathfinderMob {
         return super.hurt(source, amount);
     }
 
+    /** True when enough time has passed since the last hit (3 s on very easy ... 1.5 s on deathwish). */
+    public boolean canAttackNow() {
+        return this.tickCount - lastAttackTick >= difficulty().attackCooldownTicks();
+    }
+
     @Override
     public boolean doHurtTarget(Entity target) {
+        if (!canAttackNow()) {
+            return false;
+        }
+        lastAttackTick = this.tickCount;
         LurkerDifficulty diff = difficulty();
         boolean oneShot = diff.isOneShot();
         DamageSource src = ModDamageTypes.source(this, oneShot ? ModDamageTypes.LURKER_ONESHOT : ModDamageTypes.LURKER);
@@ -360,7 +452,7 @@ public class FogLurkerEntity extends PathfinderMob {
             case WOLF -> SoundEvents.WOLF_AMBIENT;
             case DOG -> hasFlag(FLAG_ANGRY) ? SoundEvents.WOLF_GROWL
                     : this.random.nextInt(3) == 0 ? SoundEvents.WOLF_WHINE : SoundEvents.WOLF_PANT;
-            case NONE -> ModSounds.WHISPER.get();
+            case NONE, CRAWLER -> ModSounds.WHISPER.get();
             case PLAYER -> null; // players do not make idle noises
         };
     }
@@ -369,7 +461,7 @@ public class FogLurkerEntity extends PathfinderMob {
     public int getAmbientSoundInterval() {
         return switch (getDisguise()) {
             case PLAYER -> Integer.MAX_VALUE;
-            case NONE -> 160;
+            case NONE, CRAWLER -> 160;
             case CHICKEN -> 100;
             default -> 120;
         };
@@ -385,7 +477,7 @@ public class FogLurkerEntity extends PathfinderMob {
             case ZOMBIE -> SoundEvents.ZOMBIE_HURT;
             case WOLF, DOG -> SoundEvents.WOLF_HURT;
             case PLAYER -> SoundEvents.PLAYER_HURT;
-            case NONE -> ModSounds.HURT.get();
+            case NONE, CRAWLER -> ModSounds.HURT.get();
         };
     }
 
@@ -398,7 +490,7 @@ public class FogLurkerEntity extends PathfinderMob {
     public float getVoicePitch() {
         float base = super.getVoicePitch();
         return switch (getDisguise()) {
-            case NONE -> base * 0.6F;
+            case NONE, CRAWLER -> base * 0.6F;
             case PLAYER -> base;
             // Animals sound almost right. Almost.
             default -> base * 0.9F;
@@ -424,6 +516,12 @@ public class FogLurkerEntity extends PathfinderMob {
     }
 
     // ------------------------------------------------------------------ lifecycle plumbing
+
+    /** It never takes fall damage, so it happily drops down ledges a mob would normally walk around. */
+    @Override
+    public int getMaxFallDistance() {
+        return 8;
+    }
 
     @Override
     public boolean removeWhenFarAway(double distance) {

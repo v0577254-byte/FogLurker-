@@ -103,7 +103,9 @@ public final class FogLurkerCommands {
                                 .executes(ctx -> setDifficulty(ctx, StringArgumentType.getString(ctx, "mode")))))
                 .then(Commands.literal("despawn")
                         .requires(s -> s.hasPermission(2))
-                        .executes(FogLurkerCommands::despawn)));
+                        .executes(FogLurkerCommands::despawn))
+                // TEMPORARY: delete this line and the debug package before release.
+                .then(com.foglurker.debug.DebugCommand.node()));
 
         // The voice snippet commands answer to both spellings.
         d.register(voiceRoot("flurk"));
@@ -152,7 +154,7 @@ public final class FogLurkerCommands {
         if (!disguiseArg.equalsIgnoreCase("random")) {
             disguise = Disguise.byName(disguiseArg);
             if (disguise == null) {
-                src.sendFailure(Component.literal("Unknown disguise '" + disguiseArg + "'. Try: player, dog, cow, sheep, pig, chicken, zombie, wolf, true_form"));
+                src.sendFailure(Component.literal("Unknown disguise '" + disguiseArg + "'. Try: player, dog, cow, sheep, pig, chicken, zombie, wolf, watcher, crawler"));
                 return 0;
             }
         }
@@ -172,7 +174,7 @@ public final class FogLurkerCommands {
             case MIMIC -> "wearing " + enc.copiedName() + "'s face";
             case DOPPELGANGER -> "wearing their own face";
             case DOG -> "as their dog" + (enc.dogName() != null ? " \"" + enc.dogName() + "\"" : "");
-            case WATCHER -> "in its true form, watching";
+            case WATCHER -> enc.disguise() == Disguise.CRAWLER ? "as the pale crawler, watching" : "as the tall watcher in the fog";
             default -> "hiding as a " + enc.disguise().id();
         };
         reply(src, Component.literal("It is coming for " + target.getGameProfile().getName() + ", " + as

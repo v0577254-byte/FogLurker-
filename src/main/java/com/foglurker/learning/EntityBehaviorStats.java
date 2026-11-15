@@ -58,12 +58,14 @@ public final class EntityBehaviorStats {
         };
     }
 
+    /** What has been learned about this kind of animal (or sensible defaults). Never modifies the data. */
     public Stats get(String type) {
-        return byType.computeIfAbsent(type, EntityBehaviorStats::defaults);
+        Stats s = byType.get(type);
+        return s != null ? s : defaults(type);
     }
 
     public void observe(String type, boolean moving, float speed, boolean lookingAtPlayer, float finishedIdleSeconds) {
-        Stats s = get(type);
+        Stats s = byType.computeIfAbsent(type, EntityBehaviorStats::defaults);
         float a = s.samples < 50 ? 0.08F : 0.02F;
         s.moveFraction += ((moving ? 1F : 0F) - s.moveFraction) * a;
         if (moving && speed > 0.05F && speed < 8F) {
@@ -74,6 +76,10 @@ public final class EntityBehaviorStats {
             s.idleSeconds += (finishedIdleSeconds - s.idleSeconds) * 0.15F;
         }
         s.samples++;
+    }
+
+    public Map<String, Stats> all() {
+        return java.util.Collections.unmodifiableMap(byType);
     }
 
     public CompoundTag save() {

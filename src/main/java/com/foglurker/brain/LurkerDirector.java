@@ -10,6 +10,7 @@ import com.foglurker.learning.RecentChat;
 import com.foglurker.registry.ModEntities;
 import com.foglurker.voice.VoiceBridge;
 import com.foglurker.world.FogLurkerSavedData;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -160,8 +161,8 @@ public final class LurkerDirector {
             // Low view distance or unloaded terrain: settle for somewhere closer, seen or not.
             pos = SpotFinder.findSpawn(level, target, 12, 24, null, true, false, r);
         }
-        if (pos == null) {
-            return null;
+        if (pos == null || !SpotFinder.isDry(level, BlockPos.containing(pos))) {
+            return null; // never on, in or next to water
         }
         FogLurkerEntity lurker = ModEntities.FOG_LURKER.get().create(level);
         if (lurker == null) {
@@ -178,6 +179,21 @@ public final class LurkerDirector {
         FogLurkerMod.LOGGER.debug("Fog Lurker appeared near {} as {} ({}, attack={})",
                 target.getGameProfile().getName(), enc.disguise().id(), enc.mode(), enc.willAttack());
         return lurker;
+    }
+
+    /** A plan and a spot for {@code target} without spawning anything (used by the debug command). */
+    public record DryRun(Encounter encounter, @Nullable Vec3 spot) {
+    }
+
+    public static DryRun dryRun(ServerPlayer target, Disguise disguise, boolean attack) {
+        ServerLevel level = target.serverLevel();
+        RandomSource r = level.getRandom();
+        Encounter enc = plan(target, FogLurkerSavedData.get(target.server), disguise, attack, r);
+        Vec3 spot = pickSpot(level, target, enc, r);
+        if (spot == null) {
+            spot = SpotFinder.findSpawn(level, target, 12, 24, null, true, false, r);
+        }
+        return new DryRun(enc, spot);
     }
 
     /** Gives a hand-summoned creature (/summon) a plan against the nearest player. */
@@ -296,7 +312,7 @@ public final class LurkerDirector {
             case PLAYER -> hasFriend ? LurkerBrain.Mode.MIMIC : LurkerBrain.Mode.DOPPELGANGER;
             case DOG -> LurkerBrain.Mode.DOG;
             case ZOMBIE -> LurkerBrain.Mode.ZOMBIE;
-            case NONE -> LurkerBrain.Mode.WATCHER;
+            case NONE, CRAWLER -> LurkerBrain.Mode.WATCHER;
             default -> LurkerBrain.Mode.HERD;
         };
     }
@@ -410,7 +426,7 @@ public final class LurkerDirector {
         for (int i = 0; i < 16; i++) {
             int x = (int) Math.floor(around.x + (r.nextDouble() - 0.5) * 8);
             int z = (int) Math.floor(around.z + (r.nextDouble() - 0.5) * 8);
-            var g = SpotFinder.ground(level, x, z, (int) Math.floor(around.y));
+            var g = SpotFinder.ground(level, x, z, (int) Math.floor(around.y), true);
             if (g == null) {
                 continue;
             }

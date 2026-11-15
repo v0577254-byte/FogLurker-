@@ -5,9 +5,12 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.HitResult;
@@ -43,23 +46,84 @@ public final class SpotFinder {
                 && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty();
     }
 
+    /**
+     * True when there is no water on or right next to the spot (3x3 around the feet and the block
+     * below). It never appears in, on or at the edge of water.
+     */
+    public static boolean isDry(ServerLevel level, BlockPos feet) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    if (level.getFluidState(feet.offset(dx, dy, dz)).is(FluidTags.WATER)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return !level.getBlockState(feet.below()).is(Blocks.LILY_PAD) && !level.getBlockState(feet).is(Blocks.LILY_PAD);
+    }
+
     /** Ground under a column near a reference height (surface if the reference is on the surface). */
     @Nullable
     public static BlockPos ground(ServerLevel level, int x, int z, int refY) {
+        return ground(level, x, z, refY, false);
+    }
+
+    /** @param requireDry reject anything in, on or touching water */
+    @Nullable
+    public static BlockPos ground(ServerLevel level, int x, int z, int refY, boolean requireDry) {
         if (!loaded(level, x, z)) {
             return null;
         }
         int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         if (Math.abs(surface - refY) <= 8) {
             BlockPos p = new BlockPos(x, surface, z);
-            if (isStandable(level, p)) {
+            if (isStandable(level, p) && (!requireDry || isDry(level, p))) {
                 return p;
             }
         }
         for (int dy = 6; dy >= -8; dy--) {
             BlockPos p = new BlockPos(x, refY + dy, z);
-            if (isStandable(level, p)) {
+            if (isStandable(level, p) && (!requireDry || isDry(level, p))) {
                 return p;
+            }
+        }
+        return null;
+    }
+
+    /** True if the player is swimming, in a boat, or standing in water: somewhere the attacking form cannot follow. */
+    public static boolean isInOrOnWater(Entity e) {
+        if (e.isInWater() || e.getVehicle() != null && e.getVehicle().isInWater()) {
+            return true;
+        }
+        BlockPos p = e.blockPosition();
+        return e.level().getFluidState(p).is(FluidTags.WATER)
+                || !e.onGround() && e.level().getFluidState(p.below()).is(FluidTags.WATER);
+    }
+
+    /** The closest dry ground near {@code toward}, searched in rings: where it paces when you hide in water. */
+    @Nullable
+    public static Vec3 nearestDryGround(ServerLevel level, Vec3 toward, Vec3 from, int maxRadius) {
+        Vec3 best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (int r = 1; r <= maxRadius; r++) {
+            for (int i = 0; i < 16; i++) {
+                double a = i * Math.PI / 8;
+                int x = Mth.floor(toward.x + Math.cos(a) * r);
+                int z = Mth.floor(toward.z + Math.sin(a) * r);
+                BlockPos g = ground(level, x, z, Mth.floor(toward.y), true);
+                if (g == null) {
+                    continue;
+                }
+                Vec3 spot = Vec3.atBottomCenterOf(g);
+                double score = spot.distanceToSqr(toward) + 0.25 * spot.distanceToSqr(from);
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = spot;
+                }
+            }
+            if (best != null) {
+                return best;
             }
         }
         return null;
@@ -98,13 +162,17 @@ public final class SpotFinder {
             double radius = minR + r.nextDouble() * (maxR - minR);
             int x = Mth.floor(origin.x + Math.cos(angle) * radius);
             int z = Mth.floor(origin.z + Math.sin(angle) * radius);
-            BlockPos g = ground(level, x, z, Mth.floor(origin.y));
+            BlockPos g = ground(level, x, z, Mth.floor(origin.y), true);
             if (g == null) {
                 continue;
             }
+            double dy = Math.abs(g.getY() - origin.y);
+            if (dy > 6) {
+                continue; // not up on a ledge or down in a pit it cannot climb out of
+            }
             Vec3 spot = Vec3.atBottomCenterOf(g);
             boolean visible = canSee(target, spot.add(0, 1.5, 0));
-            double score = r.nextDouble();
+            double score = r.nextDouble() - dy * 0.6;
             if (wantHidden) {
                 score += visible ? -5 : 5;
             }
@@ -163,7 +231,7 @@ public final class SpotFinder {
             if (canopy < 0) {
                 continue;
             }
-            BlockPos g = ground(level, x, z, Mth.floor(origin.y));
+            BlockPos g = ground(level, x, z, Mth.floor(origin.y), true);
             if (g == null) {
                 continue;
             }
@@ -178,9 +246,10 @@ public final class SpotFinder {
             }
         }
         if (bestPos == null) {
-            // No loaded ground anywhere? Just go "that way".
+            // No dry loaded ground anywhere? Try the nearest dry ground "that way", else stay put.
             Vec3 dir = away != null ? away : new Vec3(r.nextDouble() - 0.5, 0, r.nextDouble() - 0.5).normalize();
-            bestPos = origin.add(dir.scale(40));
+            Vec3 dry = nearestDryGround(level, origin.add(dir.scale(32)), origin, 16);
+            bestPos = dry != null ? dry : origin;
         }
         return new Woods(bestPos, bestCanopy, compass(origin, bestPos));
     }

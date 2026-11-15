@@ -7,9 +7,12 @@ import net.minecraft.world.entity.animal.Wolf;
 
 import javax.annotation.Nullable;
 
-/** Every shape the creature can take. NONE is its true form. */
+/**
+ * Every shape the creature can take. NONE is the tall "watcher" seen far away in the fog; CRAWLER is
+ * its pale attacking form. Ordinals are synced to clients, so new shapes go at the end.
+ */
 public enum Disguise {
-    NONE("true_form", null, 0.6F, 1.95F),
+    NONE("watcher", null, 0.6F, 1.95F),
     PLAYER("player", null, 0.6F, 1.8F),
     COW("cow", EntityType.COW, 0.9F, 1.4F),
     SHEEP("sheep", EntityType.SHEEP, 0.9F, 1.3F),
@@ -18,7 +21,9 @@ public enum Disguise {
     ZOMBIE("zombie", EntityType.ZOMBIE, 0.6F, 1.95F),
     WOLF("wolf", EntityType.WOLF, 0.6F, 0.85F),
     /** A copy of a specific player's tamed wolf: same collar colour, same name. */
-    DOG("dog", EntityType.WOLF, 0.6F, 0.85F);
+    DOG("dog", EntityType.WOLF, 0.6F, 0.85F),
+    /** The attacking form: pale, long-limbed, on all fours. It cannot swim. */
+    CRAWLER("crawler", null, 0.9F, 1.3F);
 
     private final String id;
     @Nullable
@@ -52,6 +57,11 @@ public enum Disguise {
         return this == PLAYER || this == ZOMBIE || this == NONE;
     }
 
+    /** The attacking form: water is its weakness. Every other form can swim. */
+    public boolean isAttackForm() {
+        return this == CRAWLER;
+    }
+
     /** Key used for learned animal behaviour. */
     public String learnKey() {
         return id;
@@ -68,6 +78,9 @@ public enum Disguise {
             if (d.id.equalsIgnoreCase(name) || d.name().equalsIgnoreCase(name)) {
                 return d;
             }
+        }
+        if (name.equalsIgnoreCase("true_form") || name.equalsIgnoreCase("attack_form")) {
+            return name.equalsIgnoreCase("true_form") ? NONE : CRAWLER;
         }
         return null;
     }

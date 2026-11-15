@@ -125,6 +125,26 @@ public final class SnippetStore {
         return deleted;
     }
 
+    /** Writes, reads back and deletes a test snippet in the secure folder. Used by the debug command. */
+    public static String selfTest() throws IOException {
+        Path d = SecureStorage.voiceRoot().resolve("_selftest");
+        SecureStorage.ensurePrivateDir(d);
+        short[] pcm = new short[4800];
+        for (int i = 0; i < pcm.length; i++) {
+            pcm[i] = (short) (Math.sin(i / 10.0) * 9000);
+        }
+        Path f = d.resolve("test.snip");
+        SecureStorage.writeEncrypted(f, toBytes(pcm));
+        short[] back = fromBytes(SecureStorage.readEncrypted(f));
+        boolean same = java.util.Arrays.equals(pcm, back);
+        Files.deleteIfExists(f);
+        Files.deleteIfExists(d);
+        if (!same) {
+            throw new IOException("snippet came back different");
+        }
+        return pcm.length * 2 + " bytes written, encrypted, read back and deleted";
+    }
+
     public static ExecutorService io() {
         return IO;
     }

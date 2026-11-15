@@ -114,6 +114,17 @@ public final class LurkerBrain {
     private int hits;
     private int attackCooldown;
 
+    // water: its weakness in the attacking form
+    private int waterTicks;
+    private int targetWaterTicks;
+
+    // stuck detection while closing in
+    private double bestApproach = Double.MAX_VALUE;
+    private int noProgress;
+    private int detours;
+    @Nullable
+    private Vec3 detour;
+
     public LurkerBrain(FogLurkerEntity mob, Encounter enc) {
         this.mob = mob;
         this.enc = enc;
@@ -134,6 +145,15 @@ public final class LurkerBrain {
 
     public UUID targetId() {
         return enc.targetId();
+    }
+
+    /** One-line state summary for debugging. */
+    public String describe() {
+        var nav = mob.getNavigation();
+        var path = nav.getPath();
+        return phase + " at " + mob.blockPosition().toShortString() + (mob.isInWater() ? " (in water)" : "")
+                + ", path " + (path == null ? "none" : path.isDone() ? "done" : (path.getNextNodeIndex() + "/" + path.getNodeCount()
+                + (path.canReach() ? "" : " partial"))) + ", stuck " + noProgress + ", detours " + detours;
     }
 
     private ServerLevel level() {
@@ -200,6 +220,8 @@ public final class LurkerBrain {
     private void setPhase(Phase p) {
         phase = p;
         phaseAge = 0;
+        bestApproach = Double.MAX_VALUE;
+        noProgress = 0;
         stall = 0;
         wanderTarget = null;
         if (p != Phase.GREET) {
@@ -228,6 +250,9 @@ public final class LurkerBrain {
         }
         if (attackCooldown > 0) {
             attackCooldown--;
+        }
+        if (suffersWater()) {
+            return;
         }
         deliverChat(t);
         if (heardPending != null && !chatInFlight && pendingChat == null) {
@@ -266,6 +291,7 @@ public final class LurkerBrain {
 
     private void stalk(ServerPlayer t, double dist) {
         fog(t, 0.15F);
+        watchProgress(t, dist);
         double speed = switch (enc.mode()) {
             case DOG -> speedFor(5.0);
             case ZOMBIE -> speedFor(2.3);
@@ -277,10 +303,14 @@ public final class LurkerBrain {
             stare(t);
             if (dist < 3.0) {
                 if (canAttack(t) && enc.willAttack()) {
-                    setPhase(Phase.TRANSFORM);
+                    if (canRevealNow(t)) {
+                        setPhase(Phase.TRANSFORM);
+                    }
                 } else {
                     vanish(false); // gone right before it touches you
                 }
+            } else if (phaseAge > 20 * 90) {
+                vanish(false);
             }
             return;
         }
@@ -293,6 +323,7 @@ public final class LurkerBrain {
 
     private void approach(ServerPlayer t, double dist) {
         fog(t, 0.2F);
+        watchProgress(t, dist);
         if (dist < 10) {
             stare(t);
         }
@@ -438,7 +469,7 @@ public final class LurkerBrain {
         } else {
             stare(t);
         }
-        if (dist <= 6 || (phaseAge > 20 * 25 && dist < 16)) {
+        if ((dist <= 6 || (phaseAge > 20 * 25 && dist < 16)) && canRevealNow(t)) {
             if (mimicking && random.nextFloat() < 0.6F) {
                 say(t, MimicChat.Intent.CREEPY, null);
             }
@@ -467,7 +498,7 @@ public final class LurkerBrain {
             }
         }
         if (dist < 22 || lookedAt > 30) {
-            if (enc.willAttack() && canAttack(t)) {
+            if (enc.willAttack() && canAttack(t) && canRevealNow(t)) {
                 setPhase(Phase.TRANSFORM); // you looked for too long
             } else {
                 vanish(false);
@@ -506,7 +537,9 @@ public final class LurkerBrain {
         }
         if (dist < 14) {
             if (enc.willAttack() && canAttack(t)) {
-                setPhase(Phase.TRANSFORM);
+                if (canRevealNow(t)) {
+                    setPhase(Phase.TRANSFORM);
+                }
             } else {
                 vanish(false);
             }
@@ -552,7 +585,7 @@ public final class LurkerBrain {
 
         if (enc.willAttack() && canAttack(t)) {
             boolean backTurned = !lookedAtNow && t.getViewVector(1F).dot(mob.position().subtract(t.position()).normalize()) < 0;
-            if (dist < 5 || (dist < 10 && backTurned && phaseAge > 20 * 20 && isolated(t))) {
+            if ((dist < 5 || (dist < 10 && backTurned && phaseAge > 20 * 20 && isolated(t))) && canRevealNow(t)) {
                 setPhase(Phase.TRANSFORM);
             }
         } else if (dist < 4) {
@@ -578,7 +611,7 @@ public final class LurkerBrain {
         }
         if (phaseAge >= 36) {
             mob.setFlag(FogLurkerEntity.FLAG_TRANSFORMING | FogLurkerEntity.FLAG_ANGRY | FogLurkerEntity.FLAG_SITTING, false);
-            mob.setDisguise(Disguise.NONE);
+            mob.setDisguise(Disguise.CRAWLER);
             mob.clearEquipment();
             mob.setAggressive(true);
             mob.playSound(ModSounds.SCREAM.get(), 2.0F, 1.0F);
@@ -595,21 +628,46 @@ public final class LurkerBrain {
         mob.setAggressive(true);
         stare(t);
         double chase = speedFor(7.2 * difficulty().speedMultiplier());
-        if (age - lastRepath >= 5 || mob.getNavigation().isDone()) {
-            lastRepath = age;
-            if (!mob.getNavigation().moveTo(t, chase)) {
-                mob.getMoveControl().setWantedPosition(t.getX(), t.getY(), t.getZ(), chase);
+        boolean targetInWater = SpotFinder.isInOrOnWater(t);
+        if (targetInWater) {
+            // It cannot follow you into water. It paces the closest shore and screams.
+            targetWaterTicks++;
+            if (age - lastRepath >= 20 || mob.getNavigation().isDone()) {
+                lastRepath = age;
+                Vec3 shore = SpotFinder.nearestDryGround(level(), t.position(), mob.position(), 12);
+                if (shore != null) {
+                    mob.getNavigation().moveTo(shore.x, shore.y, shore.z, chase);
+                } else {
+                    halt();
+                }
+            }
+            if (targetWaterTicks % 100 == 20) {
+                mob.playSound(ModSounds.SCREAM.get(), 1.5F, 0.7F);
+            }
+            if (targetWaterTicks > 20 * 20) {
+                vanish(false); // it gives up... this time
+                return;
+            }
+        } else {
+            targetWaterTicks = 0;
+            if (age - lastRepath >= 5 || mob.getNavigation().isDone()) {
+                lastRepath = age;
+                if (!mob.getNavigation().moveTo(t, chase)) {
+                    mob.getMoveControl().setWantedPosition(t.getX(), t.getY(), t.getZ(), chase);
+                }
             }
         }
         if (age % 30 == 0) {
             mob.playSound(ModSounds.HEARTBEAT.get(), 1.0F, 1.2F);
         }
+        // Claws still reach you from the shore if you only waded in.
         double reachSqr = 2.3 * 2.3;
-        if (mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.hasLineOfSight(t)) {
+        if (mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
             if (mob.doHurtTarget(t)) {
                 hits++;
             }
-            attackCooldown = difficulty() == LurkerDifficulty.DEATHWISH ? 12 : 20;
+            // 3 s / 2.5 s / 2 s / 1.75 s / 1.5 s between hits depending on the mode.
+            attackCooldown = difficulty().attackCooldownTicks();
         }
         if (hits >= difficulty().maxHitsPerEncounter()) {
             setPhase(Phase.FLEE);
@@ -636,12 +694,14 @@ public final class LurkerBrain {
             return;
         }
         ServerPlayer t = target();
-        if (t != null && enc.willAttack() && canAttack(t)) {
+        if (mob.isInWater()) {
+            setPhase(Phase.FLEE); // it will not show its real shape in the water
+        } else if (t != null && enc.willAttack() && canAttack(t) && canRevealNow(t)) {
             setPhase(Phase.TRANSFORM);
         } else {
             // Its skin slips for a moment, then it runs.
             mob.playSound(ModSounds.SCREAM.get(), 2.0F, 1.0F);
-            mob.setDisguise(Disguise.NONE);
+            mob.setDisguise(Disguise.CRAWLER);
             mob.clearEquipment();
             if (attacker instanceof ServerPlayer sp) {
                 ModNetwork.send(sp, new ScarePacket(30));
@@ -660,7 +720,7 @@ public final class LurkerBrain {
             mob.setFlag(FogLurkerEntity.FLAG_SITTING, !mob.hasFlag(FogLurkerEntity.FLAG_SITTING));
             return true;
         }
-        if (player.getUUID().equals(enc.targetId()) && enc.willAttack() && canAttack(player)
+        if (player.getUUID().equals(enc.targetId()) && enc.willAttack() && canAttack(player) && canRevealNow(player)
                 && phase != Phase.TRANSFORM && phase != Phase.ATTACK) {
             setPhase(Phase.TRANSFORM);
             return true;
@@ -703,6 +763,83 @@ public final class LurkerBrain {
     }
 
     // =================================================================== helpers
+
+    /**
+     * If it has not got any closer for 10 seconds (a fence, a cliff, a river it will not cross), it
+     * slips to a spot closer to you, but only when neither spot can be seen.
+     */
+    private void watchProgress(ServerPlayer t, double dist) {
+        if (dist < bestApproach - 1.0) {
+            bestApproach = dist;
+            noProgress = 0;
+            return;
+        }
+        // With no path at all it gives up on the current route twice as fast.
+        noProgress += mob.getNavigation().isDone() ? 2 : 1;
+        if (noProgress < 200) {
+            return;
+        }
+        noProgress = 0;
+        bestApproach = Double.MAX_VALUE;
+        if (SpotFinder.canSee(t, mob.getEyePosition())) {
+            // You are watching, so no tricks: walk around the obstacle, and if that fails too,
+            // fade into the fog and come back another time.
+            if (detours++ >= 2) {
+                vanish(false);
+                return;
+            }
+            Vec3 to = t.position().subtract(mob.position()).multiply(1, 0, 1).normalize();
+            Vec3 side = new Vec3(-to.z, 0, to.x).scale(random.nextBoolean() ? 8 : -8).add(to.scale(4));
+            BlockPos g = SpotFinder.ground(level(), Mth.floor(mob.getX() + side.x), Mth.floor(mob.getZ() + side.z), mob.getBlockY());
+            detour = g == null ? null : Vec3.atBottomCenterOf(g);
+            return;
+        }
+        double near = Math.max(6, Math.min(14, dist - 4));
+        Vec3 spot = SpotFinder.findSpawn(level(), t, near, near + 6, mob.position().subtract(t.position()), true, false, random);
+        if (spot != null && !SpotFinder.canSee(t, spot.add(0, 1.5, 0)) && spot.distanceTo(t.position()) < dist) {
+            mob.teleportTo(spot.x, spot.y, spot.z);
+            mob.getNavigation().stop();
+            lastRepath = -100;
+        } else if (detours++ >= 2) {
+            vanish(false); // nowhere to go: it never just stands there forever
+        }
+    }
+
+    /** It knows its weakness: it never sheds its swimming-capable skin while you or it are in water. */
+    private boolean canRevealNow(ServerPlayer t) {
+        return !mob.isInWater() && !SpotFinder.isInOrOnWater(t);
+    }
+
+    /**
+     * The attacking form cannot swim. In water it sinks, thrashes toward the shore, takes damage,
+     * and after three seconds the water drives it away.
+     *
+     * @return true if it was driven off this tick
+     */
+    private boolean suffersWater() {
+        if (!mob.isAttackForm() || !mob.isInWater()) {
+            waterTicks = 0;
+            return false;
+        }
+        waterTicks++;
+        if (waterTicks % 10 == 1) {
+            level().sendParticles(ParticleTypes.SPLASH, mob.getX(), mob.getY() + 0.5, mob.getZ(), 20, 0.5, 0.3, 0.5, 0.2);
+            mob.playSound(ModSounds.HURT.get(), 1.2F, 0.5F + random.nextFloat() * 0.3F);
+        }
+        if (waterTicks % 20 == 1) {
+            Vec3 shore = SpotFinder.nearestDryGround(level(), mob.position(), mob.position(), 10);
+            if (shore != null) {
+                mob.getMoveControl().setWantedPosition(shore.x, shore.y, shore.z, speedFor(3.0));
+            }
+        }
+        if (waterTicks % 20 == 0) {
+            mob.hurt(mob.damageSources().generic(), 4.0F);
+        }
+        if (!ended && waterTicks > 60) {
+            vanish(true);
+        }
+        return ended;
+    }
 
     private boolean canAttack(ServerPlayer t) {
         return !t.isCreative() && !t.isSpectator() && t.isAlive()
@@ -753,6 +890,14 @@ public final class LurkerBrain {
     }
 
     private void goTo(Entity e, double speed) {
+        if (detour != null) {
+            if (mob.position().distanceToSqr(detour) < 2.0 || noProgress > 120) {
+                detour = null;
+            } else {
+                goTo(detour, speed);
+                return;
+            }
+        }
         if (age - lastRepath < 10 && mob.getNavigation().isInProgress()) {
             mob.getNavigation().setSpeedModifier(speed);
             return;
