@@ -107,9 +107,46 @@ public final class FogLurkerCommands {
                 // TEMPORARY: delete this line and the debug package before release.
                 .then(com.foglurker.debug.DebugCommand.node()));
 
+        // Cheats only: it does the Macarena. /foglurker-macarena [loops], also /foglurker macarena [loops]
+        d.register(macarena(Commands.literal("foglurker-macarena")));
+        d.register(Commands.literal("foglurker").then(macarena(Commands.literal("macarena"))));
+
         // The voice snippet commands answer to both spellings.
         d.register(voiceRoot("flurk"));
         d.register(voiceRoot("fglurk"));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> macarena(LiteralArgumentBuilder<CommandSourceStack> node) {
+        return node.requires(s -> s.hasPermission(2))
+                .executes(ctx -> macarena(ctx, 3))
+                .then(Commands.argument("loops", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 20))
+                        .executes(ctx -> macarena(ctx, com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "loops"))));
+    }
+
+    private static int macarena(CommandContext<CommandSourceStack> ctx, int loops) throws CommandSyntaxException {
+        ServerPlayer p = ctx.getSource().getPlayerOrException();
+        net.minecraft.server.level.ServerLevel level = p.serverLevel();
+        net.minecraft.world.phys.Vec3 look = p.getViewVector(1F).multiply(1, 0, 1);
+        look = look.lengthSqr() < 1e-4 ? new net.minecraft.world.phys.Vec3(0, 0, 1) : look.normalize();
+        net.minecraft.world.phys.Vec3 spot = p.position().add(look.scale(3.5));
+        var ground = com.foglurker.brain.SpotFinder.ground(level, net.minecraft.util.Mth.floor(spot.x),
+                net.minecraft.util.Mth.floor(spot.z), p.getBlockY());
+        if (ground != null) {
+            spot = net.minecraft.world.phys.Vec3.atBottomCenterOf(ground);
+        }
+        FogLurkerEntity dancer = com.foglurker.registry.ModEntities.FOG_LURKER.get().create(level);
+        if (dancer == null) {
+            return 0;
+        }
+        float yaw = (float) Math.toDegrees(Math.atan2(p.getZ() - spot.z, p.getX() - spot.x)) - 90F; // face you
+        dancer.moveTo(spot.x, spot.y, spot.z, yaw, 0F);
+        dancer.setYHeadRot(yaw);
+        dancer.setYBodyRot(yaw);
+        dancer.startMacarena(loops);
+        level.addFreshEntity(dancer);
+        reply(ctx.getSource(), Component.literal("The Fog Lurker does the Macarena ("
+                + loops + (loops == 1 ? " loop" : " loops") + ").").withStyle(ChatFormatting.LIGHT_PURPLE));
+        return 1;
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> voiceRoot(String name) {

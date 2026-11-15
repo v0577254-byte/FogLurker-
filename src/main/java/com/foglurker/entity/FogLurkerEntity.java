@@ -72,6 +72,7 @@ public class FogLurkerEntity extends PathfinderMob {
     public static final int FLAG_TRANSFORMING = 1;
     public static final int FLAG_SITTING = 2;
     public static final int FLAG_ANGRY = 4;
+    public static final int FLAG_DANCING = 8;
 
     /** Replaced by the client setup so the entity can drive its client-side disguise model. */
     public static Consumer<FogLurkerEntity> clientTicker = e -> {
@@ -79,6 +80,12 @@ public class FogLurkerEntity extends PathfinderMob {
 
     @Nullable
     private LurkerBrain brain;
+    // /foglurker-macarena
+    private int danceTick;
+    private int danceTicksLeft;
+    private int clientDanceStart;
+    private boolean clientWasDancing;
+
     /** Tick of the last hit; hits are spaced by the mode's cooldown so it can never spam attacks. */
     private int lastAttackTick = -100_000;
 
@@ -149,6 +156,10 @@ public class FogLurkerEntity extends PathfinderMob {
     @Override
     protected void customServerAiStep() {
         super.customServerAiStep();
+        if (isDancing()) {
+            tickDance();
+            return;
+        }
         if (this.isNoAi()) {
             return; // {NoAI:1b}: a harmless statue, e.g. for map makers
         }
@@ -169,6 +180,14 @@ public class FogLurkerEntity extends PathfinderMob {
     public void tick() {
         super.tick();
         if (this.level().isClientSide) {
+            boolean dancing = isDancing();
+            if (dancing && !clientWasDancing) {
+                clientDanceStart = this.tickCount;
+            }
+            clientWasDancing = dancing;
+            if (dancing) {
+                this.yBodyRot = this.getYHeadRot(); // turn the whole body on the hop
+            }
             clientTicker.accept(this);
         } else {
             this.climbing = isAttackForm() && this.horizontalCollision;
@@ -182,6 +201,53 @@ public class FogLurkerEntity extends PathfinderMob {
 
     public boolean isClimbing() {
         return this.climbing;
+    }
+
+    // ------------------------------------------------------------------ the macarena
+
+    public boolean isDancing() {
+        return hasFlag(FLAG_DANCING);
+    }
+
+    /** Client: ticks (with partial) since the dance started, for the animation. */
+    public float danceTime(float partialTick) {
+        return this.tickCount + partialTick - clientDanceStart;
+    }
+
+    /** Harmless, invulnerable, dances {@code loops} times through, then vanishes. Never hunts. */
+    public void startMacarena(int loops) {
+        setDisguise(Disguise.NONE);
+        setDisguiseName(null);
+        clearEquipment();
+        setFlag(FLAG_DANCING, true);
+        setInvulnerable(true);
+        danceTick = 0;
+        danceTicksLeft = Math.max(1, loops) * MacarenaDance.CYCLE_TICKS;
+    }
+
+    private void tickDance() {
+        this.getNavigation().stop();
+        MacarenaDance.beat(this, danceTick);
+        // Count 16: hop and turn a quarter to the left.
+        if (danceTick % MacarenaDance.TICKS_PER_COUNT == 0 && MacarenaDance.count(danceTick) == 15) {
+            float yaw = this.getYRot() - 90.0F;
+            this.setYRot(yaw);
+            this.setYHeadRot(yaw);
+            this.setYBodyRot(yaw);
+            if (this.onGround()) {
+                this.getJumpControl().jump();
+            }
+        } else {
+            this.setYHeadRot(this.getYRot());
+            this.setYBodyRot(this.getYRot());
+        }
+        danceTick++;
+        if (--danceTicksLeft <= 0 && this.level() instanceof ServerLevel level) {
+            level.sendParticles(net.minecraft.core.particles.ParticleTypes.LARGE_SMOKE, getX(), getY() + 1, getZ(),
+                    30, 0.3, 0.6, 0.3, 0.02);
+            this.playSound(ModSounds.VANISH.get(), 1.0F, 1.2F);
+            this.discard();
+        }
     }
 
     @Override

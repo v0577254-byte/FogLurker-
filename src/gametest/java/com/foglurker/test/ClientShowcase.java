@@ -65,18 +65,30 @@ public final class ClientShowcase {
             case 440 -> server.execute(() -> swimScene(server));
             case 520 -> shot(mc, "foglurker_swim.png");
             case 530 -> server.execute(() -> sp(server).teleportTo(sp(server).serverLevel(), stageX + 0.5, stageY, stageZ - 3.5, 0F, 14F));
-            case 770 -> shot(mc, "foglurker_fog.png");
-            case 780 -> {
+            case 700 -> shot(mc, "foglurker_fog.png");
+            case 710 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.teleportTo(p.serverLevel(), stageX + 0.5, stageY, stageZ - 6.5, 0F, 8F);
+            });
+            case 720 -> server.execute(() -> {
+                ClientEffects.setFogTarget(0F);
+                server.getCommands().performPrefixedCommand(sp(server).createCommandSourceStack().withPermission(2), "foglurker-macarena 2");
+            });
+            case 790 -> shot(mc, "foglurker_macarena_shoulders.png");
+            case 815 -> shot(mc, "foglurker_macarena_head.png");
+            case 855 -> shot(mc, "foglurker_macarena_back.png");
+            case 878 -> shot(mc, "foglurker_macarena_wiggle.png");
+            case 890 -> {
                 mc.options.hideGui = false;
                 mc.player.connection.sendCommand("foglurker debugeverything");
             }
-            case 840 -> mc.setScreen(new net.minecraft.client.gui.screens.ChatScreen(""));
-            case 860 -> shot(mc, "foglurker_debug_chat.png");
-            case 880 -> mc.stop();
+            case 950 -> mc.setScreen(new net.minecraft.client.gui.screens.ChatScreen(""));
+            case 970 -> shot(mc, "foglurker_debug_chat.png");
+            case 990 -> mc.stop();
             default -> {
             }
         }
-        if (ticks > 540 && ticks < 780) {
+        if (ticks > 540 && ticks < 705) {
             ClientEffects.setFogTarget(0.7F);
         }
     }

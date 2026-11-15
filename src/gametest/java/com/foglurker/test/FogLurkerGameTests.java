@@ -531,6 +531,35 @@ public final class FogLurkerGameTests {
         });
     }
 
+    @GameTest(template = "empty", batch = "macarena", timeoutTicks = 400)
+    public static void macarena(GameTestHelper h) {
+        logged(h, () -> {
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            var root = server.getCommands().getDispatcher().getRoot();
+            check(root.getChild("foglurker-macarena") != null, "/foglurker-macarena is not registered");
+            check(!root.getChild("foglurker-macarena").canUse(p.createCommandSourceStack().withPermission(0)),
+                    "/foglurker-macarena must be cheats only");
+            int before = h.getLevel().getEntities(com.foglurker.registry.ModEntities.FOG_LURKER.get(), e -> true).size();
+            server.getCommands().getDispatcher().execute("foglurker-macarena 1", p.createCommandSourceStack().withPermission(2));
+            List<? extends FogLurkerEntity> dancers = h.getLevel().getEntities(com.foglurker.registry.ModEntities.FOG_LURKER.get(),
+                    FogLurkerEntity::isDancing);
+            check(dancers.size() == 1 && before == 0, "expected exactly one dancer, found " + dancers.size());
+            FogLurkerEntity dancer = dancers.get(0);
+            check(dancer.isInvulnerable() && dancer.getDisguise() == Disguise.NONE, "dancer should be the harmless watcher");
+            float yaw = dancer.getYRot();
+            h.runAfterDelay(com.foglurker.entity.MacarenaDance.TICKS_PER_COUNT * 15 + 4, () ->
+                    check(Math.abs(net.minecraft.util.Mth.wrapDegrees(dancer.getYRot() - yaw + 90)) < 1,
+                            "it should turn a quarter on count 16 (yaw " + dancer.getYRot() + ", was " + yaw + ")"));
+            h.runAfterDelay(com.foglurker.entity.MacarenaDance.CYCLE_TICKS + 5, () -> {
+                check(dancer.isRemoved(), "after one loop it should take a bow and vanish");
+                check(LurkerDirector.active().isEmpty(), "a dancer must never count as a hunting creature");
+                h.succeed();
+            });
+        });
+    }
+
     @GameTest(template = "empty", batch = "secure", timeoutTicks = 200)
     public static void secureFolderConsentAndSnippets(GameTestHelper h) {
         logged(h, () -> secureFolderConsentAndSnippetsImpl(h));
