@@ -124,7 +124,7 @@ public final class ClientShowcase {
         stageZ = z0;
         sp.teleportTo(level, x0 + 0.5, y, z0 - 3.5, 0F, 14F);
         Disguise[] row = {Disguise.PLAYER, Disguise.DOG, Disguise.COW, Disguise.SHEEP, Disguise.PIG,
-                Disguise.CHICKEN, Disguise.ZOMBIE, Disguise.WOLF, Disguise.NONE, Disguise.CRAWLER};
+                Disguise.CHICKEN, Disguise.ZOMBIE, Disguise.WOLF, Disguise.CRAWLER};
         for (int i = 0; i < row.length; i++) {
             Disguise d = row[i];
             int x = x0 - 9 + i * 2;
@@ -157,7 +157,7 @@ public final class ClientShowcase {
         }
     }
 
-    private static final int CRAWLER_INDEX = 9;
+    private static final int CRAWLER_INDEX = 8;
 
     /** Puts the camera at an offset from the n-th creature in the row. */
     private static void camera(MinecraftServer server, int index, double dx, double dz, float yaw, float pitch) {

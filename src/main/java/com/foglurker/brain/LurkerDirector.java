@@ -246,7 +246,7 @@ public final class LurkerDirector {
             options.add(new Option(modeFor(forced, friend != null), forced, 1));
         } else {
             if (!willAttack && r.nextDouble() < diff.pureWatchChance()) {
-                options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.NONE, 1));
+                options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.CRAWLER, 1));
             } else {
                 if (friend != null) {
                     options.add(new Option(LurkerBrain.Mode.MIMIC, Disguise.PLAYER, 55));
@@ -271,7 +271,7 @@ public final class LurkerDirector {
                 if (dark) {
                     options.add(new Option(LurkerBrain.Mode.ZOMBIE, Disguise.ZOMBIE, 12));
                 }
-                options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.NONE, willAttack ? 0 : 6));
+                options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.CRAWLER, willAttack ? 0 : 6));
             }
         }
         Option pick = weighted(options, r);
@@ -318,7 +318,7 @@ public final class LurkerDirector {
             case PLAYER -> hasFriend ? LurkerBrain.Mode.MIMIC : LurkerBrain.Mode.DOPPELGANGER;
             case DOG -> LurkerBrain.Mode.DOG;
             case ZOMBIE -> LurkerBrain.Mode.ZOMBIE;
-            case NONE, CRAWLER -> LurkerBrain.Mode.WATCHER;
+            case CRAWLER -> LurkerBrain.Mode.WATCHER;
             default -> LurkerBrain.Mode.HERD;
         };
     }

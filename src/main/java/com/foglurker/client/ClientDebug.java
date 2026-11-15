@@ -51,13 +51,12 @@ public final class ClientDebug {
             check("Crawler model", false, t.toString());
         }
         List<String> missingTex = new ArrayList<>();
-        for (ResourceLocation tex : List.of(TrueFormRenderer.TEXTURE, FogLurkerMod.id("textures/entity/fog_lurker_eyes.png"),
-                CrawlerRenderer.TEXTURE, CrawlerRenderer.EYES_TEXTURE)) {
+        for (ResourceLocation tex : List.of(CrawlerRenderer.TEXTURE, CrawlerRenderer.EYES_TEXTURE)) {
             if (mc.getResourceManager().getResource(tex).isEmpty()) {
                 missingTex.add(tex.getPath());
             }
         }
-        check("Textures", missingTex.isEmpty(), missingTex.isEmpty() ? "watcher, crawler and both glowing-eye layers" : "missing " + missingTex);
+        check("Textures", missingTex.isEmpty(), missingTex.isEmpty() ? "pale crawler and its glowing eyes" : "missing " + missingTex);
         List<String> missingSounds = new ArrayList<>();
         for (String s : List.of("lurker.scream", "lurker.reveal", "lurker.whisper", "lurker.vanish", "lurker.heartbeat",
                 "lurker.hurt", "lurker.attack")) {
@@ -71,7 +70,7 @@ public final class ClientDebug {
         List<String> broken = new ArrayList<>();
         int ok = 0;
         for (Disguise d : Disguise.values()) {
-            if (d == Disguise.NONE || d == Disguise.CRAWLER) {
+            if (d == Disguise.CRAWLER) {
                 continue;
             }
             FogLurkerEntity e = ModEntities.FOG_LURKER.get().create(mc.level);

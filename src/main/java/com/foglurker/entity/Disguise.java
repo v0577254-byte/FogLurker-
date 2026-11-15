@@ -8,11 +8,10 @@ import net.minecraft.world.entity.animal.Wolf;
 import javax.annotation.Nullable;
 
 /**
- * Every shape the creature can take. NONE is the tall "watcher" seen far away in the fog; CRAWLER is
- * its pale attacking form. Ordinals are synced to clients, so new shapes go at the end.
+ * Every shape the creature can take. CRAWLER is the Fog Lurker itself: the pale thing on all fours
+ * that watches from the fog and attacks. Everything else is a stolen shape.
  */
 public enum Disguise {
-    NONE("watcher", null, 0.6F, 1.95F),
     PLAYER("player", null, 0.6F, 1.8F),
     COW("cow", EntityType.COW, 0.9F, 1.4F),
     SHEEP("sheep", EntityType.SHEEP, 0.9F, 1.3F),
@@ -54,7 +53,7 @@ public enum Disguise {
     }
 
     public boolean isHumanoid() {
-        return this == PLAYER || this == ZOMBIE || this == NONE;
+        return this == PLAYER || this == ZOMBIE;
     }
 
     /** The attacking form: water is its weakness. Every other form can swim. */
@@ -69,7 +68,7 @@ public enum Disguise {
 
     public static Disguise byId(int ordinal) {
         Disguise[] v = values();
-        return ordinal >= 0 && ordinal < v.length ? v[ordinal] : NONE;
+        return ordinal >= 0 && ordinal < v.length ? v[ordinal] : CRAWLER;
     }
 
     @Nullable
@@ -79,8 +78,8 @@ public enum Disguise {
                 return d;
             }
         }
-        if (name.equalsIgnoreCase("true_form") || name.equalsIgnoreCase("attack_form")) {
-            return name.equalsIgnoreCase("true_form") ? NONE : CRAWLER;
+        if (name.equalsIgnoreCase("true_form") || name.equalsIgnoreCase("watcher") || name.equalsIgnoreCase("fog_lurker")) {
+            return CRAWLER;
         }
         return null;
     }

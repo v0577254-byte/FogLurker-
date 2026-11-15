@@ -211,7 +211,7 @@ public final class FogLurkerCommands {
             case MIMIC -> "wearing " + enc.copiedName() + "'s face";
             case DOPPELGANGER -> "wearing their own face";
             case DOG -> "as their dog" + (enc.dogName() != null ? " \"" + enc.dogName() + "\"" : "");
-            case WATCHER -> enc.disguise() == Disguise.CRAWLER ? "as the pale crawler, watching" : "as the tall watcher in the fog";
+            case WATCHER -> "as itself, the pale crawler, watching from the fog";
             default -> "hiding as a " + enc.disguise().id();
         };
         reply(src, Component.literal("It is coming for " + target.getGameProfile().getName() + ", " + as

@@ -81,7 +81,7 @@ public final class DisguiseCache {
     @Nullable
     public static LivingEntity get(FogLurkerEntity lurker) {
         Disguise d = lurker.getDisguise();
-        if (d == Disguise.NONE || d == Disguise.CRAWLER || !(lurker.level() instanceof ClientLevel level)) {
+        if (d == Disguise.CRAWLER || !(lurker.level() instanceof ClientLevel level)) {
             CACHE.remove(lurker.getId());
             return null;
         }

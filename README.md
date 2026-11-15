@@ -7,7 +7,7 @@ A horror mod for **Minecraft 1.20.1 (Forge 47.x)**.
 Something in the fog has been watching you play. It learns how you move and how you type. It learns what your friends sound like and what your dog is called. Then it uses all of that to lure you into the woods.
 
 ![Every disguise, lined up](docs/images/disguises.jpg)
-*Left to right: its pale attacking form, the watcher, a wolf, a zombie, a chicken, a pig, a sheep, a cow, **your dog** (collar and name copied) and **your friend** (skin, armour and held item copied).*
+*Left to right: the Fog Lurker itself (the pale crawler), a wolf, a zombie, a chicken, a pig, a sheep, a cow, **your dog** (collar and name copied) and **your friend** (skin, armour and held item copied).*
 
 ## What it does
 
@@ -18,16 +18,16 @@ Something in the fog has been watching you play. It learns how you move and how 
 - **It lures you into the woods.** It finds the thickest tree cover nearby (away from the real friend), walks you there and waits when you fall behind. If you stop following, it gets impatient in chat.
 - **It hides among animals.** It can be a cow, sheep, pig, chicken, wolf or zombie in a real herd. It wanders the way the real animals around you wander (it learns that too), but stares at you a little too often and creeps closer when you look away.
 - **It can be your dog.** It copies your tamed wolf's collar colour and name tag. It runs up to you, whines, then runs toward the trees and looks back, the way a dog that "found something" would.
-- **It watches.** Sometimes it is just a tall black figure at the edge of your vision. Look at it too long and it is gone.
+- **It watches.** Sometimes it is just itself, the pale crawler, crouched at the edge of your vision and staring. Look at it too long and it is gone.
 - **The fog rolls in** while it hunts you. When it reveals itself the screen shakes and you hear a heartbeat.
 
 ![Fog while it hunts](docs/images/fog.jpg)
 
 It never really dies. Hurt it badly enough and it melts back into the fog until next time.
 
-## Its attacking form
+## What it really looks like
 
-When it stops pretending, its stolen shape flickers and peels away into **the crawler**. The crawler is pale and albino with gray accents. It moves on all fours, with arms long enough to reach more than a block past its shoulders and grasshopper legs whose knees sit up by its ribs. Its long jaw hangs open, showing a blood-red mouth full of teeth with blood on them, and its eyes are pure white and glow in the dark.
+The Fog Lurker's real shape is **the pale crawler**. When it stops pretending, its stolen shape flickers and peels away into it. The crawler is pale and albino with gray accents. It moves on all fours, with arms long enough to reach more than a block past its shoulders and grasshopper legs whose knees sit up by its ribs. Its long jaw hangs open, showing a blood-red mouth full of teeth with blood on them, and its eyes are pure white and glow in the dark.
 
 | Front | Side |
 |---|---|
@@ -77,7 +77,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 
 | Command | Who | What it does |
 |---|---|---|
-| `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `watcher`, `crawler`, `random` |
+| `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `crawler` (itself), `random` |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |

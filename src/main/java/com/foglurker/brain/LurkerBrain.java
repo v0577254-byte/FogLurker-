@@ -209,7 +209,7 @@ public final class LurkerBrain {
             case DOG -> mob.setDisguiseName(enc.dogName());
             default -> mob.setDisguiseName(null);
         }
-        animalStats = data.entityStats().get(enc.disguise() == Disguise.NONE ? "wolf" : enc.disguise().learnKey());
+        animalStats = data.entityStats().get(enc.disguise().learnKey());
         sprintPref = copiedProfile != null ? random.nextFloat() < copiedProfile.sprintRatio : random.nextBoolean();
 
         ServerPlayer t = target();

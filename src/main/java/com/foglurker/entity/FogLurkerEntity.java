@@ -99,7 +99,7 @@ public class FogLurkerEntity extends PathfinderMob {
         if (this.getNavigation() instanceof GroundPathNavigation nav) {
             nav.setCanOpenDoors(true);
         }
-        applyMovementRules(Disguise.NONE);
+        applyMovementRules(Disguise.CRAWLER);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -116,7 +116,7 @@ public class FogLurkerEntity extends PathfinderMob {
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
-        this.entityData.define(DATA_DISGUISE, Disguise.NONE.ordinal());
+        this.entityData.define(DATA_DISGUISE, Disguise.CRAWLER.ordinal());
         this.entityData.define(DATA_MIMIC_UUID, Optional.empty());
         this.entityData.define(DATA_MIMIC_NAME, "");
         this.entityData.define(DATA_SKIN, 0x7F | (1 << 8));
@@ -532,7 +532,7 @@ public class FogLurkerEntity extends PathfinderMob {
             case WOLF -> SoundEvents.WOLF_AMBIENT;
             case DOG -> hasFlag(FLAG_ANGRY) ? SoundEvents.WOLF_GROWL
                     : this.random.nextInt(3) == 0 ? SoundEvents.WOLF_WHINE : SoundEvents.WOLF_PANT;
-            case NONE, CRAWLER -> ModSounds.WHISPER.get();
+            case CRAWLER -> ModSounds.WHISPER.get();
             case PLAYER -> null; // players do not make idle noises
         };
     }
@@ -541,7 +541,7 @@ public class FogLurkerEntity extends PathfinderMob {
     public int getAmbientSoundInterval() {
         return switch (getDisguise()) {
             case PLAYER -> Integer.MAX_VALUE;
-            case NONE, CRAWLER -> 160;
+            case CRAWLER -> 160;
             case CHICKEN -> 100;
             default -> 120;
         };
@@ -557,7 +557,7 @@ public class FogLurkerEntity extends PathfinderMob {
             case ZOMBIE -> SoundEvents.ZOMBIE_HURT;
             case WOLF, DOG -> SoundEvents.WOLF_HURT;
             case PLAYER -> SoundEvents.PLAYER_HURT;
-            case NONE, CRAWLER -> ModSounds.HURT.get();
+            case CRAWLER -> ModSounds.HURT.get();
         };
     }
 
@@ -570,7 +570,7 @@ public class FogLurkerEntity extends PathfinderMob {
     public float getVoicePitch() {
         float base = super.getVoicePitch();
         return switch (getDisguise()) {
-            case NONE, CRAWLER -> base * 0.6F;
+            case CRAWLER -> base * 0.6F;
             case PLAYER -> base;
             // Animals sound almost right. Almost.
             default -> base * 0.9F;

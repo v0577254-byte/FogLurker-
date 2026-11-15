@@ -215,7 +215,6 @@ public final class DebugCommand {
         r.run("Mod files", (rep, w) -> {
             IModFileInfo file = ModList.get().getModFileById(FogLurkerMod.MOD_ID);
             String[] paths = {"assets/foglurker/lang/en_us.json", "assets/foglurker/sounds.json",
-                    "assets/foglurker/textures/entity/fog_lurker.png", "assets/foglurker/textures/entity/fog_lurker_eyes.png",
                     "assets/foglurker/textures/entity/crawler.png", "assets/foglurker/textures/entity/crawler_eyes.png",
                     "data/foglurker/damage_type/lurker.json", "data/foglurker/damage_type/lurker_oneshot.json",
                     "foglurker_logo.png"};
