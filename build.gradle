@@ -47,6 +47,9 @@ minecraft {
             // lines up every disguise in front of the camera and saves screenshots.
             if (project.hasProperty('foglurkerShowcase')) {
                 property 'foglurker.showcase', 'true'
+                if (project.hasProperty('foglurkerScene')) {
+                    property 'foglurker.scene', project.property('foglurkerScene').toString()
+                }
                 args '--quickPlaySingleplayer', 'FogShowcase', '--width', '1280', '--height', '720'
                 mods {
                     "${mod_id}" {

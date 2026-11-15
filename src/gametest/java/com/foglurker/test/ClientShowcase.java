@@ -50,6 +50,10 @@ public final class ClientShowcase {
             return;
         }
         ticks++;
+        if ("snow".equals(System.getProperty("foglurker.scene"))) {
+            snowScene(mc, server);
+            return;
+        }
         switch (ticks) {
             case 60 -> {
                 mc.options.hideGui = true;
@@ -91,6 +95,111 @@ public final class ClientShowcase {
         if (ticks > 540 && ticks < 705) {
             ClientEffects.setFogTarget(0.7F);
         }
+    }
+
+    // ------------------------------------------------------------------ snowy mountain scene
+
+    private static void snowScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> {
+                mc.options.hideGui = true;
+                server.execute(() -> goToSnowyMountain(server));
+            }
+            case 200 -> server.execute(() -> placeSnowScene(server));
+            case 300 -> shot(mc, "foglurker_snow_close.png");
+            case 310 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.teleportTo(p.serverLevel(), stageX - dirX * 8 + 0.5, stageY + 5, stageZ - dirZ * 8 + 0.5, sceneYaw, 22F);
+            });
+            case 390 -> shot(mc, "foglurker_snow_wide.png");
+            case 640 -> shot(mc, "foglurker_snow_fog.png");
+            case 660 -> mc.stop();
+            default -> {
+            }
+        }
+        if (ticks > 400 && ticks < 650) {
+            ClientEffects.setFogTarget(0.55F);
+        }
+    }
+
+    private static void goToSnowyMountain(MinecraftServer server) {
+        ServerPlayer p = sp(server);
+        ServerLevel level = p.serverLevel();
+        level.setDayTime(5000);
+        level.setWeatherParameters(6000, 0, false, false);
+        p.setGameMode(GameType.CREATIVE);
+        var found = level.findClosestBiome3d(b -> b.is(net.minecraft.world.level.biome.Biomes.SNOWY_SLOPES)
+                        || b.is(net.minecraft.world.level.biome.Biomes.FROZEN_PEAKS) || b.is(net.minecraft.world.level.biome.Biomes.JAGGED_PEAKS),
+                p.blockPosition(), 6400, 32, 64);
+        if (found == null) {
+            FogLurkerMod.LOGGER.warn("Showcase: no snowy mountain found");
+            return;
+        }
+        BlockPos at = found.getFirst();
+        FogLurkerMod.LOGGER.info("Showcase: snowy mountain ({}) at {}", found.getSecond().unwrapKey().map(Object::toString).orElse("?"), at);
+        level.getChunk(at.getX() >> 4, at.getZ() >> 4); // generate it now
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, at.getX(), at.getZ());
+        p.teleportTo(level, at.getX() + 0.5, y + 1, at.getZ() + 0.5, 0F, 10F);
+    }
+
+    private static int dirX;
+    private static int dirZ;
+    private static float sceneYaw;
+
+    private static void placeSnowScene(MinecraftServer server) {
+        ServerPlayer p = sp(server);
+        ServerLevel level = p.serverLevel();
+        int px = p.getBlockX();
+        int pz = p.getBlockZ();
+        // Face uphill so the peak is the backdrop.
+        int[][] dirs = {{0, 1}, {-1, 0}, {0, -1}, {1, 0}};
+        float[] yaws = {0F, 90F, 180F, -90F};
+        int best = 0;
+        int bestH = Integer.MIN_VALUE;
+        for (int i = 0; i < 4; i++) {
+            int h = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, px + dirs[i][0] * 24, pz + dirs[i][1] * 24);
+            if (h > bestH) {
+                bestH = h;
+                best = i;
+            }
+        }
+        dirX = dirs[best][0];
+        dirZ = dirs[best][1];
+        sceneYaw = yaws[best];
+        stageX = px;
+        stageZ = pz;
+        stageY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, px, pz);
+        // Carve a flat snowy ledge 11 wide and 12 deep into the slope.
+        var snow = net.minecraft.world.level.block.Blocks.SNOW_BLOCK.defaultBlockState();
+        var air = net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+        for (int f = -10; f <= 11; f++) {
+            for (int side = -5; side <= 5; side++) {
+                int x = px + dirX * f - dirZ * side;
+                int z = pz + dirZ * f + dirX * side;
+                for (int dy = -3; dy < 0; dy++) {
+                    level.setBlock(new BlockPos(x, stageY + dy, z), snow, 2);
+                }
+                for (int dy = 0; dy < 12; dy++) {
+                    level.setBlock(new BlockPos(x, stageY + dy, z), air, 2);
+                }
+            }
+        }
+        p.teleportTo(level, px + 0.5, stageY, pz + 0.5, sceneYaw, 10F);
+        // Hiding form (a wolf, at home on a snowy mountain) and its real form, side by side.
+        spawnAt(level, px + dirX * 5 + dirZ * 2, pz + dirZ * 5 - dirX * 2, Disguise.WOLF, false, sceneYaw + 180F);
+        spawnAt(level, px + dirX * 5 - dirZ * 2, pz + dirZ * 5 + dirX * 2, Disguise.CRAWLER, true, sceneYaw + 180F);
+    }
+
+    private static void spawnAt(ServerLevel level, int x, int z, Disguise d, boolean aggressive, float yaw) {
+        int y = stageY;
+        FogLurkerEntity l = ModEntities.FOG_LURKER.get().create(level);
+        l.moveTo(x + 0.5, y, z + 0.5, yaw, 0F);
+        l.setYHeadRot(yaw);
+        l.setYBodyRot(yaw);
+        l.setNoAi(true);
+        l.setDisguise(d);
+        l.setAggressive(aggressive);
+        level.addFreshEntity(l);
     }
 
     private static ServerPlayer sp(MinecraftServer server) {
