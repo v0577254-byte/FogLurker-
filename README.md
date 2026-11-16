@@ -96,6 +96,29 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 
 ![A stolen player sprint-swimming](docs/images/swim.jpg)
 
+## Groups
+
+When players are together (within 24 blocks of each other) it picks its victim inside the group: usually the one with the **least health** (about half the time), otherwise usually the one on the **edge of the group**, furthest from the others and closest to the dark it comes from (about 40%), and now and then anyone.
+
+Once it is attacking, most of the time it switches to whoever is easiest: someone **much closer** to it than its target, or someone **3+ hearts weaker** who is not much further away. It only switches to players it could actually reach (not in water, not inside a soul-fire ward). A few are fixated and never switch.
+
+## Night
+
+**The fog is thicker at night:** +10% on Very Easy, +15% Easy, +25% Medium, +35% Hard, +50% Deathwish.
+
+**Deathwish only: the night meeting.** On Deathwish, at night, out in the open, about 3 in 10 of its appearances are a meeting: you walk straight into it. It stands a few steps in front of you, stares, and says:
+
+> fogstalker: hello *yourname*
+> fogstalker: please dont run
+> fogstalker: i will not hurt you
+
+It is a coin flip whether it means it. If it does, it sinks flat into the ground and is gone. If not:
+
+> fogstalker: just kidding
+> fogstalker: **RUN!**
+
+**RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, you die instantly**. If you get away (outrun it, water, soul fire, a bell), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Try it with `/foglurker force meet [player]`.
+
 ## The five modes
 
 | Mode | Attacks on | Damage per hit | Time between hits | Grace period (first start) | Notes |
@@ -133,6 +156,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
 | `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
 | `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
+| `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
 | `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force` (hauntings still happen; turn those off with the `hauntings` config option). Saved with the world. `on` starts a fresh 5-minute countdown |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
@@ -280,6 +304,8 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - Deathwish cannot bite during its 1.5 s wind-up, then kills
 - a second bell within the cooldown does nothing, escaping with a bell adds +10% (capped at +30%), and a bite resets it
 - it never hunts one player twice at once and does not come straight back to the player it just left
+- groups: it picks the hurt player about half the time and the one at the edge about 40% of the time; mid-attack it switches to a much closer player and bites them, not the far one
+- night: the fog multipliers per mode; the night meeting waits out "RUN!" and the full 5 second head start, then kills in one bite; when it means it, it leaves without a scratch; getting away gives 15 minutes of peace
 - `/fglurk chatlearning off` forgets your messages, drops them from the Gemini context, stops learning, and survives a restart
 - the Gemini client against a fake Gemini server: falls back past missing (404), forbidden (403), broken (502) and rate-limited (429) models; retries without the thinking budget once and remembers it; stops at once on an invalid key and pauses until a key is set again; waits as long as Google asks after a rate limit; reports safety blocks and empty replies; never sends a malformed key; times out on a hung server; the key is only ever in the header; replies are cleaned of formatting codes, invisible characters and split emoji
 - hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests

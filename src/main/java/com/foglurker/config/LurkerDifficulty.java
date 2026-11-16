@@ -60,6 +60,17 @@ public enum LurkerDifficulty {
     }
 
     /** Chance that a spawn turns into an attack (the rest only watch / lure / stalk). */
+    /** How much thicker its fog is at night: +10% / +15% / +25% / +35% / +50%. */
+    public float nightFogMultiplier() {
+        return switch (this) {
+            case VERY_EASY -> 1.10F;
+            case EASY -> 1.15F;
+            case MEDIUM -> 1.25F;
+            case HARD -> 1.35F;
+            case DEATHWISH -> 1.50F;
+        };
+    }
+
     public double attackChance() {
         return attackChance;
     }

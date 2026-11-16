@@ -137,6 +137,12 @@ public final class FogLurkerGameTests {
                 level.setBlock(c.offset(x, 20, z), stone, 2);
             }
         }
+        // Keep the whole field running like chunks next to a real player (mock players do not load chunks).
+        for (int cx = (c.getX() - r - 1) >> 4; cx <= (c.getX() + r + 1) >> 4; cx++) {
+            for (int cz = (c.getZ() - r - 1) >> 4; cz <= (c.getZ() + r + 1) >> 4; cz++) {
+                level.setChunkForced(cx, cz, true);
+            }
+        }
         // Anything that fell or flowed in before the walls went up.
         for (var e : level.getEntitiesOfClass(net.minecraft.world.entity.item.FallingBlockEntity.class,
                 new net.minecraft.world.phys.AABB(c).inflate(r + 2, 24, r + 2))) {
@@ -312,6 +318,7 @@ public final class FogLurkerGameTests {
     }
 
     private static void damageMatchesEachModeImpl(GameTestHelper h) throws Exception {
+        flatten(h, 24); // its own field: never depend on what an earlier test left here
         MinecraftServer server = h.getLevel().getServer();
         List<ServerPlayer> players = new ArrayList<>();
         for (int i = 0; i < LurkerDifficulty.values().length; i++) {
@@ -385,6 +392,7 @@ public final class FogLurkerGameTests {
     }
 
     private static void hitsAreSpacedOutImpl(GameTestHelper h) throws Exception {
+        flatten(h, 24);
         MinecraftServer server = h.getLevel().getServer();
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         LurkerDifficulty before = data.difficulty();
@@ -419,6 +427,7 @@ public final class FogLurkerGameTests {
     }
 
     private static void waterIsItsWeaknessImpl(GameTestHelper h) throws Exception {
+        flatten(h, 24);
         ServerLevel level = h.getLevel();
         ServerPlayer p = player(h, 1.5, 1.5);
         kickOtherPlayers(level.getServer(), p);
@@ -502,6 +511,165 @@ public final class FogLurkerGameTests {
                 live.setNaturalSpawning(was);
             }
             h.succeed();
+        });
+    }
+
+    // ------------------------------------------------------------------ night
+
+    @GameTest(template = "empty", batch = "night", timeoutTicks = 100)
+    public static void fogIsThickerAtNight(GameTestHelper h) {
+        logged(h, () -> {
+            float[] want = {1.10F, 1.15F, 1.25F, 1.35F, 1.50F};
+            LurkerDifficulty[] modes = LurkerDifficulty.values();
+            for (int i = 0; i < modes.length; i++) {
+                check(Math.abs(modes[i].nightFogMultiplier() - want[i]) < 1e-6, modes[i] + " night fog should be x" + want[i]);
+            }
+            h.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", batch = "meet", timeoutTicks = 1200)
+    public static void nightMeetingRunThenItKills(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = LurkerDirector.spawnNightMeeting(p, true);
+                check(l != null, "no spot for the night meeting");
+                check(l.brain().encounter().mode() == LurkerBrain.Mode.NIGHT_MEETING && l.getDisguise() == Disguise.CRAWLER,
+                        "it should be the pale crawler, meeting them");
+                check(l.distanceTo(p) <= 14, "it should be right in front of them, it is " + l.distanceTo(p) + " away");
+                h.runAfterDelay(LurkerBrain.MEETING_RUN + 2, () -> logged(h, () -> {
+                    check(l.brain().phase() == LurkerBrain.Phase.GREET && p.getHealth() >= 20F,
+                            "it must not touch them before the head start is over (" + l.brain().describe() + ")");
+                }));
+                h.runAfterDelay(LurkerBrain.MEETING_CHASE - 10, () -> logged(h, () -> {
+                    check(l.brain().phase() == LurkerBrain.Phase.GREET && p.getHealth() >= 20F,
+                            "5 seconds after RUN! it should only just be setting off");
+                }));
+                h.runAfterDelay(LurkerBrain.MEETING_CHASE + 5, () -> h.succeedWhen(() -> {
+                    check(p.isDeadOrDying(), "once it catches them they die instantly (" + l.brain().describe() + ")");
+                    l.brain().vanish(true);
+                }));
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "meet2", timeoutTicks = 800)
+    public static void nightMeetingSometimesMeansIt(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = LurkerDirector.spawnNightMeeting(p, false);
+                check(l != null, "no spot for the night meeting");
+                h.runAfterDelay(LurkerBrain.MEETING_LEAVE + 40, () -> logged(h, () -> {
+                    check(l.isRemoved() || l.isFlopped(), "when it means it, it leaves after talking (" + l.brain().describe() + ")");
+                    check(p.getHealth() >= 20F, "it promised not to hurt them");
+                    check(LurkerDirector.leftAloneTicks(p) == 0, "no chase, so no 15 minute pass");
+                    h.succeed();
+                }));
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "meet3", timeoutTicks = 800)
+    public static void outrunTheNightMeetingAndItLeavesYouAlone(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = LurkerDirector.spawnNightMeeting(p, true);
+                check(l != null, "no spot for the night meeting");
+                h.runAfterDelay(LurkerBrain.MEETING_CHASE + 3, () -> logged(h, () -> {
+                    check(l.brain().phase() == LurkerBrain.Phase.ATTACK, "the chase should have started");
+                    l.brain().vanish(false); // as if it lost them
+                    long left = LurkerDirector.leftAloneTicks(p);
+                    check(left > LurkerBrain.MEETING_IMMUNITY_TICKS - 40 && left <= LurkerBrain.MEETING_IMMUNITY_TICKS,
+                            "getting away should mean 15 minutes of peace, got " + left + " ticks");
+                    check(!LurkerDirector.freeCandidates(server).contains(p), "nothing should come for them for 15 minutes");
+                    h.succeed();
+                }));
+            }));
+        });
+    }
+
+    // ------------------------------------------------------------------ groups
+
+    @GameTest(template = "empty", batch = "group", timeoutTicks = 200)
+    public static void inAGroupItPicksTheWeakestOrTheEdge(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            // Steve 1, Steve 2 and Alex 1 stand together; Alex 2 is at the edge; Steve 2 is hurt.
+            ServerPlayer steve1 = player(h, 1.5, 1.5);
+            ServerPlayer steve2 = player(h, 3.5, 1.5);
+            ServerPlayer alex1 = player(h, 2.5, 3.5);
+            ServerPlayer alex2 = player(h, 12.5, 2.5);
+            kickOtherPlayers(server, steve1, steve2, alex1, alex2);
+            for (ServerPlayer p : List.of(steve1, steve2, alex1, alex2)) {
+                p.setHealth(20F);
+            }
+            steve2.setHealth(7F);
+            List<ServerPlayer> group = List.of(steve1, steve2, alex1, alex2);
+            java.util.Map<ServerPlayer, Integer> picks = new java.util.HashMap<>();
+            RandomSource r = RandomSource.create(42);
+            for (int i = 0; i < 1000; i++) {
+                picks.merge(LurkerDirector.pickInGroup(group, r), 1, Integer::sum);
+            }
+            int weak = picks.getOrDefault(steve2, 0);
+            int edge = picks.getOrDefault(alex2, 0);
+            check(weak > 420, "the hurt one should be picked about half the time, got " + weak + "/1000");
+            check(edge > 360, "the one at the edge should be picked about 40% of the time, got " + edge + "/1000");
+            check(weak + edge > 850, "the weakest or the edge should be its pick most of the time, got " + (weak + edge));
+            h.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", batch = "group2", timeoutTicks = 600)
+    public static void midAttackItSwitchesToTheEasierOne(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer far = player(h, 1.5, 1.5);      // its target, 14 blocks from it
+            ServerPlayer near = player(h, 12.5, 1.5);    // in the group, right next to it
+            kickOtherPlayers(server, far, near);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                far.setHealth(20F);
+                near.setHealth(20F);
+                FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                LurkerDifficulty before = data.difficulty();
+                data.setDifficulty(LurkerDifficulty.MEDIUM);
+                FogLurkerEntity l;
+                try {
+                    l = hunter(h, far, 15.5, 1.5);
+                } finally {
+                    data.setDifficulty(before);
+                }
+                l.brain().setSwitchesTargets(true);
+                check(l.brain().targetId().equals(far.getUUID()), "it should start on its own target");
+                h.succeedWhen(() -> {
+                    check(l.brain().targetId().equals(near.getUUID()), "it should switch to the much closer player ("
+                            + l.brain().describe() + ")");
+                    check(near.getHealth() < 20F, "it should bite the closer player");
+                    check(far.getHealth() >= 20F, "the far one should be untouched");
+                    check(!LurkerDirector.freeCandidates(server).contains(near), "the one it now hunts counts as hunted");
+                    l.brain().vanish(true);
+                });
+            }));
         });
     }
 
@@ -1283,7 +1451,7 @@ public final class FogLurkerGameTests {
         });
     }
 
-    @GameTest(template = "empty", batch = "force", timeoutTicks = 900)
+    @GameTest(template = "empty", batch = "force", timeoutTicks = 1400)
     public static void forceHideStalkAttackAndEndGrace(GameTestHelper h) {
         logged(h, () -> {
             flatten(h, 30);
@@ -1321,7 +1489,8 @@ public final class FogLurkerGameTests {
                 d.execute("foglurker force hide", op);
                 FogLurkerEntity hider = LurkerDirector.active().get(0);
                 check(hider.getDisguise() == Disguise.CRAWLER && !hider.brain().encounter().willAttack(), "hide: should be the pale crawler, not attacking");
-                h.runAfterDelay(140, () -> logged(h, () -> {
+                // Up to 13 s to walk to the grass (it can appear 15-55 blocks away) and lie down.
+                h.runAfterDelay(260, () -> logged(h, () -> {
                     check(hider.isRemoved() || hider.isLying() || hider.isFlopped(),
                             "hide: it should be lying down by now (" + hider.brain().describe() + ")");
                     check(hider.isRemoved() || !hider.isLying() || hider.getBbHeight() < 0.7F, "lying down, its hitbox should be low too");

@@ -47,6 +47,10 @@ public final class LurkerDirector {
     public static volatile boolean naturalSpawnsPaused;
     /** Game time each player's last appearance ended, so nobody gets two in a row while others wait. */
     private static final java.util.Map<java.util.UUID, Long> LAST_VISIT = new java.util.HashMap<>();
+    /** Game time until which a player is left alone (they got away from the night meeting). */
+    private static final java.util.Map<java.util.UUID, Long> LEFT_ALONE_UNTIL = new java.util.HashMap<>();
+    /** Chance a Deathwish appearance at night, out in the open, is the night meeting. */
+    public static final float NIGHT_MEETING_CHANCE = 0.3F;
     /** Game time until which bells do not work against an appearance aimed at that player. */
     private static final java.util.Map<java.util.UUID, Long> BELL_IMMUNE_UNTIL = new java.util.HashMap<>();
 
@@ -105,6 +109,7 @@ public final class LurkerDirector {
     public static void onServerStopped(ServerStoppedEvent event) {
         ACTIVE.clear();
         LAST_VISIT.clear();
+        LEFT_ALONE_UNTIL.clear();
         BELL_IMMUNE_UNTIL.clear();
         RecentChat.clear();
         Hauntings.reset();
@@ -203,11 +208,21 @@ public final class LurkerDirector {
         List<ServerPlayer> candidates = new ArrayList<>();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (eligible(p) && (!FogLurkerConfig.COMMON.overworldOnly.get() || p.level().dimension() == Level.OVERWORLD)
-                    && !isHunted(p.getUUID()) && now - LAST_VISIT.getOrDefault(p.getUUID(), Long.MIN_VALUE / 2) >= rollInterval() / 2) {
+                    && !isHunted(p.getUUID()) && now - LAST_VISIT.getOrDefault(p.getUUID(), Long.MIN_VALUE / 2) >= rollInterval() / 2
+                    && now >= LEFT_ALONE_UNTIL.getOrDefault(p.getUUID(), Long.MIN_VALUE)) {
                 candidates.add(p);
             }
         }
         return candidates;
+    }
+
+    /** Nothing comes for this player on its own for {@code ticks} (commands still work). */
+    public static void leaveAlone(ServerPlayer p, long ticks) {
+        LEFT_ALONE_UNTIL.put(p.getUUID(), p.server.overworld().getGameTime() + ticks);
+    }
+
+    public static long leftAloneTicks(ServerPlayer p) {
+        return Math.max(0, LEFT_ALONE_UNTIL.getOrDefault(p.getUUID(), 0L) - p.server.overworld().getGameTime());
     }
 
     private static boolean isHunted(java.util.UUID player) {
@@ -229,7 +244,59 @@ public final class LurkerDirector {
         // Prefer whoever is furthest from everyone else: the one who wandered off alone.
         candidates.sort((a, b) -> Double.compare(loneliness(b), loneliness(a)));
         ServerPlayer target = r.nextFloat() < 0.7F ? candidates.get(0) : candidates.get(r.nextInt(candidates.size()));
+        // If they are in a group, it picks its victim inside the group.
+        List<ServerPlayer> group = new ArrayList<>();
+        for (ServerPlayer p : candidates) {
+            if (p.level() == target.level() && p.distanceTo(target) <= GROUP_RADIUS) {
+                group.add(p);
+            }
+        }
+        if (group.size() > 1) {
+            target = pickInGroup(group, r);
+        }
         return spawn(target, null, null) != null;
+    }
+
+    /** Players this close to each other count as a group. */
+    public static final double GROUP_RADIUS = 24.0;
+
+    /**
+     * Who it goes for in a group: usually the one with the least health (45%), otherwise usually the
+     * one on the edge of the group, furthest from the others and so closest to the dark it comes from
+     * (40%), and now and then anyone (15%).
+     */
+    public static ServerPlayer pickInGroup(List<ServerPlayer> group, RandomSource r) {
+        float roll = r.nextFloat();
+        if (roll < 0.45F) {
+            ServerPlayer weakest = group.get(0);
+            for (ServerPlayer p : group) {
+                if (p.getHealth() + p.getAbsorptionAmount() < weakest.getHealth() + weakest.getAbsorptionAmount()) {
+                    weakest = p;
+                }
+            }
+            return weakest;
+        }
+        if (roll < 0.85F) {
+            double cx = 0;
+            double cz = 0;
+            for (ServerPlayer p : group) {
+                cx += p.getX();
+                cz += p.getZ();
+            }
+            cx /= group.size();
+            cz /= group.size();
+            ServerPlayer edge = group.get(0);
+            double far = -1;
+            for (ServerPlayer p : group) {
+                double d = net.minecraft.util.Mth.square(p.getX() - cx) + net.minecraft.util.Mth.square(p.getZ() - cz);
+                if (d > far) {
+                    far = d;
+                    edge = p;
+                }
+            }
+            return edge;
+        }
+        return group.get(r.nextInt(group.size()));
     }
 
     private static double loneliness(ServerPlayer p) {
@@ -383,6 +450,11 @@ public final class LurkerDirector {
         ServerLevel level = target.serverLevel();
         boolean peaceful = level.getDifficulty() == Difficulty.PEACEFUL;
         PlayerBehaviorProfile targetProfile = data.profile(target.getUUID());
+        // Deathwish, at night, out in the open: sometimes you simply walk into it.
+        if (forced == null && forcedAttack == null && diff == LurkerDifficulty.DEATHWISH && level.isNight()
+                && SpotFinder.placeOf(level, target, null) == SpotFinder.Place.SURFACE && r.nextFloat() < NIGHT_MEETING_CHANCE) {
+            return nightMeeting(target, diff, !peaceful && r.nextBoolean());
+        }
         boolean willAttack = forcedAttack != null ? forcedAttack : !peaceful && r.nextDouble() < attackChance(diff, targetProfile);
 
         ServerPlayer friend = pickFriend(target, r);
@@ -533,8 +605,28 @@ public final class LurkerDirector {
     // =================================================================== placement
 
     @Nullable
+    /** The night meeting: 50/50 whether it means "i will not hurt you". */
+    public static Encounter nightMeeting(ServerPlayer target, LurkerDifficulty diff, boolean willAttack) {
+        return new Encounter(target.getUUID(), LurkerBrain.Mode.NIGHT_MEETING, Disguise.CRAWLER, null, null, willAttack, diff, 0, null);
+    }
+
+    /** Starts a night meeting with {@code target} right now (tests and /foglurker force meet). */
+    @Nullable
+    public static FogLurkerEntity spawnNightMeeting(ServerPlayer target, boolean willAttack) {
+        ServerLevel level = target.serverLevel();
+        Encounter enc = nightMeeting(target, LurkerDifficulty.DEATHWISH, willAttack);
+        Vec3 pos = pickSpot(level, target, enc, level.getRandom());
+        return pos == null ? null : place(level, target, pos, enc);
+    }
+
     private static Vec3 pickSpot(ServerLevel level, ServerPlayer target, Encounter enc, RandomSource r) {
         switch (enc.mode()) {
+            case NIGHT_MEETING -> {
+                // Right in front of you, a few steps away: you walk straight into it.
+                Vec3 ahead = target.getViewVector(1F).multiply(1, 0, 1);
+                Vec3 spot = SpotFinder.findSpawn(level, target, 6, 10, ahead.lengthSqr() < 1e-4 ? null : ahead, false, false, r);
+                return spot != null ? spot : SpotFinder.findSpawn(level, target, 6, 14, null, false, false, r);
+            }
             case MIMIC -> {
                 ServerPlayer friend = enc.copiedId() == null ? null : target.server.getPlayerList().getPlayer(enc.copiedId());
                 Vec3 dir = friend != null && friend.level() == target.level()

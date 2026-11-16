@@ -34,6 +34,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.ChatFormatting;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
@@ -68,7 +69,13 @@ public final class LurkerBrain {
         /** True form, far away, just watching. Gone when you look too long or come too close. */
         WATCHER,
         /** True form, creeping closer from hiding spot to hiding spot; drops flat whenever you look. */
-        STALKER
+        STALKER,
+        /**
+         * Deathwish, at night: you walk right into it. It greets you by name and promises not to hurt you.
+         * Half the time it means it. The other half: "just kidding", "RUN!", a 5 second head start, and
+         * one bite kills. Get away and it leaves you alone for 15 minutes.
+         */
+        NIGHT_MEETING
     }
 
     public enum Phase {
@@ -165,10 +172,25 @@ public final class LurkerBrain {
     @Nullable
     private Vec3 detour;
 
+    /** Who it is hunting now, when it switched to someone else in the group during an attack. */
+    @Nullable
+    private UUID huntId;
+    /** Most creatures go for the easiest prey in a group; a few stay fixated on their first target. */
+    private boolean switchesTargets;
+    private int lastSwitch = -1000;
+    /** Everyone it has sent fog to, so all of it clears when it leaves. */
+    private final java.util.Set<UUID> fogged = new java.util.HashSet<>();
+
     public LurkerBrain(FogLurkerEntity mob, Encounter enc) {
         this.mob = mob;
         this.enc = enc;
         this.random = mob.getRandom();
+        this.switchesTargets = random.nextFloat() < 0.8F;
+    }
+
+    /** Tests: make it always (or never) switch to an easier target in a group. */
+    public void setSwitchesTargets(boolean on) {
+        this.switchesTargets = on;
     }
 
     public LurkerDifficulty difficulty() {
@@ -184,7 +206,7 @@ public final class LurkerBrain {
     }
 
     public UUID targetId() {
-        return enc.targetId();
+        return huntId != null ? huntId : enc.targetId();
     }
 
     /** One-line state summary for debugging. */
@@ -206,7 +228,7 @@ public final class LurkerBrain {
 
     @Nullable
     private ServerPlayer target() {
-        return server().getPlayerList().getPlayer(enc.targetId());
+        return server().getPlayerList().getPlayer(targetId());
     }
 
     @Nullable
@@ -250,6 +272,7 @@ public final class LurkerBrain {
         lifetime = enc.mode() == Mode.WATCHER ? Math.min(maxTicks, 20 * 120) : maxTicks;
         phase = switch (enc.mode()) {
             case MIMIC, DOG, ZOMBIE -> Phase.STALK;
+            case NIGHT_MEETING -> Phase.GREET;
             default -> Phase.LURK;
         };
         nextVoiceAt = 60;
@@ -284,6 +307,10 @@ public final class LurkerBrain {
         age++;
         phaseAge++;
         ServerPlayer t = target();
+        if (huntId != null && (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator())) {
+            huntId = null; // the one it switched to is gone: back to the first target
+            t = target();
+        }
         if (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator()) {
             vanish(false);
             return;
@@ -320,7 +347,13 @@ public final class LurkerBrain {
         switch (phase) {
             case STALK -> stalk(t, dist);
             case APPROACH -> approach(t, dist);
-            case GREET -> greet(t, dist);
+            case GREET -> {
+                if (enc.mode() == Mode.NIGHT_MEETING) {
+                    nightMeeting(t, dist);
+                } else {
+                    greet(t, dist);
+                }
+            }
             case LURE -> lure(t, dist);
             case CLIMAX -> climax(t, dist);
             case LURK -> lurk(t, dist);
@@ -729,6 +762,17 @@ public final class LurkerBrain {
     }
 
     private void attack(ServerPlayer t, double dist) {
+        ServerPlayer easier = easierPrey(t, dist);
+        if (easier != null) {
+            huntId = easier.getUUID();
+            lastSwitch = age;
+            bestAttackDist = Double.MAX_VALUE;
+            attackStall = 0;
+            mob.playSound(ModSounds.ATTACK.get(), 1.4F, 0.6F);
+            ModNetwork.send(easier, new ScarePacket(40));
+            t = easier;
+            dist = mob.distanceTo(easier);
+        }
         fog(t, 0.85F);
         if (!canAttack(t)) {
             setPhase(Phase.FLEE);
@@ -790,8 +834,10 @@ public final class LurkerBrain {
             mob.playSound(ModSounds.HEARTBEAT.get(), 1.0F, 1.2F);
         }
         // Deathwish bites kill in one hit, so it always announces itself first: a screech, then 1.5 s.
-        boolean windingUp = difficulty() == LurkerDifficulty.DEATHWISH && phaseAge < DEATHWISH_WINDUP;
-        if (difficulty() == LurkerDifficulty.DEATHWISH && phaseAge == 1) {
+        // (The night meeting already gave a "RUN!" and a 5 second head start instead.)
+        boolean warned = enc.mode() == Mode.NIGHT_MEETING;
+        boolean windingUp = !warned && difficulty() == LurkerDifficulty.DEATHWISH && phaseAge < DEATHWISH_WINDUP;
+        if (!warned && difficulty() == LurkerDifficulty.DEATHWISH && phaseAge == 1) {
             mob.playSound(ModSounds.SCREAM.get(), 2.0F, 0.55F);
         }
         // Claws still reach you from the shore if you only waded in.
@@ -925,6 +971,66 @@ public final class LurkerBrain {
         return FogLurkerSavedData.get(server());
     }
 
+    // ------------------------------------------------------------------ the night meeting (Deathwish)
+
+    public static final int MEETING_HELLO = 20;
+    public static final int MEETING_DONT_RUN = 70;
+    public static final int MEETING_WONT_HURT = 120;
+    public static final int MEETING_KIDDING = 170;
+    public static final int MEETING_RUN = 200;
+    /** "RUN!" ... and 5 seconds later it comes. */
+    public static final int MEETING_CHASE = MEETING_RUN + 100;
+    /** If it meant it, it leaves this long after its last word. */
+    public static final int MEETING_LEAVE = 220;
+    /** How long you are left alone after getting away from the chase. */
+    public static final long MEETING_IMMUNITY_TICKS = 15L * 60 * 20;
+    /** The chase has started (so getting away from it counts). */
+    private boolean meetingChase;
+
+    private void nightMeeting(ServerPlayer t, double dist) {
+        fog(t, 0.6F);
+        halt();
+        mob.setLying(false);
+        stare(t);
+        if (phaseAge == MEETING_HELLO) {
+            meetingSay("hello " + t.getGameProfile().getName());
+        } else if (phaseAge == MEETING_DONT_RUN) {
+            meetingSay("please dont run");
+        } else if (phaseAge == MEETING_WONT_HURT) {
+            meetingSay("i will not hurt you");
+        }
+        if (!enc.willAttack() || !canAttack(t)) {
+            if (phaseAge >= MEETING_LEAVE) {
+                vanish(false); // it meant it this time
+            }
+            return;
+        }
+        if (phaseAge == MEETING_KIDDING) {
+            meetingSay("just kidding");
+        } else if (phaseAge == MEETING_RUN) {
+            meetingSay("RUN!");
+            t.displayClientMessage(Component.literal("RUN!").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), true);
+            mob.playSound(ModSounds.SCREAM.get(), 2.0F, 0.6F);
+            ModNetwork.send(t, new ScarePacket(60));
+        } else if (phaseAge >= MEETING_CHASE) {
+            meetingChase = true;
+            huntNow(); // 5 seconds are up
+        }
+    }
+
+    /** It speaks as itself, "fogstalker", to everyone close enough to hear. */
+    private void meetingSay(String text) {
+        Component line = Component.literal("fogstalker: ").withStyle(ChatFormatting.DARK_RED)
+                .append(Component.literal(text).withStyle(text.equals("RUN!")
+                        ? new ChatFormatting[]{ChatFormatting.RED, ChatFormatting.BOLD} : new ChatFormatting[]{ChatFormatting.GRAY}));
+        for (ServerPlayer p : level().players()) {
+            if (p.distanceTo(mob) < 32) {
+                p.sendSystemMessage(line);
+            }
+        }
+        mob.playSound(ModSounds.WHISPER.get(), 1.2F, 0.7F);
+    }
+
     /** Ticks at the start of a Deathwish attack in which it cannot bite yet. */
     public static final int DEATHWISH_WINDUP = 30;
 
@@ -1027,6 +1133,14 @@ public final class LurkerBrain {
             return;
         }
         ended = true;
+        if (meetingChase) {
+            ServerPlayer survivor = target();
+            if (survivor != null && survivor.isAlive()) {
+                LurkerDirector.leaveAlone(survivor, MEETING_IMMUNITY_TICKS); // you outran it
+                survivor.displayClientMessage(Component.literal("You got away. It will leave you alone... for now.")
+                        .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC), true);
+            }
+        }
         ServerLevel level = level();
         if (!screaming && mob.isAttackForm() && mob.onGround() && !mob.isInWater()) {
             // Spotted in its real shape: it does not run. It flops flat on the ground like a pancake.
@@ -1038,6 +1152,7 @@ public final class LurkerBrain {
             if (seen != null) {
                 ModNetwork.send(seen, new FogPacket(0F));
             }
+            clearFog();
             mob.playSound(ModSounds.WHISPER.get(), 0.8F, 0.6F);
             mob.beginFlop();
             return;
@@ -1059,6 +1174,7 @@ public final class LurkerBrain {
         if (t != null) {
             ModNetwork.send(t, new FogPacket(0F));
         }
+        clearFog();
         mob.discard();
     }
 
@@ -1183,6 +1299,42 @@ public final class LurkerBrain {
                 && mob.level().getDifficulty() != Difficulty.PEACEFUL;
     }
 
+    /**
+     * In a group it goes for whoever is easiest: someone much closer to it than its target, or someone
+     * clearly weaker (3+ hearts less) who is not much further away. Only players it could actually reach
+     * (not in water, not inside a soul-fire ward) and who are with its target (within 16 blocks) count.
+     *
+     * @return the player to switch to, or null to keep going
+     */
+    @Nullable
+    private ServerPlayer easierPrey(ServerPlayer t, double dist) {
+        if (!switchesTargets || enc.mode() == Mode.NIGHT_MEETING || age % 10 != 0 || age - lastSwitch < 60) {
+            return null;
+        }
+        float targetHp = t.getHealth() + t.getAbsorptionAmount();
+        ServerPlayer best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (ServerPlayer p : level().players()) {
+            if (p == t || !canAttack(p) || p.isCreative() || p.distanceTo(t) > 16
+                    || SpotFinder.isInOrOnWater(p) || isWarded(p)) {
+                continue;
+            }
+            double d = mob.distanceTo(p);
+            float hp = p.getHealth() + p.getAbsorptionAmount();
+            boolean muchCloser = d < 10 && d < dist - 4;
+            boolean muchWeaker = hp <= targetHp - 6F && d < 16 && d < dist + 4;
+            if (!muchCloser && !muchWeaker) {
+                continue;
+            }
+            double score = d + hp * 0.75; // near and hurt is best
+            if (score < bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        }
+        return best;
+    }
+
     private boolean isolated(ServerPlayer t) {
         for (Player other : mob.level().players()) {
             if (other != t && !other.isSpectator() && other.distanceTo(t) < 24) {
@@ -1278,8 +1430,23 @@ public final class LurkerBrain {
 
     private void fog(ServerPlayer t, float intensity) {
         if (age % 20 == 1) {
+            if (mob.level().isNight()) {
+                intensity = Math.min(1F, intensity * difficulty().nightFogMultiplier()); // thicker at night
+            }
             ModNetwork.send(t, new FogPacket(intensity));
+            fogged.add(t.getUUID());
         }
+    }
+
+    /** Clears the fog for everyone it hunted this time. */
+    private void clearFog() {
+        for (UUID id : fogged) {
+            ServerPlayer p = server().getPlayerList().getPlayer(id);
+            if (p != null) {
+                ModNetwork.send(p, new FogPacket(0F));
+            }
+        }
+        fogged.clear();
     }
 
     /** With an empty hand it holds whatever the real player holds most (their pickaxe, their sword...). */

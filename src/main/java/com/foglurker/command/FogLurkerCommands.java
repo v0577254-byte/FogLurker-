@@ -92,7 +92,11 @@ public final class FogLurkerCommands {
                         .requires(s -> s.hasPermission(2))
                         .then(forceNode("hide", LurkerDirector.Forced.HIDE))
                         .then(forceNode("stalk", LurkerDirector.Forced.STALK))
-                        .then(forceNode("attack", LurkerDirector.Forced.ATTACK)))
+                        .then(forceNode("attack", LurkerDirector.Forced.ATTACK))
+                        .then(Commands.literal("meet")
+                                .executes(ctx -> forceMeet(ctx, ctx.getSource().getPlayerOrException()))
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .executes(ctx -> forceMeet(ctx, EntityArgument.getPlayer(ctx, "target"))))))
                 .then(Commands.literal("spawntimer")
                         .requires(s -> s.hasPermission(2))
                         .executes(FogLurkerCommands::spawnTimer))
@@ -182,6 +186,21 @@ public final class FogLurkerCommands {
         };
         reply(ctx.getSource(), Component.literal("The pale crawler " + doing + " " + target.getGameProfile().getName()
                 + " (" + Math.round(lurker.distanceTo(target)) + " blocks away).").withStyle(ChatFormatting.GRAY));
+        return 1;
+    }
+
+    /** /foglurker force meet [player]: the Deathwish night meeting, now, 50/50 whether it attacks. */
+    private static int forceMeet(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
+        boolean attack = target.serverLevel().getDifficulty() != net.minecraft.world.Difficulty.PEACEFUL
+                && target.getRandom().nextBoolean();
+        FogLurkerEntity lurker = LurkerDirector.spawnNightMeeting(target, attack);
+        if (lurker == null) {
+            ctx.getSource().sendFailure(Component.literal("Nowhere dry for it to appear near " + target.getGameProfile().getName() + "."));
+            return 0;
+        }
+        reply(ctx.getSource(), Component.literal("The pale crawler steps out in front of " + target.getGameProfile().getName()
+                + " (" + Math.round(lurker.distanceTo(target)) + " blocks away). Will it keep its promise? "
+                + (attack ? "No." : "Yes.")).withStyle(ChatFormatting.GRAY));
         return 1;
     }
 
