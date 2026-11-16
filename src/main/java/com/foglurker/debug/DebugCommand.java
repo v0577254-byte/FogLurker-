@@ -241,8 +241,9 @@ public final class DebugCommand {
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         LurkerDifficulty d = data.difficulty();
         r.pass("Current mode", d.displayName() + ", grace left " + (data.graceRemainingTicks() / 20) + "s, next spawn "
-                + (data.inGrace() ? "after grace" : data.nextSpawnTicks() < 0 ? "scheduling" : (data.nextSpawnTicks() / 20) + "s")
-                + (data.nextIsGuaranteed() ? " (guaranteed)" : " (50/50)"));
+                + (!data.naturalSpawning() ? "never (natural spawning off)"
+                : (data.inGrace() ? "after grace" : data.nextSpawnTicks() < 0 ? "scheduling" : (data.nextSpawnTicks() / 20) + "s")
+                + (data.nextIsGuaranteed() ? " (guaranteed)" : " (50/50)")));
         // name, grace min, hearts (-1 = one shot), cooldown s, attack chance
         Object[][] spec = {
                 {LurkerDifficulty.VERY_EASY, 45, 1F, 3.0F},

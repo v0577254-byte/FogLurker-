@@ -96,6 +96,10 @@ public final class FogLurkerCommands {
                 .then(Commands.literal("spawntimer")
                         .requires(s -> s.hasPermission(2))
                         .executes(FogLurkerCommands::spawnTimer))
+                .then(Commands.literal("naturalspawning")
+                        .executes(ctx -> naturalSpawning(ctx, null))
+                        .then(Commands.literal("on").requires(FogLurkerCommands::isAdmin).executes(ctx -> naturalSpawning(ctx, true)))
+                        .then(Commands.literal("off").requires(FogLurkerCommands::isAdmin).executes(ctx -> naturalSpawning(ctx, false))))
                 .then(Commands.literal("setgeminiapikey")
                         .requires(FogLurkerCommands::isAdmin)
                         .then(Commands.argument("key", StringArgumentType.greedyString())
@@ -308,9 +312,39 @@ public final class FogLurkerCommands {
         return (int) Math.min(Integer.MAX_VALUE, left / 20);
     }
 
+    /**
+     * /foglurker naturalspawning [on|off]: whether it appears on its own. Off, it only comes when
+     * summoned with /foglurker spawn or /foglurker force. Saved with the world.
+     */
+    private static int naturalSpawning(CommandContext<CommandSourceStack> ctx, Boolean on) {
+        CommandSourceStack src = ctx.getSource();
+        FogLurkerSavedData data = FogLurkerSavedData.get(src.getServer());
+        if (on == null) {
+            reply(src, Component.literal(data.naturalSpawning()
+                    ? "Natural spawning is ON: it appears on its own (a roll every " + FogLurkerConfig.COMMON.spawnRollMinutes.get()
+                    + " minutes after the grace period)."
+                    : "Natural spawning is OFF: it only comes when summoned with /foglurker spawn or /foglurker force.")
+                    .withStyle(ChatFormatting.GRAY));
+            return data.naturalSpawning() ? 1 : 0;
+        }
+        data.setNaturalSpawning(on);
+        reply(src, Component.literal(on
+                ? "Natural spawning is now ON. " + (data.inGrace() ? "It starts rolling when the grace period ends."
+                : "The first roll is in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes.")
+                : "Natural spawning is now OFF. It will only come when summoned with /foglurker spawn or /foglurker force. "
+                + "Anything already out there stays until it leaves (/foglurker despawn sends it away).")
+                .withStyle(on ? ChatFormatting.RED : ChatFormatting.GRAY));
+        return 1;
+    }
+
     private static int spawnTimer(CommandContext<CommandSourceStack> ctx) {
         FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
         CommandSourceStack src = ctx.getSource();
+        if (!data.naturalSpawning()) {
+            reply(src, Component.literal("Natural spawning is off (/foglurker naturalspawning on to turn it back on). "
+                    + "It only comes when summoned.").withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
         List<FogLurkerEntity> active = LurkerDirector.active();
         if (!active.isEmpty()) {
             StringBuilder who = new StringBuilder();

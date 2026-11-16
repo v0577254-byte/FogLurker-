@@ -68,7 +68,8 @@ public final class FogLurkerConfig {
             spawnRollMinutes = b.comment("After the grace period it rolls whether to appear every this many minutes.",
                             "A roll that fails makes the next roll a guaranteed appearance.")
                     .defineInRange("spawnRollMinutes", 5, 1, 600);
-            spawnChance = b.comment("Chance that a normal roll makes it appear (0.5 = 50/50).")
+            spawnChance = b.comment("Chance that a normal roll makes it appear (0.5 = 50/50). 0 = it never appears on its own",
+                            "(the same as /foglurker naturalspawning off, but for every world).")
                     .defineInRange("spawnChance", 0.5, 0.0, 1.0);
             breakBlocks = b.comment("Let its attacking form break blocks to get to you (also needs the mobGriefing gamerule).",
                             "It never breaks anything in the foglurker:unbreakable block tag (deepslate, obsidian, bedrock...),",

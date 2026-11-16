@@ -31,6 +31,8 @@ public final class FogLurkerSavedData extends SavedData {
     private int nextSpawnTicks = -1;
     /** Set when a roll failed: the next roll always spawns it. */
     private boolean guaranteedNext;
+    /** Whether it appears on its own (spawn rolls). Off: it only comes when summoned with a command. */
+    private boolean naturalSpawning = true;
     private int encounters;
     private final Map<UUID, PlayerBehaviorProfile> profiles = new HashMap<>();
     private EntityBehaviorStats entityStats = new EntityBehaviorStats();
@@ -115,10 +117,24 @@ public final class FogLurkerSavedData extends SavedData {
      * @return true if it should appear now
      */
     public boolean rollSpawn(double roll, double chance) {
-        boolean spawn = guaranteedNext || roll < chance;
-        guaranteedNext = !spawn;
+        // A chance of 0 means never: a miss must not turn into a guaranteed appearance.
+        boolean spawn = chance > 0 && (guaranteedNext || roll < chance);
+        guaranteedNext = !spawn && chance > 0;
         setDirty();
         return spawn;
+    }
+
+    public boolean naturalSpawning() {
+        return naturalSpawning;
+    }
+
+    public void setNaturalSpawning(boolean on) {
+        if (on && !naturalSpawning) {
+            nextSpawnTicks = -1; // starts a fresh 5-minute countdown (after grace, if any is left)
+            guaranteedNext = false;
+        }
+        naturalSpawning = on;
+        setDirty();
     }
 
     public int encounters() {
@@ -166,6 +182,7 @@ public final class FogLurkerSavedData extends SavedData {
         tag.putLong("graceElapsed", graceElapsedTicks);
         tag.putInt("nextSpawn", nextSpawnTicks);
         tag.putBoolean("guaranteedNext", guaranteedNext);
+        tag.putBoolean("naturalSpawning", naturalSpawning);
         tag.putInt("encounters", encounters);
         CompoundTag prof = new CompoundTag();
         profiles.forEach((id, p) -> prof.put(id.toString(), p.save()));
@@ -187,6 +204,7 @@ public final class FogLurkerSavedData extends SavedData {
         d.graceElapsedTicks = tag.getLong("graceElapsed");
         d.nextSpawnTicks = tag.contains("nextSpawn") ? tag.getInt("nextSpawn") : -1;
         d.guaranteedNext = tag.getBoolean("guaranteedNext");
+        d.naturalSpawning = !tag.contains("naturalSpawning") || tag.getBoolean("naturalSpawning");
         d.encounters = tag.getInt("encounters");
         CompoundTag prof = tag.getCompound("profiles");
         for (String k : prof.getAllKeys()) {

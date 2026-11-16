@@ -119,6 +119,7 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 
   On a multiplayer server it can be after up to two players at once (`maxConcurrent`), but never two at once for the same player, and never straight back to someone it just left. With one player online the timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
 - On vanilla Peaceful difficulty it never attacks, it only watches.
+- `/foglurker naturalspawning off` stops it appearing on its own in that world; it then only comes when summoned.
 
 ## Commands
 
@@ -132,6 +133,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
 | `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
 | `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
+| `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force` (hauntings still happen; turn those off with the `hauntings` config option). Saved with the world. `on` starts a fresh 5-minute countdown |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
@@ -228,7 +230,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 |---|---|---|
 | `defaultDifficulty` | `medium` | Mode for new worlds |
 | `spawnRollMinutes` | 5 | Minutes between spawn rolls (a missed roll makes the next one guaranteed) |
-| `spawnChance` | 0.5 | Chance a normal roll makes it appear |
+| `spawnChance` | 0.5 | Chance a normal roll makes it appear. 0 = it never appears on its own in any world (no "guaranteed next roll" either) |
 | `breakBlocks` | true | Let the attacking form break blocks to reach you (never the protected list) |
 | `hauntings` | true | Small scares between appearances |
 | `hauntingMinSeconds` / `MaxSeconds` | 90 / 240 | How often a haunting happens |
@@ -271,7 +273,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - typing-style copying
 - hits are spaced exactly by the mode's cooldown (Very Easy: blocked at 1.5 s, allowed at 3 s)
 - water: spawn spots refuse water, the crawler will not path into it, and a crawler thrown in is driven off
-- the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50
+- the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50; a 0% chance never spawns; `/foglurker naturalspawning off|on` is op-only, survives a save and restarts the countdown
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
 - the bite: Slowness I for 10 s on Easy; on Hard also Mauled, which cancels jumps, refuses boats and drags you out of the one you sit in, and both work again once it wears off

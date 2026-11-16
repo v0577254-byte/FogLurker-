@@ -103,6 +103,10 @@ public final class FogLurkerGameTests {
         p.setGameMode(GameType.SURVIVAL); // game-test worlds default to creative
         p.teleportTo(level, h.absoluteVec(new Vec3(x, 0, z)).x, h.absoluteVec(new Vec3(x, 0, z)).y,
                 h.absoluteVec(new Vec3(x, 0, z)).z, 0F, 0F);
+        // A real player's moves keep the chunks around them running; a mock player never ticks, so tell the
+        // chunk map ourselves. Otherwise a creature that appears on the far side of the field sits frozen
+        // in a chunk outside the world-spawn area.
+        level.getChunkSource().move(p);
         return p;
     }
 
@@ -111,19 +115,32 @@ public final class FogLurkerGameTests {
      * around the player so they test the creature, not the scenery.
      */
     private static void flatten(GameTestHelper h, int radius) {
+        // The test world is ordinary generated terrain and the tests run deep underground, so a fresh
+        // world brings its own caves, aquifers, lava and gravel. Carve a sealed room (stone walls, ceiling
+        // and sub-floor) so nothing can flow or fall into the field while a test runs.
+        int r = Math.max(radius, 24); // room for spawn spots 15+ blocks away
         ServerLevel level = h.getLevel();
         net.minecraft.core.BlockPos c = h.absolutePos(net.minecraft.core.BlockPos.ZERO);
         var grass = net.minecraft.world.level.block.Blocks.GRASS_BLOCK.defaultBlockState();
         var dirt = net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState();
         var air = net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                level.setBlock(c.offset(x, -2, z), dirt, 2);
-                level.setBlock(c.offset(x, -1, z), grass, 2);
+        var stone = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+        for (int x = -r - 1; x <= r + 1; x++) {
+            for (int z = -r - 1; z <= r + 1; z++) {
+                boolean wall = Math.abs(x) == r + 1 || Math.abs(z) == r + 1;
+                level.setBlock(c.offset(x, -3, z), stone, 2);
+                level.setBlock(c.offset(x, -2, z), wall ? stone : dirt, 2);
+                level.setBlock(c.offset(x, -1, z), wall ? stone : grass, 2);
                 for (int y = 0; y < 20; y++) {
-                    level.setBlock(c.offset(x, y, z), air, 2);
+                    level.setBlock(c.offset(x, y, z), wall ? stone : air, 2);
                 }
+                level.setBlock(c.offset(x, 20, z), stone, 2);
             }
+        }
+        // Anything that fell or flowed in before the walls went up.
+        for (var e : level.getEntitiesOfClass(net.minecraft.world.entity.item.FallingBlockEntity.class,
+                new net.minecraft.world.phys.AABB(c).inflate(r + 2, 24, r + 2))) {
+            e.discard();
         }
     }
 
@@ -136,7 +153,9 @@ public final class FogLurkerGameTests {
         level.setDayTime(6000);
         level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(false, server);
         level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DAYLIGHT).set(false, server);
-        for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+        List<net.minecraft.world.entity.Entity> everything = new ArrayList<>();
+        level.getAllEntities().forEach(everything::add); // copy first: discarding while iterating corrupts the map
+        for (net.minecraft.world.entity.Entity e : everything) {
             if (e instanceof net.minecraft.world.entity.monster.Enemy && !(e instanceof FogLurkerEntity)) {
                 e.discard();
             }
@@ -146,6 +165,20 @@ public final class FogLurkerGameTests {
     /** Leftover mock players from earlier tests would otherwise be picked as "friends" to copy. */
     private static void kickOtherPlayers(MinecraftServer server, ServerPlayer... keep) {
         calm(server);
+        // Every batch runs in the same spot, so clear what earlier tests left behind: creatures still out
+        // (a failed test never sends its own away), boats, dropped items and falling blocks.
+        for (FogLurkerEntity l : LurkerDirector.active()) {
+            l.discard();
+        }
+        List<net.minecraft.world.entity.Entity> leftovers = new ArrayList<>();
+        server.overworld().getAllEntities().forEach(leftovers::add); // copy first: discarding while iterating corrupts the map
+        for (net.minecraft.world.entity.Entity e : leftovers) {
+            if (e instanceof FogLurkerEntity || e instanceof net.minecraft.world.entity.vehicle.Boat
+                    || e instanceof net.minecraft.world.entity.item.ItemEntity
+                    || e instanceof net.minecraft.world.entity.item.FallingBlockEntity) {
+                e.discard();
+            }
+        }
         List<ServerPlayer> all = new ArrayList<>(server.getPlayerList().getPlayers());
         for (ServerPlayer p : all) {
             if (Arrays.stream(keep).noneMatch(k -> k == p)) {
@@ -260,7 +293,15 @@ public final class FogLurkerGameTests {
             check(!l.isRemoved(), "the mimic vanished before luring (" + l.brain().describe() + ")");
             check(l.brain().phase().ordinal() >= LurkerBrain.Phase.LURE.ordinal(),
                     "still " + l.brain().describe() + ", " + l.distanceTo(target) + " blocks from the target at "
-                            + target.blockPosition().toShortString());
+                            + target.blockPosition().toShortString() + " [onGround " + l.onGround() + ", pos " + l.position()
+                            + ", motion " + l.getDeltaMovement() + ", feet " + l.level().getBlockState(l.blockPosition())
+                            + ", below " + l.level().getBlockState(l.blockPosition().below()) + ", noAi " + l.isNoAi()
+                            + ", dims " + l.getBbWidth() + "x" + l.getBbHeight() + ", flags lying " + l.isLying()
+                            + ", spawn-rel " + h.relativePos(l.blockPosition()).toShortString() + ", target alive " + target.isAlive()
+                            + ", tickCount " + l.tickCount + ", entityTicking " + h.getLevel().isPositionEntityTicking(l.blockPosition())
+                            + ", targetChunkTicking " + h.getLevel().isPositionEntityTicking(target.blockPosition())
+                            + ", chunk " + new net.minecraft.world.level.ChunkPos(l.blockPosition()) + " vs " + new net.minecraft.world.level.ChunkPos(target.blockPosition())
+                            + ", spawn " + h.getLevel().getSharedSpawnPos().toShortString() + "]");
             l.brain().vanish(false);
         });
     }
@@ -423,6 +464,43 @@ public final class FogLurkerGameTests {
             check(d.rollSpawn(0.1, 0.5), "a 0.1 roll on a 50/50 spawns");
             check(!d.rollSpawn(0.7, 0.5), "and the one after that is a normal 50/50 again");
             check(d.rollSpawn(0.7, 0.5), "...which, having missed, guarantees the next");
+            // A chance of 0 really is never: misses must not turn into guaranteed appearances.
+            FogLurkerSavedData never = new FogLurkerSavedData();
+            for (int i = 0; i < 10; i++) {
+                check(!never.rollSpawn(0.0, 0.0), "a 0% chance must never spawn (roll " + i + ")");
+            }
+            check(!never.nextIsGuaranteed(), "a 0% chance must not owe a guaranteed spawn");
+            // Natural spawning can be switched off per world, survives a save, and starts fresh when switched back on.
+            check(d.naturalSpawning(), "natural spawning is on by default");
+            d.setNaturalSpawning(false);
+            check(!FogLurkerSavedData.load(d.save(new net.minecraft.nbt.CompoundTag())).naturalSpawning(), "off must survive a save");
+            check(FogLurkerSavedData.load(new net.minecraft.nbt.CompoundTag()).naturalSpawning(), "old worlds load with it on");
+            d.setNextSpawnTicks(5);
+            d.setGuaranteedNext(true);
+            d.setNaturalSpawning(true);
+            check(d.nextSpawnTicks() < 0 && !d.nextIsGuaranteed(), "switching back on should restart the countdown");
+            // The command: anyone can view, only operators can change it.
+            MinecraftServer server = h.getLevel().getServer();
+            FogLurkerSavedData live = FogLurkerSavedData.get(server);
+            boolean was = live.naturalSpawning();
+            var cmds = server.getCommands().getDispatcher();
+            try {
+                cmds.execute("foglurker naturalspawning off", server.createCommandSourceStack().withPermission(4));
+                check(!live.naturalSpawning(), "/foglurker naturalspawning off did not turn it off");
+                check(cmds.execute("foglurker naturalspawning", server.createCommandSourceStack().withPermission(0)) == 0,
+                        "viewing should report off");
+                boolean refused = false;
+                try {
+                    cmds.execute("foglurker naturalspawning on", server.createCommandSourceStack().withPermission(0));
+                } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+                    refused = true;
+                }
+                check(refused && !live.naturalSpawning(), "a non-operator must not be able to turn it on");
+                cmds.execute("foglurker naturalspawning on", server.createCommandSourceStack().withPermission(4));
+                check(live.naturalSpawning(), "/foglurker naturalspawning on did not turn it on");
+            } finally {
+                live.setNaturalSpawning(was);
+            }
             h.succeed();
         });
     }
@@ -732,6 +810,11 @@ public final class FogLurkerGameTests {
                     c.brain().vanish(false);
                 } finally {
                     data.setDifficulty(before);
+                    for (var b : h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.vehicle.Boat.class,
+                            new net.minecraft.world.phys.AABB(h.absolutePos(net.minecraft.core.BlockPos.ZERO)).inflate(20))) {
+                        b.ejectPassengers();
+                        b.discard();
+                    }
                 }
                 h.succeed();
             }));

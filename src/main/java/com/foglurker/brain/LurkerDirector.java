@@ -74,7 +74,7 @@ public final class LurkerDirector {
             com.foglurker.voice.VoiceRetention.heartbeat(System.currentTimeMillis(), online);
         }
         ACTIVE.removeIf(Entity::isRemoved);
-        if (naturalSpawnsPaused || data.inGrace() || !rollsRunning(server)) {
+        if (naturalSpawnsPaused || !data.naturalSpawning() || data.inGrace() || !rollsRunning(server)) {
             return; // busy with everyone it could go after: the clock waits
         }
         if (data.nextSpawnTicks() < 0) {
