@@ -1,14 +1,24 @@
 package com.foglurker.client;
 
 import com.mojang.authlib.GameProfile;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.client.resources.DefaultPlayerSkin;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.HumanoidArm;
+
+import javax.annotation.Nullable;
 
 /**
  * A never-spawned client-side copy of a real player, used only to draw the creature wearing their
- * skin. Because it shares the real player's UUID, Minecraft looks up their actual skin, cape and
- * slim/wide arms, and draws their name tag and team colours exactly as it would for them.
+ * skin. It shares the real player's UUID, so Minecraft finds their skin, cape and slim/wide arms.
+ *
+ * <p>Skin lookup, in order: if it copies <em>you</em>, exactly what your own character uses; else the
+ * copied player's entry in the player list; else (they are not online any more) their skin straight
+ * from Mojang. It never settles for a default skin while a real one can be found.</p>
  */
 public class MimicDummyPlayer extends RemotePlayer {
     private int lastLook = -1;
@@ -17,6 +27,52 @@ public class MimicDummyPlayer extends RemotePlayer {
         super(level, profile);
         this.noPhysics = true;
         this.setSilent(true);
+    }
+
+    /** The real player this copies, if it is you. */
+    @Nullable
+    private AbstractClientPlayer copiedSelf() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player != null && mc.player.getUUID().equals(this.getUUID()) ? mc.player : null;
+    }
+
+    @Override
+    public ResourceLocation getSkinTextureLocation() {
+        AbstractClientPlayer me = copiedSelf();
+        if (me != null) {
+            return me.getSkinTextureLocation();
+        }
+        PlayerInfo info = getPlayerInfo();
+        if (info != null) {
+            return info.getSkinLocation();
+        }
+        // Not in the player list (they logged off): ask Mojang for their skin like a player head does.
+        return Minecraft.getInstance().getSkinManager().getInsecureSkinLocation(getGameProfile());
+    }
+
+    @Override
+    public String getModelName() {
+        AbstractClientPlayer me = copiedSelf();
+        if (me != null) {
+            return me.getModelName();
+        }
+        PlayerInfo info = getPlayerInfo();
+        if (info != null) {
+            return info.getModelName();
+        }
+        var tex = Minecraft.getInstance().getSkinManager().getInsecureSkinInformation(getGameProfile())
+                .get(com.mojang.authlib.minecraft.MinecraftProfileTexture.Type.SKIN);
+        if (tex != null) {
+            String model = tex.getMetadata("model");
+            return model == null ? "default" : model;
+        }
+        return DefaultPlayerSkin.getSkinModelName(getUUID());
+    }
+
+    @Override
+    public boolean isSkinLoaded() {
+        AbstractClientPlayer me = copiedSelf();
+        return me != null ? me.isSkinLoaded() : super.isSkinLoaded();
     }
 
     public void setLook(int skinParts, HumanoidArm mainArm) {

@@ -93,6 +93,31 @@ public final class ClientDebug {
             }
         }
         check("Disguise puppets", broken.isEmpty(), ok + " shapes ready" + (broken.isEmpty() ? "" : ", broken: " + broken));
+        // Your skin, and the copy of you: they must be the same picture.
+        try {
+            var conn = mc.getConnection();
+            var mine = mc.player.getSkinTextureLocation();
+            boolean defaultSkin = mine.equals(net.minecraft.client.resources.DefaultPlayerSkin.getDefaultSkin(mc.player.getUUID()));
+            check("Your skin", !defaultSkin, defaultSkin
+                    ? "Minecraft is showing the default skin for you, so it did not get your skin from Mojang this session "
+                    + "(not something the mod changes). Restart the game; if it stays, check your skin at minecraft.net"
+                    : "loaded");
+            FogLurkerEntity copy = ModEntities.FOG_LURKER.get().create(mc.level);
+            try {
+                copy.setDisguise(Disguise.PLAYER);
+                copy.setMimic(mc.player.getUUID(), mc.player.getGameProfile().getName());
+                LivingEntity puppet = DisguiseCache.get(copy);
+                boolean same = puppet instanceof net.minecraft.client.player.AbstractClientPlayer ap
+                        && ap.getSkinTextureLocation().equals(mine) && ap.getModelName().equals(mc.player.getModelName());
+                check("Copies your skin", same, same ? "a copy of you wears your skin and arm type"
+                        : "the copy of you would wear a different skin" + (conn == null ? " (no connection)" : ""));
+            } finally {
+                DisguiseCache.forget(copy.getId());
+                copy.discard();
+            }
+        } catch (Throwable t) {
+            check("Copies your skin", false, t.getClass().getSimpleName());
+        }
         check("Swim animation", DisguiseCache.swimReflectionWorks(), "a stolen player lies flat when it sprint-swims");
         check("Fog & screen effects", true, "fog " + (FogLurkerConfig.CLIENT.fogEffects.get() ? "on" : "off")
                 + ", shake " + (FogLurkerConfig.CLIENT.screenEffects.get() ? "on" : "off"));
