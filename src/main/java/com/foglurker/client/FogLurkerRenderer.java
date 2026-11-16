@@ -38,6 +38,13 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity> {
             pose.translate((lurker.getRandom().nextFloat() - 0.5F) * j, 0, (lurker.getRandom().nextFloat() - 0.5F) * j);
         }
         this.shadowRadius = Math.max(0.3F, lurker.getBbWidth() * 0.7F);
+        float sink = lurker.sinkProgress(partialTick);
+        if (sink > 0F) {
+            // Sinking into the ground: slide the whole thing down through the floor.
+            pose.pushPose();
+            pose.translate(0F, -sink * (lurker.getBbHeight() + 0.4F), 0F);
+            this.shadowRadius *= 1F - sink;
+        }
         if (!showTrue) {
             LivingEntity dummy = DisguiseCache.get(lurker);
             if (dummy != null) {
@@ -57,6 +64,9 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity> {
             crawler.render(lurker, yaw, partialTick, pose, buffers, light);
         }
         if (transforming) {
+            pose.popPose();
+        }
+        if (sink > 0F) {
             pose.popPose();
         }
     }

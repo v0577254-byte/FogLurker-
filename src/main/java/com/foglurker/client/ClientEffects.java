@@ -3,7 +3,10 @@ package com.foglurker.client;
 import com.foglurker.FogLurkerMod;
 import com.foglurker.config.FogLurkerConfig;
 import com.foglurker.registry.ModSounds;
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.util.Mth;
@@ -25,6 +28,8 @@ public final class ClientEffects {
     private static int sinceFogPacket;
     private static int scareTicks;
     private static int scareTotal = 1;
+    private static int heartbeatIn;
+    private static final ResourceLocation VIGNETTE = ResourceLocation.tryParse("minecraft:textures/misc/vignette.png");
 
     private ClientEffects() {
     }
@@ -45,6 +50,7 @@ public final class ClientEffects {
         fog = fogPrev = fogTarget = 0;
         scareTicks = 0;
         DisguiseCache.clear();
+        Apparitions.clear();
     }
 
     @SubscribeEvent
@@ -78,6 +84,18 @@ public final class ClientEffects {
         }
         if (mc.level.getGameTime() % 100 == 0) {
             DisguiseCache.cleanup(mc.level);
+        }
+        Apparitions.tick(mc);
+        // A heartbeat that gets faster and louder the closer it gets (the fog level is how close it is).
+        if (fog > 0.3F && scareTicks <= 0 && FogLurkerConfig.CLIENT.screenEffects.get()) {
+            if (--heartbeatIn <= 0) {
+                float closeness = Mth.clamp((fog - 0.3F) / 0.6F, 0F, 1F);
+                heartbeatIn = (int) Mth.lerp(closeness, 44F, 13F);
+                mc.getSoundManager().play(SimpleSoundInstance.forUI(ModSounds.HEARTBEAT.get(), 0.9F + closeness * 0.2F,
+                        0.25F + closeness * 0.6F));
+            }
+        } else {
+            heartbeatIn = 0;
         }
     }
 
@@ -139,18 +157,25 @@ public final class ClientEffects {
         if (!FogLurkerConfig.CLIENT.screenEffects.get()) {
             return;
         }
-        float alpha = 0;
-        int rgb = 0x000000;
+        // The edges of the screen close in as it gets nearer (same vignette vanilla uses, driven by the fog).
+        float dread = Mth.clamp(fogNow(partialTick) * 1.15F, 0F, 1F);
+        if (dread > 0.02F) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+            RenderSystem.enableBlend();
+            RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.ZERO, GlStateManager.DestFactor.ONE_MINUS_SRC_COLOR,
+                    GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+            graphics.setColor(dread, dread, dread, 1.0F);
+            graphics.blit(VIGNETTE, 0, 0, -90, 0.0F, 0.0F, width, height, width, height);
+            graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
+            RenderSystem.defaultBlendFunc();
+        }
         if (scareTicks > 0) {
-            alpha = 0.55F * scareTicks / scareTotal;
-            rgb = 0x2A0000;
-        } else if (fog > 0.5F) {
-            alpha = (fog - 0.5F) * 0.3F;
+            float alpha = 0.55F * scareTicks / scareTotal;
+            int a = (int) (Mth.clamp(alpha, 0, 1) * 255) << 24;
+            graphics.fill(0, 0, width, height, a | 0x2A0000);
         }
-        if (alpha <= 0.005F) {
-            return;
-        }
-        int a = (int) (Mth.clamp(alpha, 0, 1) * 255) << 24;
-        graphics.fill(0, 0, width, height, a | rgb);
     }
 }

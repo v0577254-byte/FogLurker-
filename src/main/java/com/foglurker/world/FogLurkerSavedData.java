@@ -130,6 +130,10 @@ public final class FogLurkerSavedData extends SavedData {
         return profiles.get(id);
     }
 
+    public Map<UUID, PlayerBehaviorProfile> profiles() {
+        return java.util.Collections.unmodifiableMap(profiles);
+    }
+
     public EntityBehaviorStats entityStats() {
         return entityStats;
     }

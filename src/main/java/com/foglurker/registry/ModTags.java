@@ -12,6 +12,9 @@ public final class ModTags {
      */
     public static final TagKey<Block> UNBREAKABLE = TagKey.create(Registries.BLOCK, FogLurkerMod.id("unbreakable"));
 
+    /** Soul fire (torches, lanterns, lit campfires): the attacking form will not come near a player standing by one. */
+    public static final TagKey<Block> WARDS = TagKey.create(Registries.BLOCK, FogLurkerMod.id("wards"));
+
     private ModTags() {
     }
 }

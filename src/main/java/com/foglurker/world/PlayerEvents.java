@@ -17,6 +17,15 @@ public final class PlayerEvents {
     private PlayerEvents() {
     }
 
+    /** Ringing a bell drives the Fog Lurker away. */
+    @SubscribeEvent
+    public static void onRightClickBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
+        if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel level
+                && level.getBlockState(event.getPos()).getBlock() instanceof net.minecraft.world.level.block.BellBlock) {
+            com.foglurker.brain.LurkerDirector.onBell(level, event.getPos());
+        }
+    }
+
     /** Tell every player once that voice snippets exist and are strictly opt-in. */
     @SubscribeEvent
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {

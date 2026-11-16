@@ -349,6 +349,14 @@ public final class DebugCommand {
                     + (FogLurkerConfig.COMMON.breakBlocks.get() && level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_MOBGRIEFING)
                     ? "on" : "off") + ")" : "not protected: " + missing);
         });
+        r.run("Soul fire wards", (rep, w) -> {
+            boolean tagged = net.minecraft.world.level.block.Blocks.SOUL_TORCH.defaultBlockState().is(com.foglurker.registry.ModTags.WARDS)
+                    && net.minecraft.world.level.block.Blocks.SOUL_LANTERN.defaultBlockState().is(com.foglurker.registry.ModTags.WARDS)
+                    && !net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState().is(com.foglurker.registry.ModTags.WARDS);
+            BlockPos ward = com.foglurker.brain.Wards.wardNear(level, player.blockPosition());
+            rep.check(w, tagged, "radius " + com.foglurker.brain.Wards.radius() + ", you are "
+                    + (ward != null ? "protected by one at " + ward.toShortString() : "not near one"));
+        });
         r.run("You are in water now", (rep, w) -> rep.pass(w, SpotFinder.isInOrOnWater(player)
                 ? "yes: the crawler cannot reach you here" : "no"));
     }
@@ -365,6 +373,12 @@ public final class DebugCommand {
             r.pass("Your dog", p.dogUuid == null ? "none seen yet" : (p.dogName != null ? "\"" + p.dogName + "\"" : "unnamed")
                     + ", collar colour " + p.dogCollar);
         }
+        if (p != null) {
+            r.pass("Your home", p.homeKnown ? p.homeX + " " + p.homeY + " " + p.homeZ + " (" + p.homeDim + ")"
+                    : "not found yet (sleep in a bed or use your chests)");
+        }
+        r.pass("Where you are", com.foglurker.brain.SpotFinder.placeOf(player.serverLevel(), player,
+                p != null && p.homeKnown ? p.home() : null).name().toLowerCase(Locale.ROOT));
         Map<String, EntityBehaviorStats.Stats> stats = data.entityStats().all();
         StringBuilder sb = new StringBuilder();
         stats.forEach((k, v) -> sb.append(k).append(" (").append(v.samples).append(") "));
@@ -486,7 +500,9 @@ public final class DebugCommand {
         }
         r.pass("Config", "spawn roll every " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " min at "
                 + Math.round(FogLurkerConfig.COMMON.spawnChance.get() * 100) + "%, break blocks "
-                + FogLurkerConfig.COMMON.breakBlocks.get() + ", chat "
+                + FogLurkerConfig.COMMON.breakBlocks.get() + ", hauntings "
+                + (FogLurkerConfig.COMMON.hauntings.get() ? "every " + FogLurkerConfig.COMMON.hauntingMinSeconds.get() + "-"
+                + FogLurkerConfig.COMMON.hauntingMaxSeconds.get() + "s" : "off") + ", chat "
                 + FogLurkerConfig.COMMON.chatVisibility.get().name().toLowerCase(Locale.ROOT) + ", overworld only "
                 + FogLurkerConfig.COMMON.overworldOnly.get());
     }

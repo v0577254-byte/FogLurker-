@@ -234,6 +234,28 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
             head.zRot += 0.45F;
         }
 
+        // Uncanny idles. Standing dead still, a limb twitches now and then...
+        float seed = e.getId() * 7.3F;
+        if (amount < 0.05F) {
+            float twitch = (ageInTicks + seed) % 67F;
+            if (twitch < 3F) {
+                rightArm.zRot += 0.22F;
+                rightForearm.xRot -= 0.35F;
+                leftLeg.yRot += 0.2F;
+            }
+            float twitch2 = (ageInTicks + seed * 2F) % 113F;
+            if (twitch2 < 2F) {
+                leftArm.xRot -= 0.3F;
+                body.zRot += 0.06F;
+            }
+        }
+        // ...and every twenty seconds or so its head snaps right round, holds, and snaps back.
+        float snap = (ageInTicks + seed * 3F) % 430F;
+        if (snap < 16F) {
+            float k = snap < 3F ? snap / 3F : snap > 13F ? (16F - snap) / 3F : 1F;
+            head.zRot += Mth.PI * k;
+        }
+
         // Jaw: hangs open, gapes when it hunts, and quivers.
         float open = aggressive ? 0.95F : 0.5F;
         float quiver = aggressive ? Mth.sin(ageInTicks * 1.3F) * 0.1F : Mth.sin(ageInTicks * 0.07F) * 0.08F;

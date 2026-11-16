@@ -1,0 +1,445 @@
+package com.foglurker.brain;
+
+import com.foglurker.chat.GeminiClient;
+import com.foglurker.chat.MimicChat;
+import com.foglurker.config.FogLurkerConfig;
+import com.foglurker.entity.FogLurkerEntity;
+import com.foglurker.learning.PlayerBehaviorProfile;
+import com.foglurker.network.ApparitionPacket;
+import com.foglurker.network.ModNetwork;
+import com.foglurker.world.FogLurkerSavedData;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.util.FakePlayer;
+
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Small scares between appearances. After the grace period, every minute or three, one player gets
+ * one of these. None of them can hurt you.
+ * <ul>
+ *   <li>SOUND: a noise only you can hear (footsteps behind you or on your roof, a chest opening in
+ *       your base, mining in the wall beside you underground)</li>
+ *   <li>APPARITION: it stands at the edge of your vision and is gone the moment you look</li>
+ *   <li>TORCH: a torch you are not looking at goes out (it drops as an item)</li>
+ *   <li>GHOST_FRIEND: a friend who is not online "joins", says something in their style, and "leaves"</li>
+ *   <li>BOOK: a book in one of your chests, written with your own words</li>
+ * </ul>
+ */
+public final class Hauntings {
+
+    public enum Kind {
+        SOUND(40), APPARITION(22), TORCH(16), GHOST_FRIEND(12), BOOK(6);
+
+        final int weight;
+
+        Kind(int weight) {
+            this.weight = weight;
+        }
+    }
+
+    private record Timed(long due, Runnable run) {
+    }
+
+    private static final List<Timed> QUEUE = new ArrayList<>();
+    private static long nextAt = -1;
+
+    private Hauntings() {
+    }
+
+    public static void reset() {
+        QUEUE.clear();
+        nextAt = -1;
+    }
+
+    // =================================================================== scheduling
+
+    public static void tick(MinecraftServer server, FogLurkerSavedData data) {
+        long now = server.overworld().getGameTime();
+        if (!QUEUE.isEmpty()) {
+            List<Runnable> due = new ArrayList<>();
+            for (Iterator<Timed> it = QUEUE.iterator(); it.hasNext(); ) {
+                Timed t = it.next();
+                if (t.due() <= now) {
+                    due.add(t.run());
+                    it.remove();
+                }
+            }
+            due.forEach(Runnable::run);
+        }
+        if (!FogLurkerConfig.COMMON.hauntings.get() || data.inGrace()) {
+            return;
+        }
+        RandomSource r = server.overworld().getRandom();
+        int min = FogLurkerConfig.COMMON.hauntingMinSeconds.get() * 20;
+        int max = Math.max(min, FogLurkerConfig.COMMON.hauntingMaxSeconds.get() * 20);
+        if (nextAt < 0 || nextAt - now > max) {
+            nextAt = now + min + r.nextInt(max - min + 1);
+            return;
+        }
+        if (now < nextAt) {
+            return;
+        }
+        nextAt = now + min + r.nextInt(max - min + 1);
+
+        List<ServerPlayer> candidates = new ArrayList<>();
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (p instanceof FakePlayer || !p.isAlive() || p.isSpectator() || p.isCreative()) {
+                continue;
+            }
+            if (FogLurkerConfig.COMMON.overworldOnly.get() && p.level().dimension() != Level.OVERWORLD) {
+                continue;
+            }
+            if (isBeingHunted(p)) {
+                continue; // it is busy with them already
+            }
+            candidates.add(p);
+        }
+        if (!candidates.isEmpty()) {
+            haunt(candidates.get(r.nextInt(candidates.size())), data, r);
+        }
+    }
+
+    private static boolean isBeingHunted(ServerPlayer p) {
+        for (FogLurkerEntity l : LurkerDirector.active()) {
+            LurkerBrain b = l.brain();
+            if (b != null && b.targetId().equals(p.getUUID())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void later(MinecraftServer server, int ticks, Runnable run) {
+        QUEUE.add(new Timed(server.overworld().getGameTime() + ticks, run));
+    }
+
+    /** Picks a kind by weight and runs it; falls through to the others if it does not apply right now. */
+    @Nullable
+    public static Kind haunt(ServerPlayer p, FogLurkerSavedData data, RandomSource r) {
+        List<Kind> remaining = new ArrayList<>(List.of(Kind.values()));
+        while (!remaining.isEmpty()) {
+            int total = remaining.stream().mapToInt(k -> k.weight).sum();
+            int roll = r.nextInt(total);
+            Kind pick = remaining.get(0);
+            for (Kind k : remaining) {
+                roll -= k.weight;
+                if (roll < 0) {
+                    pick = k;
+                    break;
+                }
+            }
+            remaining.remove(pick);
+            if (run(pick, p, data, r)) {
+                return pick;
+            }
+        }
+        return null;
+    }
+
+    public static boolean run(Kind kind, ServerPlayer p, FogLurkerSavedData data, RandomSource r) {
+        return switch (kind) {
+            case SOUND -> sound(p, data, r);
+            case APPARITION -> apparition(p);
+            case TORCH -> snuffTorch(p, r);
+            case GHOST_FRIEND -> ghostFriend(p, data, r);
+            case BOOK -> leaveBook(p, data, r);
+        };
+    }
+
+    // =================================================================== sounds only you can hear
+
+    private static void play(ServerPlayer p, SoundEvent sound, SoundSource source, Vec3 at, float volume, float pitch) {
+        if (p.hasDisconnected()) {
+            return;
+        }
+        p.connection.send(new ClientboundSoundPacket(BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound), source,
+                at.x, at.y, at.z, volume, pitch, p.getRandom().nextLong()));
+    }
+
+    @Nullable
+    private static BlockPos home(ServerPlayer p, FogLurkerSavedData data) {
+        PlayerBehaviorProfile prof = data.profileOrNull(p.getUUID());
+        return prof != null && prof.isNearHome(p.level().dimension().location().toString(), p.blockPosition(), 48)
+                ? prof.home() : null;
+    }
+
+    public static boolean sound(ServerPlayer p, FogLurkerSavedData data, RandomSource r) {
+        ServerLevel level = p.serverLevel();
+        MinecraftServer server = p.server;
+        Vec3 look = p.getViewVector(1F).multiply(1, 0, 1);
+        look = look.lengthSqr() < 1e-4 ? new Vec3(0, 0, 1) : look.normalize();
+        Vec3 behind = look.scale(-1);
+        Vec3 side = new Vec3(-look.z, 0, look.x).scale(r.nextBoolean() ? 1 : -1);
+        switch (SpotFinder.placeOf(level, p, home(p, data))) {
+            case UNDERGROUND -> {
+                // Something mining in the wall beside you.
+                Vec3 at = p.position().add(side.scale(4)).add(behind.scale(2)).add(0, 1, 0);
+                for (int i = 0; i < 5; i++) {
+                    later(server, i * 6, () -> play(p, SoundEvents.STONE_HIT, SoundSource.BLOCKS, at, 1.0F, 0.75F));
+                }
+                later(server, 34, () -> play(p, SoundEvents.STONE_BREAK, SoundSource.BLOCKS, at, 1.0F, 0.8F));
+            }
+            case INDOORS -> {
+                BlockPos chest = r.nextBoolean() ? nearestContainer(level, p.blockPosition(), 10, false) : null;
+                if (chest != null) {
+                    // A chest in your base opens... and closes.
+                    Vec3 at = Vec3.atCenterOf(chest);
+                    play(p, SoundEvents.CHEST_OPEN, SoundSource.BLOCKS, at, 0.6F, 0.9F);
+                    later(server, 30 + r.nextInt(30), () -> play(p, SoundEvents.CHEST_CLOSE, SoundSource.BLOCKS, at, 0.6F, 0.9F));
+                } else {
+                    // Footsteps crossing the roof above you.
+                    for (int i = 0; i < 6; i++) {
+                        Vec3 at = p.position().add(side.scale(-4 + i * 1.5)).add(0, 4, 0);
+                        later(server, i * 7, () -> play(p, SoundEvents.WOOD_STEP, SoundSource.PLAYERS, at, 0.9F, 0.8F));
+                    }
+                }
+            }
+            default -> {
+                // Footsteps coming up behind you, then nothing.
+                for (int i = 0; i < 5; i++) {
+                    Vec3 at = p.position().add(behind.scale(9 - i * 1.3));
+                    BlockState ground = level.getBlockState(BlockPos.containing(at).below());
+                    SoundEvent step = ground.isAir() ? SoundEvents.GRASS_STEP : ground.getSoundType().getStepSound();
+                    later(server, i * 6, () -> play(p, step, SoundSource.PLAYERS, at, 0.8F, 0.9F));
+                }
+            }
+        }
+        return true;
+    }
+
+    // =================================================================== the edge of your vision
+
+    public static boolean apparition(ServerPlayer p) {
+        if (!ModNetwork.CHANNEL.isRemotePresent(p.connection.connection)) {
+            return false;
+        }
+        ModNetwork.send(p, new ApparitionPacket());
+        return true;
+    }
+
+    // =================================================================== torches
+
+    /** Puts out one ordinary torch near the player that they are not looking at. Never soul torches. */
+    public static boolean snuffTorch(ServerPlayer p, RandomSource r) {
+        ServerLevel level = p.serverLevel();
+        if (!FogLurkerConfig.COMMON.sabotage.get() || !level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
+            return false;
+        }
+        Vec3 eye = p.getEyePosition();
+        Vec3 look = p.getViewVector(1F);
+        BlockPos c = p.blockPosition();
+        List<BlockPos> found = new ArrayList<>();
+        for (BlockPos pos : BlockPos.betweenClosed(c.offset(-10, -4, -10), c.offset(10, 5, 10))) {
+            BlockState s = level.getBlockState(pos);
+            if (!s.is(Blocks.TORCH) && !s.is(Blocks.WALL_TORCH)) {
+                continue;
+            }
+            Vec3 center = Vec3.atCenterOf(pos);
+            Vec3 to = center.subtract(eye);
+            double d = to.length();
+            if (d < 3) {
+                continue;
+            }
+            boolean inView = look.dot(to.scale(1 / d)) > 0.3 && SpotFinder.canSee(p, center);
+            if (!inView) {
+                found.add(pos.immutable());
+            }
+        }
+        if (found.isEmpty()) {
+            return false;
+        }
+        BlockPos pick = found.get(r.nextInt(found.size()));
+        level.destroyBlock(pick, true);
+        level.playSound(null, pick, SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.35F, 1.7F);
+        level.sendParticles(ParticleTypes.SMOKE, pick.getX() + 0.5, pick.getY() + 0.6, pick.getZ() + 0.5, 6, 0.05, 0.1, 0.05, 0.01);
+        return true;
+    }
+
+    // =================================================================== a friend who is not online
+
+    public static boolean ghostFriend(ServerPlayer p, FogLurkerSavedData data, RandomSource r) {
+        MinecraftServer server = p.server;
+        List<Map.Entry<UUID, PlayerBehaviorProfile>> offline = new ArrayList<>();
+        for (Map.Entry<UUID, PlayerBehaviorProfile> e : data.profiles().entrySet()) {
+            String name = e.getValue().lastKnownName;
+            if (!e.getKey().equals(p.getUUID()) && name != null && !name.isEmpty()
+                    && server.getPlayerList().getPlayer(e.getKey()) == null) {
+                offline.add(e);
+            }
+        }
+        if (offline.isEmpty()) {
+            return false;
+        }
+        Map.Entry<UUID, PlayerBehaviorProfile> pick = offline.get(r.nextInt(offline.size()));
+        String name = pick.getValue().lastKnownName;
+        p.sendSystemMessage(Component.translatable("multiplayer.player.joined", name).withStyle(ChatFormatting.YELLOW));
+        MimicChat.Context ctx = new MimicChat.Context(name, p.getGameProfile().getName(), pick.getValue(), "north",
+                p.level().isNight(), List.of());
+        MimicChat.Intent intent = r.nextBoolean() ? MimicChat.Intent.GREET : MimicChat.Intent.LURE;
+        later(server, 60 + r.nextInt(60), () -> MimicChat.compose(ctx, intent, null, r)
+                .whenComplete((text, err) -> server.execute(() -> {
+                    if (err == null && text != null && !text.isBlank() && !p.hasDisconnected()) {
+                        p.sendSystemMessage(Component.translatable("chat.type.text", name, text));
+                    }
+                })));
+        later(server, 400 + r.nextInt(200), () -> {
+            // Only "leaves" if the real one has not actually logged in meanwhile.
+            if (!p.hasDisconnected() && server.getPlayerList().getPlayer(pick.getKey()) == null) {
+                p.sendSystemMessage(Component.translatable("multiplayer.player.left", name).withStyle(ChatFormatting.YELLOW));
+            }
+        });
+        return true;
+    }
+
+    // =================================================================== a book in your chest
+
+    /** A container near {@code center} with a free slot. Never touches unopened loot chests. */
+    @Nullable
+    private static BlockPos nearestContainer(ServerLevel level, BlockPos center, int range, boolean needFreeSlot) {
+        BlockPos best = null;
+        double bestD = Double.MAX_VALUE;
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-range, -4, -range), center.offset(range, 4, range))) {
+            if (!level.isLoaded(pos)) {
+                continue;
+            }
+            BlockEntity be = level.getBlockEntity(pos);
+            if (!(be instanceof Container c) || be.saveWithoutMetadata().contains("LootTable")) {
+                continue;
+            }
+            if (needFreeSlot && freeSlot(c) < 0) {
+                continue;
+            }
+            double d = pos.distSqr(center);
+            if (d < bestD) {
+                bestD = d;
+                best = pos.immutable();
+            }
+        }
+        return best;
+    }
+
+    private static int freeSlot(Container c) {
+        for (int i = 0; i < c.getContainerSize(); i++) {
+            if (c.getItem(i).isEmpty()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public static boolean leaveBook(ServerPlayer p, FogLurkerSavedData data, RandomSource r) {
+        if (!FogLurkerConfig.COMMON.sabotage.get()) {
+            return false;
+        }
+        ServerLevel level = p.serverLevel();
+        PlayerBehaviorProfile prof = data.profileOrNull(p.getUUID());
+        long now = level.getGameTime();
+        if (prof == null || !prof.isNearHome(level.dimension().location().toString(), p.blockPosition(), 64)
+                || now - prof.lastBookAt < 20L * 60 * 20) {
+            return false; // only at your own base, and at most one every 20 minutes
+        }
+        BlockPos chest = nearestContainer(level, prof.home(), 8, true);
+        if (chest == null) {
+            return false;
+        }
+        prof.lastBookAt = now;
+        String name = p.getGameProfile().getName();
+        List<String> pages = new ArrayList<>();
+        List<String> said = prof.recentChat(12);
+        if (said.size() >= 2) {
+            pages.add("you said\n\n\"" + clip(said.get(r.nextInt(said.size()))) + "\"\n\n\"" + clip(said.get(r.nextInt(said.size()))) + "\"");
+        } else {
+            pages.add("i have been\nlistening,\n" + name);
+        }
+        pages.add("you sleep at\n" + prof.homeX + " " + prof.homeY + " " + prof.homeZ + "\n\ni have been\nin your house");
+        String friend = friendName(data, p.getUUID(), r);
+        String last = friend != null ? "when " + friend + "\ncomes back\n\nlook at the eyes" : "look behind you";
+        if (GeminiClient.available()) {
+            // With a Gemini key the last page is written in the player's own typing style.
+            StringBuilder samples = new StringBuilder();
+            for (String s : said) {
+                samples.append("- ").append(s).append('\n');
+            }
+            GeminiClient.generate("You write one short, unsettling note (at most 20 words, no quotes) left by a creature "
+                            + "that has been watching a Minecraft player called " + name + ". Imitate the player's own typing "
+                            + "style from the samples so it reads as if they wrote it to themselves. Output only the note.",
+                    "Samples of how " + name + " types:\n" + samples, 1.0F)
+                    .whenComplete((res, err) -> p.server.execute(() -> {
+                        String text = err == null && res != null ? res.text().map(Hauntings::clip).orElse(last) : last;
+                        pages.add(text);
+                        placeBook(level, chest, name, pages);
+                    }));
+        } else {
+            pages.add(last);
+            placeBook(level, chest, name, pages);
+        }
+        return true;
+    }
+
+    private static void placeBook(ServerLevel level, BlockPos chest, String author, List<String> pages) {
+        if (!(level.getBlockEntity(chest) instanceof Container c)) {
+            return;
+        }
+        int slot = freeSlot(c);
+        if (slot < 0) {
+            return;
+        }
+        ItemStack book = new ItemStack(Items.WRITTEN_BOOK);
+        CompoundTag tag = book.getOrCreateTag();
+        tag.putString("title", "for " + author);
+        tag.putString("author", author); // signed with your own name
+        tag.putBoolean("resolved", true);
+        ListTag list = new ListTag();
+        for (String page : pages) {
+            list.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal(page))));
+        }
+        tag.put("pages", list);
+        c.setItem(slot, book);
+        c.setChanged();
+    }
+
+    @Nullable
+    private static String friendName(FogLurkerSavedData data, UUID self, RandomSource r) {
+        List<String> names = new ArrayList<>();
+        data.profiles().forEach((id, prof) -> {
+            if (!id.equals(self) && prof.lastKnownName != null && !prof.lastKnownName.isEmpty()) {
+                names.add(prof.lastKnownName);
+            }
+        });
+        return names.isEmpty() ? null : names.get(r.nextInt(names.size()));
+    }
+
+    private static String clip(String s) {
+        String t = s.replace('\n', ' ').replace("§", "").trim();
+        return t.length() > 90 ? t.substring(0, 90) : t;
+    }
+}

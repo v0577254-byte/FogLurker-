@@ -26,6 +26,65 @@ public final class SpotFinder {
     public record Woods(Vec3 pos, int canopy, String direction) {
     }
 
+    /** Where a player is right now. It hides differently in each. */
+    public enum Place {
+        /** Out in the open: it uses the woods. */
+        SURFACE,
+        /** Under a roof near the surface (your base): it stands outside, where a window lets you see it. */
+        INDOORS,
+        /** Down in a cave or mine: it waits in the darkest corners, just past your torches. */
+        UNDERGROUND
+    }
+
+    public static Place placeOf(ServerLevel level, Entity e, @Nullable BlockPos home) {
+        BlockPos p = e.blockPosition();
+        if (!loaded(level, p.getX(), p.getZ())) {
+            return Place.SURFACE;
+        }
+        if (level.dimensionType().hasCeiling()) {
+            return Place.UNDERGROUND;
+        }
+        int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, p.getX(), p.getZ());
+        if (p.getY() >= surface) {
+            return Place.SURFACE;
+        }
+        boolean nearHome = home != null && home.closerThan(p, 32);
+        return p.getY() >= surface - (nearHome ? 14 : 6) ? Place.INDOORS : Place.UNDERGROUND;
+    }
+
+    /**
+     * Base perimeter: a spot out in the open 5-16 blocks from a player who is indoors, preferring one
+     * they can see from where they stand (through a window or an open door).
+     */
+    @Nullable
+    public static Vec3 findOutside(ServerLevel level, ServerPlayer target, RandomSource r) {
+        Vec3 origin = target.position();
+        Vec3 best = null;
+        double bestScore = -Double.MAX_VALUE;
+        for (int i = 0; i < 48; i++) {
+            double angle = r.nextDouble() * Math.PI * 2;
+            double radius = 5 + r.nextDouble() * 11;
+            int x = Mth.floor(origin.x + Math.cos(angle) * radius);
+            int z = Mth.floor(origin.z + Math.sin(angle) * radius);
+            if (!loaded(level, x, z)) {
+                continue;
+            }
+            int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            BlockPos g = new BlockPos(x, surface, z);
+            if (Math.abs(surface - origin.y) > 5 || !isStandable(level, g) || !isDry(level, g)) {
+                continue; // must be outside, on open ground at about your level
+            }
+            Vec3 spot = Vec3.atBottomCenterOf(g);
+            boolean visible = canSee(target, spot.add(0, 1.0, 0));
+            double score = r.nextDouble() + (visible ? 6 : 0) - radius * 0.05;
+            if (score > bestScore) {
+                bestScore = score;
+                best = spot;
+            }
+        }
+        return best;
+    }
+
     public static boolean loaded(ServerLevel level, int x, int z) {
         return level.hasChunk(x >> 4, z >> 4);
     }
@@ -152,6 +211,7 @@ public final class SpotFinder {
         Vec3 look = target.getViewVector(1F);
         Vec3 best = null;
         double bestScore = -Double.MAX_VALUE;
+        boolean caverns = placeOf(level, target, null) == Place.UNDERGROUND;
         for (int i = 0; i < 40; i++) {
             double angle;
             if (preferDir != null && i < 24) {
@@ -173,6 +233,10 @@ public final class SpotFinder {
             Vec3 spot = Vec3.atBottomCenterOf(g);
             boolean visible = canSee(target, spot.add(0, 1.5, 0));
             double score = r.nextDouble() - dy * 0.6;
+            if (caverns) {
+                // Caverns: the darker the better, just outside the reach of your torches.
+                score += (7 - level.getMaxLocalRawBrightness(g)) * 0.7;
+            }
             if (wantHidden) {
                 score += visible ? -5 : 5;
             }

@@ -61,6 +61,7 @@ public final class LurkerDirector {
         }
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         data.tickGrace();
+        Hauntings.tick(server, data);
         ACTIVE.removeIf(Entity::isRemoved);
         if (data.inGrace() || !ACTIVE.isEmpty()) {
             return;
@@ -93,6 +94,7 @@ public final class LurkerDirector {
     public static void onServerStopped(ServerStoppedEvent event) {
         ACTIVE.clear();
         RecentChat.clear();
+        Hauntings.reset();
     }
 
     public static void onRemoved(FogLurkerEntity lurker) {
@@ -105,6 +107,19 @@ public final class LurkerDirector {
     public static List<FogLurkerEntity> active() {
         ACTIVE.removeIf(Entity::isRemoved);
         return new ArrayList<>(ACTIVE);
+    }
+
+    /** A bell was rung: every creature within 32 blocks is driven off. */
+    public static int onBell(ServerLevel level, BlockPos bell) {
+        int driven = 0;
+        for (FogLurkerEntity lurker : active()) {
+            LurkerBrain brain = lurker.brain();
+            if (brain != null && lurker.level() == level && lurker.blockPosition().closerThan(bell, 32)) {
+                brain.onBell();
+                driven++;
+            }
+        }
+        return driven;
     }
 
     public static void onPlayerChat(ServerPlayer player, String text) {
@@ -410,6 +425,24 @@ public final class LurkerDirector {
                 return SpotFinder.findSpawn(level, target, 18, 30, null, true, false, r);
             }
             case WATCHER -> {
+                PlayerBehaviorProfile prof = FogLurkerSavedData.get(target.server).profileOrNull(target.getUUID());
+                BlockPos home = prof != null && prof.isNearHome(level.dimension().location().toString(), target.blockPosition(), 48)
+                        ? prof.home() : null;
+                SpotFinder.Place place = SpotFinder.placeOf(level, target, home);
+                if (place == SpotFinder.Place.INDOORS) {
+                    // You are inside: it stands outside, where you can see it through the window.
+                    Vec3 outside = SpotFinder.findOutside(level, target, r);
+                    if (outside != null) {
+                        return outside;
+                    }
+                }
+                if (place == SpotFinder.Place.UNDERGROUND) {
+                    // In a cave there is no "far away": it waits in the dark at the end of the tunnel.
+                    Vec3 dark = SpotFinder.findSpawn(level, target, 12, 28, null, false, true, r);
+                    if (dark != null) {
+                        return dark;
+                    }
+                }
                 return SpotFinder.findSpawn(level, target, 36, 56, null, false, true, r);
             }
             case DOPPELGANGER -> {

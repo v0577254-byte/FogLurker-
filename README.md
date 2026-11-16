@@ -14,6 +14,7 @@ Something in the fog has been watching you play. It learns how you move and how 
 - **It wears your friend's face.** Two of you are playing and one goes off to chop wood. The creature takes the absent player's skin, armour and held item, plus their name tag and team colour. It walks up to the other player from the direction the real friend went, so it looks like them coming back.
 - **It talks like them.** It writes in chat as `<YourFriend> ...`, copying how that person types: lowercase or not, punctuation, slang, "u" for "you", and sometimes word-for-word things they really said. With a Gemini API key it holds a real conversation: ask "where are you?" and it answers in their style.
 - **It sounds like them.** With [Simple Voice Chat](https://modrinth.com/plugin/simple-voice-chat) installed, it plays short snippets of the friend's real voice from where it stands. It also splices snippets into sentences they never said. This only happens for players who opted in (see [Voice snippets](#voice-snippets-opt-in)).
+- **It kills time like them.** While it waits for you it holds the tool they use most and "mines" a block, cracks and all. Then it stops halfway, goes completely still, and stares. Before you can even see it, you may hear their voice calling from the trees.
 - **It behaves like them.** It copies their crouch-spam greeting, bunny hopping, sprint habits, idle swings, how far they stand from friends and how much they look around. All of this is learned by quietly watching each player.
 - **It lures you into the woods.** It finds the thickest tree cover nearby (away from the real friend), walks you there and waits when you fall behind. If you stop following, it gets impatient in chat.
 - **It hides among animals.** It can be a cow, sheep, pig, chicken, wolf or zombie in a real herd. It wanders the way the real animals around you wander (it learns that too), but stares at you a little too often and creeps closer when you look away.
@@ -32,6 +33,44 @@ The Fog Lurker's real shape is **the pale crawler**. When it stops pretending, i
 | Front | Side |
 |---|---|
 | ![The crawler, front](docs/images/crawler_front.jpg) | ![The crawler, side](docs/images/crawler_side.jpg) |
+
+## Hauntings
+
+Between appearances (after the grace period) one player gets a small scare every minute and a half to four minutes. None of these can hurt you.
+
+- **Sounds only you can hear.** Footsteps coming up behind you. Footsteps crossing your roof. A chest in your base opening and closing. Something mining in the wall beside you underground.
+- **The edge of your vision.** It crouches at the edge of your screen. The moment you turn to look straight at it, it is gone without a sound. (It only ever exists on your own screen.)
+- **A torch goes out.** An ordinary torch you are not looking at is put out and drops as an item. Never a soul torch.
+- **A friend who is not online.** "Alex joined the game", a line of chat in Alex's typing style, and later "Alex left the game". Alex was never there. (Check the player list.)
+- **A book in your chest.** Signed with your own name, quoting things you said in chat, and telling you where you sleep. With a Gemini key its last page is written in your own typing style. At most one every 20 minutes, only at your base.
+
+![At the edge of your vision](docs/images/apparition_edge.jpg)
+
+## It knows where you are
+
+- **Out in the open** it uses the woods, as before.
+- **In a cave or mine** it waits in the darkest spots it can find, just past the reach of your torches, and a watcher stands at the end of the tunnel rather than far away.
+- **At home** it learns where you live (your bed, or wherever you open chests the most). When you are indoors, a watcher appears right outside, 5 to 16 blocks away, where you can see it through a window or an open door.
+- **Spotted in its real shape, it does not run.** It sinks slowly into the ground, still looking at you.
+
+![Sinking into the ground](docs/images/sinking.jpg)
+
+## How to survive it
+
+Its hits ignore armour, so you survive by knowing its rules, not by fighting.
+
+| What | Effect |
+|---|---|
+| **Water** | It cannot swim. Get in water or a boat and it can only pace the shore; after 20 seconds it gives up. |
+| **Soul fire** | A soul torch, soul lantern or lit soul campfire protects everyone within 6 blocks. It will not shed its disguise there, will not come inside the circle, and cannot hit you. It circles outside and gives up after 20 seconds. (Soul sand comes from the Nether, so this is something you earn.) |
+| **Bells** | Ring a bell and anything within 32 blocks flees. |
+| **Do not look at it** | While it hunts you, looking at it makes it charge 25% faster. Looking away slows it to walking pace, so you can outrun it, if you can stand running blind and listening to it behind you. |
+| **Deepslate and obsidian** | It cannot break them. |
+| **Totem of Undying** | Still works, even on Deathwish. |
+
+![The screen closes in as it gets near](docs/images/vignette.jpg)
+
+The edges of your screen darken and a heartbeat gets faster and louder the closer it is.
 
 ## You cannot hide from it on a tower or in a bunker
 
@@ -166,6 +205,11 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `spawnRollMinutes` | 5 | Minutes between spawn rolls (a missed roll makes the next one guaranteed) |
 | `spawnChance` | 0.5 | Chance a normal roll makes it appear |
 | `breakBlocks` | true | Let the attacking form break blocks to reach you (never the protected list) |
+| `hauntings` | true | Small scares between appearances |
+| `hauntingMinSeconds` / `MaxSeconds` | 90 / 240 | How often a haunting happens |
+| `sabotage` | true | Let hauntings put out torches and leave books in chests |
+| `wardRadius` | 6 | How far soul fire protects (0 turns wards off) |
+| `eyeContactRule` | true | Looking at it speeds it up, looking away slows it down |
 | `encounterMaxMinutes` | 5 | An appearance gives up after this long |
 | `overworldOnly` | true | Only appear on its own in the Overworld |
 | `allowDoppelganger` | true | When you are alone it can copy *you* |
@@ -200,6 +244,9 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - water: spawn spots refuse water, the crawler will not path into it, and a crawler thrown in is driven off
 - the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
+- soul fire keeps it out of reach until the torch is removed; a bell makes it flee
+- hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests
+- indoors at home the watcher appears outside your roof; spotted in its real shape it sinks into the ground
 - `/foglurker-macarena` is cheats-only, spawns one harmless dancer that turns on count 16 and leaves after its loops
 - `/foglurker debugeverything` runs end to end
 

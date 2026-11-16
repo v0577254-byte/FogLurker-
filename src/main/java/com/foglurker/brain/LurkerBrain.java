@@ -17,6 +17,12 @@ import com.foglurker.voice.VoiceBridge;
 import com.foglurker.world.FogLurkerSavedData;
 import com.foglurker.registry.ModTags;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.block.state.BlockState;
@@ -108,6 +114,10 @@ public final class LurkerBrain {
     @Nullable
     private Vec3 wanderTarget;
     private boolean saidArrived;
+    @Nullable
+    private BlockPos fakeMine;
+    /** A watcher leaves when you come this close (smaller when it started at your window or down a tunnel). */
+    private double watchFleeDistance = 22;
     private double bestToWoods = Double.MAX_VALUE;
     private int lureStuck;
 
@@ -119,6 +129,11 @@ public final class LurkerBrain {
     // attack
     private int hits;
     private int attackCooldown;
+
+    // counterplay: soul-fire wards, and whether you are looking at it
+    private boolean wardedCache;
+    private int wardCheckedAt = -100;
+    private boolean wasWatched;
 
     // water: its weakness in the attacking form
     private int waterTicks;
@@ -205,6 +220,7 @@ public final class LurkerBrain {
                     mob.copyLookOf(copied);
                 }
                 copiedProfile = enc.copiedId() == null ? null : data.profileOrNull(enc.copiedId());
+                holdFavouriteIfEmpty();
             }
             case DOG -> mob.setDisguiseName(enc.dogName());
             default -> mob.setDisguiseName(null);
@@ -230,6 +246,7 @@ public final class LurkerBrain {
         nextVoiceAt = 60;
         if (t != null) {
             lastTargetY = t.getY();
+            watchFleeDistance = Math.min(22, mob.distanceTo(t) * 0.6);
         }
     }
 
@@ -284,6 +301,7 @@ public final class LurkerBrain {
             ServerPlayer copied = copiedPlayer();
             if (copied != null) {
                 mob.copyEquipmentOf(copied); // holds whatever the real one is holding right now
+                holdFavouriteIfEmpty();
             }
         }
 
@@ -329,6 +347,10 @@ public final class LurkerBrain {
                 vanish(false);
             }
             return;
+        }
+        // A familiar voice calling from somewhere out in the trees, before you can see anyone.
+        if (enc.mode() == Mode.MIMIC && dist > 18 && phaseAge % 160 == 60) {
+            speak(enc.copiedId(), AudioFx.Style.UNCANNY, false);
         }
         if (dist < 16) {
             setPhase(Phase.APPROACH);
@@ -426,8 +448,10 @@ public final class LurkerBrain {
             }
         } else if (dist > lead + 5) {
             halt();
-            stare(t);
             stall++;
+            if (!pretendMine(dog ? -1 : stall % 300)) {
+                stare(t);
+            }
             if (dog) {
                 if (stall % 70 == 20) {
                     mob.playSound(random.nextBoolean() ? SoundEvents.WOLF_AMBIENT : SoundEvents.WOLF_WHINE, 1.0F, 1.0F);
@@ -514,7 +538,7 @@ public final class LurkerBrain {
                 mob.playSound(ModSounds.WHISPER.get(), 1.0F, 0.7F);
             }
         }
-        if (dist < 22 || lookedAt > 30) {
+        if (dist < watchFleeDistance || lookedAt > 30) {
             if (enc.willAttack() && canAttack(t) && canRevealNow(t)) {
                 setPhase(Phase.TRANSFORM); // you looked for too long
             } else {
@@ -645,9 +669,30 @@ public final class LurkerBrain {
         }
         mob.setAggressive(true);
         stare(t);
-        double chase = speedFor(7.2 * difficulty().speedMultiplier());
+        // Eye contact: look at it and it charges; look away and it slows, so you have to run blind.
+        boolean watched = isWatchedBy(t);
+        double eye = !FogLurkerConfig.COMMON.eyeContactRule.get() ? 1.0 : watched ? 1.25 : 0.6;
+        if (watched && !wasWatched && FogLurkerConfig.COMMON.eyeContactRule.get()) {
+            mob.playSound(ModSounds.ATTACK.get(), 1.6F, 0.7F);
+        }
+        wasWatched = watched;
+        double chase = speedFor(7.2 * difficulty().speedMultiplier() * eye);
         boolean targetInWater = SpotFinder.isInOrOnWater(t);
-        if (targetInWater) {
+        boolean warded = !targetInWater && isWarded(t);
+        if (warded) {
+            // Soul fire: it circles just outside the light and cannot touch you.
+            targetWaterTicks++;
+            double keep = Wards.radius() + 2.5;
+            if (dist < keep - 1) {
+                Vec3 away = mob.position().subtract(t.position()).multiply(1, 0, 1);
+                away = away.lengthSqr() < 1e-4 ? new Vec3(1, 0, 0) : away.normalize();
+                goTo(t.position().add(away.scale(keep + 1)), chase);
+            } else if (dist > keep + 2) {
+                goTo(t, chase);
+            } else {
+                halt();
+            }
+        } else if (targetInWater) {
             // It cannot follow you into water. It paces the closest shore and screams.
             targetWaterTicks++;
             if (age - lastRepath >= 20 || mob.getNavigation().isDone()) {
@@ -659,6 +704,12 @@ public final class LurkerBrain {
                     halt();
                 }
             }
+        } else {
+            targetWaterTicks = 0;
+            chase(t, chase);
+            dig(t);
+        }
+        if (warded || targetInWater) {
             if (targetWaterTicks % 100 == 20) {
                 mob.playSound(ModSounds.SCREAM.get(), 1.5F, 0.7F);
             }
@@ -666,17 +717,13 @@ public final class LurkerBrain {
                 vanish(false); // it gives up... this time
                 return;
             }
-        } else {
-            targetWaterTicks = 0;
-            chase(t, chase);
-            dig(t);
         }
         if (age % 30 == 0) {
             mob.playSound(ModSounds.HEARTBEAT.get(), 1.0F, 1.2F);
         }
         // Claws still reach you from the shore if you only waded in.
         double reachSqr = 2.3 * 2.3;
-        if (mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
+        if (!warded && mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
             if (mob.doHurtTarget(t)) {
                 hits++;
             }
@@ -686,7 +733,7 @@ public final class LurkerBrain {
         if (dist < bestAttackDist - 0.5) {
             bestAttackDist = dist;
             attackStall = 0;
-        } else if (breaking == null) {
+        } else if (breaking == null && !warded && !targetInWater) {
             attackStall++;
         }
         if (hits >= difficulty().maxHitsPerEncounter()) {
@@ -884,6 +931,20 @@ public final class LurkerBrain {
         }
         ended = true;
         ServerLevel level = level();
+        if (!screaming && mob.isAttackForm() && mob.onGround() && !mob.isInWater()) {
+            // Spotted in its real shape: it does not run. It sinks into the ground, still looking at you.
+            VoiceBridge.stop(mob);
+            if (breaking != null) {
+                level.destroyBlockProgress(mob.getId(), breaking, -1);
+            }
+            ServerPlayer seen = target();
+            if (seen != null) {
+                ModNetwork.send(seen, new FogPacket(0F));
+            }
+            mob.playSound(ModSounds.WHISPER.get(), 0.8F, 0.6F);
+            mob.beginSink();
+            return;
+        }
         double h = mob.getBbHeight();
         level.sendParticles(ParticleTypes.LARGE_SMOKE, mob.getX(), mob.getY() + h / 2, mob.getZ(),
                 40, mob.getBbWidth() / 2, h / 2, mob.getBbWidth() / 2, 0.02);
@@ -893,6 +954,9 @@ public final class LurkerBrain {
         VoiceBridge.stop(mob);
         if (breaking != null) {
             level.destroyBlockProgress(mob.getId(), breaking, -1);
+        }
+        if (fakeMine != null) {
+            level.destroyBlockProgress(mob.getId() + 1_000_000, fakeMine, -1);
         }
         ServerPlayer t = target();
         if (t != null) {
@@ -946,7 +1010,41 @@ public final class LurkerBrain {
 
     /** It knows its weakness: it never sheds its swimming-capable skin while you or it are in water. */
     private boolean canRevealNow(ServerPlayer t) {
-        return !mob.isInWater() && !SpotFinder.isInOrOnWater(t);
+        return !mob.isInWater() && !SpotFinder.isInOrOnWater(t) && !isWarded(t);
+    }
+
+    /** Is the target standing by soul fire? Checked once a second. */
+    private boolean isWarded(ServerPlayer t) {
+        if (age - wardCheckedAt >= 20) {
+            wardCheckedAt = age;
+            wardedCache = Wards.isWarded(t);
+        }
+        return wardedCache;
+    }
+
+    /** Wider than "staring straight at it": anywhere in the middle third of your screen counts. */
+    private boolean isWatchedBy(ServerPlayer p) {
+        Vec3 eyePos = p.getEyePosition();
+        Vec3 to = new Vec3(mob.getX(), mob.getY(0.5), mob.getZ()).subtract(eyePos);
+        double len = to.length();
+        if (len > 64 || len < 1e-3) {
+            return false;
+        }
+        return p.getViewVector(1F).dot(to.scale(1 / len)) > 0.85 && p.hasLineOfSight(mob);
+    }
+
+    /** A bell rung nearby: whatever it was doing, it runs. */
+    public void onBell() {
+        if (ended || phase == Phase.FLEE) {
+            return;
+        }
+        mob.playSound(ModSounds.SCREAM.get(), 2.0F, 1.3F);
+        if (phase == Phase.TRANSFORM) {
+            mob.setFlag(FogLurkerEntity.FLAG_TRANSFORMING | FogLurkerEntity.FLAG_ANGRY | FogLurkerEntity.FLAG_SITTING, false);
+            mob.setDisguise(Disguise.CRAWLER);
+            mob.clearEquipment();
+        }
+        setPhase(Phase.FLEE);
     }
 
     /**
@@ -1082,6 +1180,65 @@ public final class LurkerBrain {
         if (age % 20 == 1) {
             ModNetwork.send(t, new FogPacket(intensity));
         }
+    }
+
+    /** With an empty hand it holds whatever the real player holds most (their pickaxe, their sword...). */
+    private void holdFavouriteIfEmpty() {
+        if (copiedProfile == null || !mob.getMainHandItem().isEmpty()) {
+            return;
+        }
+        String id = copiedProfile.favoriteItem();
+        ResourceLocation key = id == null ? null : ResourceLocation.tryParse(id);
+        Item item = key == null ? null : ForgeRegistries.ITEMS.getValue(key);
+        if (item != null && item != Items.AIR) {
+            mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(item));
+        }
+    }
+
+    /**
+     * While it waits for you it "mines" a block like a player killing time, cracks and all, then
+     * stops halfway, goes completely still, and stares at you.
+     *
+     * @param cycle position in a 300 tick cycle (negative = never)
+     * @return true while it is busy mining and should not be turned to face you
+     */
+    private boolean pretendMine(int cycle) {
+        if (cycle < 0 || cycle < 150 || cycle > 215) {
+            if (fakeMine != null) {
+                level().destroyBlockProgress(mob.getId() + 1_000_000, fakeMine, -1);
+                fakeMine = null;
+            }
+            return false;
+        }
+        if (fakeMine == null) {
+            BlockPos feet = mob.blockPosition();
+            for (Direction d : Direction.Plane.HORIZONTAL) {
+                for (int dy = 1; dy >= -1; dy--) {
+                    BlockPos p = feet.relative(d).above(dy);
+                    if (solid(p) && level().getBlockEntity(p) == null) {
+                        fakeMine = p;
+                        break;
+                    }
+                }
+                if (fakeMine != null) {
+                    break;
+                }
+            }
+            if (fakeMine == null) {
+                return false;
+            }
+        }
+        int t = cycle - 150;
+        if (t < 45) {
+            mob.getLookControl().setLookAt(Vec3.atCenterOf(fakeMine));
+            if (t % 5 == 0) {
+                mob.swing(InteractionHand.MAIN_HAND);
+            }
+            level().destroyBlockProgress(mob.getId() + 1_000_000, fakeMine, Math.min(5, t / 8));
+            return true;
+        }
+        // ...then it just stops, and looks at you.
+        return false;
     }
 
     /** Little human habits copied from the real player: crouch spam, idle swings, bunny hops, looking around. */

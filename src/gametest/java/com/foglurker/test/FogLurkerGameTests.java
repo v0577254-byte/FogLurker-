@@ -197,7 +197,7 @@ public final class FogLurkerGameTests {
         h.succeed();
     }
 
-    @GameTest(template = "empty", batch = "disguises", timeoutTicks = 500)
+    @GameTest(template = "empty", batch = "disguises", timeoutTicks = 600)
     public static void everyDisguiseSpawnsAndThinks(GameTestHelper h) {
         logged(h, () -> everyDisguiseSpawnsAndThinksImpl(h));
     }
@@ -228,8 +228,11 @@ public final class FogLurkerGameTests {
                     l.brain().vanish(false);
                 }
             }
-            check(LurkerDirector.active().isEmpty(), "vanished creatures are still tracked");
-            h.succeed();
+            // Its real shape takes a second to sink into the ground; everything else is gone at once.
+            h.runAfterDelay(40, () -> {
+                check(LurkerDirector.active().isEmpty(), "vanished creatures are still tracked");
+                h.succeed();
+            });
         });
     }
 
@@ -557,6 +560,209 @@ public final class FogLurkerGameTests {
                 check(LurkerDirector.active().isEmpty(), "a dancer must never count as a hunting creature");
                 h.succeed();
             });
+        });
+    }
+
+    private static net.minecraft.core.BlockPos rel(GameTestHelper h, int x, int y, int z) {
+        return h.absolutePos(new net.minecraft.core.BlockPos(x, y, z));
+    }
+
+    @GameTest(template = "empty", batch = "ward", timeoutTicks = 1200)
+    public static void soulFireKeepsItBack(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerLevel level = h.getLevel();
+            var torch = rel(h, 2, 0, 1);
+            level.setBlockAndUpdate(torch, net.minecraft.world.level.block.Blocks.SOUL_TORCH.defaultBlockState());
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(level.getServer(), p);
+            check(com.foglurker.brain.Wards.isWarded(p), "a soul torch next to you should ward you");
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = hunter(h, p, 10.5, 1.5);
+                h.runAfterDelay(240, () -> logged(h, () -> {
+                    check(!l.isRemoved(), "it should still be circling (" + l.brain().describe() + ")");
+                    check(p.getHealth() >= 20F, "it hit a player standing by soul fire");
+                    check(l.distanceTo(p) > 4, "it came inside the soul fire's circle (" + l.distanceTo(p) + " blocks)");
+                    // The torch goes out: now nothing protects you.
+                    level.setBlockAndUpdate(torch, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                    h.succeedWhen(() -> {
+                        check(p.getHealth() < 20F, "with the ward gone it should attack (" + (l.isRemoved() ? "gone" : l.brain().describe()) + ")");
+                        if (!l.isRemoved()) {
+                            l.brain().vanish(true);
+                        }
+                    });
+                }));
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "bell", timeoutTicks = 400)
+    public static void bellDrivesItOff(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = hunter(h, p, 12.5, 1.5);
+                int driven = LurkerDirector.onBell(h.getLevel(), p.blockPosition());
+                check(driven == 1, "the bell should reach the one creature nearby, reached " + driven);
+                check(l.brain().phase() == LurkerBrain.Phase.FLEE, "after the bell it should flee, but it is " + l.brain().phase());
+                h.succeedWhen(() -> {
+                    check(l.isRemoved(), "it has not left yet (" + l.brain().describe() + ")");
+                    check(p.getHealth() >= 20F, "it still hit the player after the bell");
+                });
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "haunt", timeoutTicks = 400)
+    public static void hauntings(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 16);
+            ServerLevel level = h.getLevel();
+            MinecraftServer server = level.getServer();
+            level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_MOBGRIEFING).set(true, server);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            p.teleportTo(level, p.getX(), p.getY(), p.getZ(), 0F, 0F); // facing +Z
+            FogLurkerSavedData data = FogLurkerSavedData.get(server);
+            RandomSource r = RandomSource.create(42);
+            var blocks = net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState();
+            var behind = rel(h, 1, 0, -5);
+            var soul = rel(h, 3, 0, -9);
+            var inFront = rel(h, 1, 0, 7);
+            level.setBlockAndUpdate(behind, blocks);
+            level.setBlockAndUpdate(soul, net.minecraft.world.level.block.Blocks.SOUL_TORCH.defaultBlockState());
+            level.setBlockAndUpdate(inFront, blocks);
+
+            // Torches: only the ordinary one you cannot see goes out.
+            check(com.foglurker.brain.Hauntings.snuffTorch(p, r), "the torch behind you should go out");
+            check(level.getBlockState(behind).isAir(), "the torch behind the player is still there");
+            check(level.getBlockState(soul).is(net.minecraft.world.level.block.Blocks.SOUL_TORCH), "a soul torch was put out");
+            check(level.getBlockState(inFront).is(net.minecraft.world.level.block.Blocks.TORCH), "a torch in plain view was put out");
+            check(!com.foglurker.brain.Hauntings.snuffTorch(p, r), "nothing left that it is allowed to put out");
+
+            // Home: beds beat chests, and chests move home only when most of them are elsewhere.
+            var prof = new com.foglurker.learning.PlayerBehaviorProfile();
+            var a = new net.minecraft.core.BlockPos(0, 64, 0);
+            var b = new net.minecraft.core.BlockPos(500, 64, 0);
+            prof.usedContainerAt("o", a);
+            prof.usedContainerAt("o", a);
+            prof.usedContainerAt("o", b);
+            check(prof.home().equals(a), "one chest far away must not move home");
+            prof.usedContainerAt("o", b);
+            prof.usedContainerAt("o", b);
+            check(prof.home().equals(b), "home should follow where most chests are opened");
+            prof.sleptAt("o", a);
+            check(prof.home().equals(a) && prof.isNearHome("o", a.offset(5, 0, 5), 32), "a bed sets home");
+
+            // A book appears in a chest at your base, in your own words. Then not again for 20 minutes.
+            var chestPos = rel(h, 5, 0, 1);
+            level.setBlockAndUpdate(chestPos, net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState());
+            var mine = data.profile(p.getUUID());
+            mine.sleptAt(level.dimension().location().toString(), chestPos);
+            mine.addChat("anyone seen my pickaxe");
+            mine.addChat("brb getting wood");
+            check(com.foglurker.brain.Hauntings.leaveBook(p, data, r), "it should leave a book in the chest");
+            var chest = (net.minecraft.world.Container) level.getBlockEntity(chestPos);
+            ItemStack book = chest.getItem(0);
+            check(book.is(Items.WRITTEN_BOOK) && book.getTag().getList("pages", 8).size() >= 3, "no written book in the chest: " + book);
+            check(book.getTag().getString("author").equals(p.getGameProfile().getName()), "the book should be signed with your name");
+            check(!com.foglurker.brain.Hauntings.leaveBook(p, data, r), "only one book every 20 minutes");
+
+            // The test area is a pocket deep under real terrain, so right here it is "underground".
+            check(com.foglurker.brain.SpotFinder.placeOf(level, p, null) == com.foglurker.brain.SpotFinder.Place.UNDERGROUND,
+                    "120 blocks below the surface should count as underground");
+
+            // A friend who is not online "joins".
+            UUID ghost = UUID.randomUUID();
+            var friend = data.profile(ghost);
+            friend.lastKnownName = "GhostFriend";
+            friend.addChat("lol come here");
+            check(com.foglurker.brain.Hauntings.ghostFriend(p, data, r), "an offline friend should be able to haunt");
+
+            // Sounds, the apparition request and the random picker must all run cleanly.
+            check(com.foglurker.brain.Hauntings.sound(p, data, r), "sound haunting failed");
+            com.foglurker.brain.Hauntings.apparition(p);
+            check(com.foglurker.brain.Hauntings.haunt(p, data, r) != null, "no haunting could run");
+            // Let the queued footsteps, chat line and "left the game" play out.
+            h.runAfterDelay(120, h::succeed);
+        });
+    }
+
+    @GameTest(template = "empty", batch = "places", timeoutTicks = 200)
+    public static void itWaitsOutsideYourWindow(GameTestHelper h) {
+        logged(h, () -> {
+            ServerLevel level = h.getLevel();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(level.getServer(), p);
+            // Build a field on the real surface far above the test pocket, and stand on it.
+            int px = p.getBlockX();
+            int pz = p.getBlockZ();
+            int sy = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, px, pz) + 2;
+            var grass = net.minecraft.world.level.block.Blocks.GRASS_BLOCK.defaultBlockState();
+            var air = net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+            for (int x = -18; x <= 18; x++) {
+                for (int z = -18; z <= 18; z++) {
+                    level.setBlock(new net.minecraft.core.BlockPos(px + x, sy - 1, pz + z), grass, 2);
+                    for (int y = 0; y < 24; y++) {
+                        level.setBlock(new net.minecraft.core.BlockPos(px + x, sy + y, pz + z), air, 2);
+                    }
+                }
+            }
+            p.teleportTo(level, px + 0.5, sy, pz + 0.5, 0F, 0F);
+            var home = new net.minecraft.core.BlockPos(px, sy, pz);
+            check(com.foglurker.brain.SpotFinder.placeOf(level, p, home) == com.foglurker.brain.SpotFinder.Place.SURFACE,
+                    "standing in an open field should count as the surface");
+            // Put a roof over the player: now they are indoors, at home.
+            for (int x = -2; x <= 2; x++) {
+                for (int z = -2; z <= 2; z++) {
+                    level.setBlock(new net.minecraft.core.BlockPos(px + x, sy + 3, pz + z),
+                            net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), 2);
+                }
+            }
+            check(com.foglurker.brain.SpotFinder.placeOf(level, p, home) == com.foglurker.brain.SpotFinder.Place.INDOORS,
+                    "under a roof at home should count as indoors, got " + com.foglurker.brain.SpotFinder.placeOf(level, p, home));
+            Vec3 outside = com.foglurker.brain.SpotFinder.findOutside(level, p, RandomSource.create(3));
+            check(outside != null, "no spot outside the house was found");
+            var feet = net.minecraft.core.BlockPos.containing(outside);
+            check(level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()) == feet.getY(),
+                    "the spot must be out in the open, not under the roof: " + feet.toShortString());
+            double d = outside.distanceTo(p.position());
+            check(d >= 3 && d <= 17, "it should stand 5-16 blocks from you, was " + d);
+            // And the watcher really appears there: close, outside, and it does not flee at once.
+            FogLurkerSavedData data = FogLurkerSavedData.get(level.getServer());
+            data.profile(p.getUUID()).sleptAt(level.dimension().location().toString(), home);
+            FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.CRAWLER, Boolean.FALSE);
+            check(l != null && l.distanceTo(p) < 20, "the watcher should appear right outside, was "
+                    + (l == null ? "null" : String.valueOf(l.distanceTo(p))));
+            h.runAfterDelay(30, () -> {
+                check(!l.isRemoved() && !l.isSinking(), "it left the window straight away");
+                l.brain().vanish(true);
+                // Send the player back down so later tests find them where they expect.
+                h.succeed();
+            });
+        });
+    }
+
+    @GameTest(template = "empty", batch = "sink", timeoutTicks = 300)
+    public static void sinksIntoTheGroundWhenSpotted(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 30);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.CRAWLER, Boolean.FALSE);
+                check(l != null, "no spawn");
+                h.runAfterDelay(10, () -> logged(h, () -> {
+                    check(l.onGround(), "it should be standing on the ground");
+                    l.brain().vanish(false);
+                    check(l.isSinking() && !l.isRemoved(), "spotted in its real shape it should sink, not pop");
+                    h.succeedWhen(() -> check(l.isRemoved(), "it never finished sinking"));
+                }));
+            }));
         });
     }
 

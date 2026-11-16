@@ -55,6 +55,54 @@ public final class PlayerBehaviorProfile {
     public int dogCollar = -1;
     public float dogSitRatio = 0.3F;
 
+    /** Where this player lives: their bed, or wherever they open chests the most. */
+    public boolean homeKnown;
+    public int homeX;
+    public int homeY;
+    public int homeZ;
+    public String homeDim = "";
+    private int homeHits;
+    private int awayHits;
+    /** Game time of the last book it left for them (not saved). */
+    public transient long lastBookAt = Long.MIN_VALUE / 2;
+
+    public net.minecraft.core.BlockPos home() {
+        return new net.minecraft.core.BlockPos(homeX, homeY, homeZ);
+    }
+
+    public boolean isNearHome(String dimension, net.minecraft.core.BlockPos pos, int range) {
+        return homeKnown && homeDim.equals(dimension) && home().closerThan(pos, range);
+    }
+
+    /** A bed is a strong signal: this is home. */
+    public void sleptAt(String dimension, net.minecraft.core.BlockPos pos) {
+        setHome(dimension, pos);
+        homeHits += 10;
+        awayHits = 0;
+    }
+
+    /** Opening containers is a weaker signal; home moves when most of it happens somewhere else. */
+    public void usedContainerAt(String dimension, net.minecraft.core.BlockPos pos) {
+        if (!homeKnown) {
+            setHome(dimension, pos);
+            homeHits = 1;
+        } else if (isNearHome(dimension, pos, 32)) {
+            homeHits++;
+        } else if (++awayHits > homeHits) {
+            setHome(dimension, pos);
+            homeHits = 1;
+            awayHits = 0;
+        }
+    }
+
+    private void setHome(String dimension, net.minecraft.core.BlockPos pos) {
+        homeKnown = true;
+        homeDim = dimension;
+        homeX = pos.getX();
+        homeY = pos.getY();
+        homeZ = pos.getZ();
+    }
+
     public void addChat(String msg) {
         if (msg == null) {
             return;
@@ -143,6 +191,10 @@ public final class PlayerBehaviorProfile {
         }
         t.putInt("dogCollar", dogCollar);
         t.putFloat("dogSit", dogSitRatio);
+        if (homeKnown) {
+            t.putIntArray("home", new int[]{homeX, homeY, homeZ, homeHits, awayHits});
+            t.putString("homeDim", homeDim);
+        }
         return t;
     }
 
@@ -175,6 +227,16 @@ public final class PlayerBehaviorProfile {
         }
         p.dogCollar = t.contains("dogCollar") ? t.getInt("dogCollar") : -1;
         p.dogSitRatio = t.contains("dogSit") ? t.getFloat("dogSit") : 0.3F;
+        int[] home = t.getIntArray("home");
+        if (home.length == 5) {
+            p.homeKnown = true;
+            p.homeX = home[0];
+            p.homeY = home[1];
+            p.homeZ = home[2];
+            p.homeHits = home[3];
+            p.awayHits = home[4];
+            p.homeDim = t.getString("homeDim");
+        }
         return p;
     }
 }

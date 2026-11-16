@@ -54,6 +54,10 @@ public final class ClientShowcase {
             snowScene(mc, server);
             return;
         }
+        if ("scares".equals(System.getProperty("foglurker.scene"))) {
+            scaresScene(mc, server);
+            return;
+        }
         switch (ticks) {
             case 60 -> {
                 mc.options.hideGui = true;
@@ -94,6 +98,73 @@ public final class ClientShowcase {
         }
         if (ticks > 540 && ticks < 705) {
             ClientEffects.setFogTarget(0.7F);
+        }
+    }
+
+    // ------------------------------------------------------------------ apparition, vignette, sinking
+
+    private static FogLurkerEntity sinker;
+
+    private static void scaresScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> {
+                mc.options.hideGui = true;
+                server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    ServerLevel level = p.serverLevel();
+                    level.setDayTime(6000);
+                    p.setGameMode(GameType.CREATIVE);
+                    stageX = p.getBlockX();
+                    stageZ = p.getBlockZ();
+                    stageY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, stageX, stageZ);
+                    for (int x = stageX - 24; x <= stageX + 24; x++) {
+                        for (int z = stageZ - 24; z <= stageZ + 24; z++) {
+                            level.setBlock(new BlockPos(x, stageY - 1, z), Blocks.GRASS_BLOCK.defaultBlockState(), 2);
+                            for (int dy = 0; dy < 10; dy++) {
+                                level.setBlock(new BlockPos(x, stageY + dy, z), Blocks.AIR.defaultBlockState(), 2);
+                            }
+                        }
+                    }
+                    p.teleportTo(level, stageX + 0.5, stageY, stageZ + 0.5, 0F, 5F);
+                });
+            }
+            case 140 -> FogLurkerMod.LOGGER.info("Showcase: apparition spawned={} count={}", com.foglurker.client.Apparitions.spawn(),
+                    com.foglurker.client.Apparitions.count());
+            case 146 -> shot(mc, "foglurker_apparition_edge.png");
+            case 150 -> {
+                net.minecraft.world.phys.Vec3 at = com.foglurker.client.Apparitions.firstPos();
+                FogLurkerMod.LOGGER.info("Showcase: apparition at {} still there before looking: {}", at, com.foglurker.client.Apparitions.count());
+                if (at != null) {
+                    float yaw = (float) Math.toDegrees(Math.atan2(at.z - mc.player.getZ(), at.x - mc.player.getX())) - 90F;
+                    server.execute(() -> sp(server).teleportTo(sp(server).serverLevel(), stageX + 0.5, stageY, stageZ + 0.5, yaw, 5F));
+                }
+            }
+            case 170 -> {
+                FogLurkerMod.LOGGER.info("Showcase: apparitions left after looking straight at it: {}", com.foglurker.client.Apparitions.count());
+                shot(mc, "foglurker_apparition_gone.png");
+            }
+            case 180 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                p.teleportTo(level, stageX + 0.5, stageY, stageZ + 0.5, 0F, 8F);
+                sinker = ModEntities.FOG_LURKER.get().create(level);
+                sinker.moveTo(stageX + 0.5, stageY, stageZ + 6.5, 180F, 0F);
+                sinker.setYHeadRot(180F);
+                sinker.setYBodyRot(180F);
+                sinker.setNoAi(true);
+                level.addFreshEntity(sinker);
+            });
+            case 425 -> mc.options.hideGui = false;
+            case 430 -> shot(mc, "foglurker_vignette.png");
+            case 432 -> mc.options.hideGui = true;
+            case 440 -> server.execute(() -> sinker.beginSink());
+            case 453 -> shot(mc, "foglurker_sinking.png");
+            case 480 -> mc.stop();
+            default -> {
+            }
+        }
+        if (ticks > 190 && ticks < 435) {
+            ClientEffects.setFogTarget(0.6F);
         }
     }
 

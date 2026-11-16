@@ -73,6 +73,8 @@ public class FogLurkerEntity extends PathfinderMob {
     public static final int FLAG_SITTING = 2;
     public static final int FLAG_ANGRY = 4;
     public static final int FLAG_DANCING = 8;
+    public static final int FLAG_SINKING = 16;
+    private static final int SINK_TICKS = 26;
 
     /** Replaced by the client setup so the entity can drive its client-side disguise model. */
     public static Consumer<FogLurkerEntity> clientTicker = e -> {
@@ -80,6 +82,10 @@ public class FogLurkerEntity extends PathfinderMob {
 
     @Nullable
     private LurkerBrain brain;
+    // sinking into the ground when spotted
+    private int sinkLeft;
+    private int clientSinkStart = -1;
+
     // /foglurker-macarena
     private int danceTick;
     private int danceTicksLeft;
@@ -160,6 +166,10 @@ public class FogLurkerEntity extends PathfinderMob {
             tickDance();
             return;
         }
+        if (isSinking()) {
+            this.getNavigation().stop();
+            return;
+        }
         if (this.isNoAi()) {
             return; // {NoAI:1b}: a harmless statue, e.g. for map makers
         }
@@ -185,12 +195,18 @@ public class FogLurkerEntity extends PathfinderMob {
                 clientDanceStart = this.tickCount;
             }
             clientWasDancing = dancing;
+            if (isSinking() && clientSinkStart < 0) {
+                clientSinkStart = this.tickCount;
+            }
             if (dancing) {
                 this.yBodyRot = this.getYHeadRot(); // turn the whole body on the hop
             }
             clientTicker.accept(this);
         } else {
-            this.climbing = isAttackForm() && this.horizontalCollision;
+            this.climbing = isAttackForm() && this.horizontalCollision && !isSinking();
+            if (sinkLeft > 0 && --sinkLeft == 0) {
+                this.discard();
+            }
         }
     }
 
@@ -201,6 +217,29 @@ public class FogLurkerEntity extends PathfinderMob {
 
     public boolean isClimbing() {
         return this.climbing;
+    }
+
+    // ------------------------------------------------------------------ sinking away
+
+    public boolean isSinking() {
+        return hasFlag(FLAG_SINKING);
+    }
+
+    /** Spotted: instead of running it slowly sinks into the ground, still staring, and is gone. */
+    public void beginSink() {
+        setFlag(FLAG_SINKING, true);
+        setInvulnerable(true);
+        this.getNavigation().stop();
+        this.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        sinkLeft = SINK_TICKS;
+    }
+
+    /** Client: 0 = standing, 1 = fully under. */
+    public float sinkProgress(float partialTick) {
+        if (!isSinking() || clientSinkStart < 0) {
+            return 0F;
+        }
+        return net.minecraft.util.Mth.clamp((this.tickCount + partialTick - clientSinkStart) / (SINK_TICKS - 2F), 0F, 1F);
     }
 
     // ------------------------------------------------------------------ the macarena

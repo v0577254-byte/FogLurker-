@@ -282,6 +282,24 @@ public final class BehaviorTracker {
         });
     }
 
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onSleep(net.minecraftforge.event.entity.player.PlayerSleepInBedEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer) && event.getPos() != null) {
+            FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
+            data.profile(p.getUUID()).sleptAt(p.level().dimension().location().toString(), event.getPos());
+            data.setDirty();
+        }
+    }
+
+    @SubscribeEvent
+    public static void onContainer(net.minecraftforge.event.entity.player.PlayerContainerEvent.Open event) {
+        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)) {
+            FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
+            data.profile(p.getUUID()).usedContainerAt(p.level().dimension().location().toString(), p.blockPosition());
+            data.setDirty();
+        }
+    }
+
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         WINDOWS.remove(event.getEntity().getUUID());

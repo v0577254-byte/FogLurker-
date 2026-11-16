@@ -27,6 +27,11 @@ public final class ModNetwork {
                 .decoder(ScarePacket::decode)
                 .consumerMainThread(ScarePacket::handle)
                 .add();
+        CHANNEL.messageBuilder(ApparitionPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(ApparitionPacket::encode)
+                .decoder(ApparitionPacket::decode)
+                .consumerMainThread(ApparitionPacket::handle)
+                .add();
         // TEMPORARY: /foglurker debugeverything (remove before release)
         CHANNEL.messageBuilder(DebugPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(DebugPacket::encode)

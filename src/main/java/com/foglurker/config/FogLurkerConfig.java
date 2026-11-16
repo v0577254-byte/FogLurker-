@@ -34,6 +34,12 @@ public final class FogLurkerConfig {
         public final ForgeConfigSpec.IntValue spawnRollMinutes;
         public final ForgeConfigSpec.DoubleValue spawnChance;
         public final ForgeConfigSpec.BooleanValue breakBlocks;
+        public final ForgeConfigSpec.BooleanValue hauntings;
+        public final ForgeConfigSpec.IntValue hauntingMinSeconds;
+        public final ForgeConfigSpec.IntValue hauntingMaxSeconds;
+        public final ForgeConfigSpec.BooleanValue sabotage;
+        public final ForgeConfigSpec.IntValue wardRadius;
+        public final ForgeConfigSpec.BooleanValue eyeContactRule;
         public final ForgeConfigSpec.IntValue encounterMaxMinutes;
         public final ForgeConfigSpec.BooleanValue overworldOnly;
         public final ForgeConfigSpec.BooleanValue allowDoppelganger;
@@ -64,6 +70,20 @@ public final class FogLurkerConfig {
                             "It never breaks anything in the foglurker:unbreakable block tag (deepslate, obsidian, bedrock...),",
                             "blocks as hard as obsidian or harder, or anything with an inventory or other block data.")
                     .define("breakBlocks", true);
+            hauntings = b.comment("Small scares between appearances (after the grace period): sounds only you can hear,",
+                            "something at the edge of your vision, a torch going out, a message from a friend who is not online,",
+                            "a book left in one of your chests.")
+                    .define("hauntings", true);
+            hauntingMinSeconds = b.defineInRange("hauntingMinSeconds", 90, 10, 36000);
+            hauntingMaxSeconds = b.defineInRange("hauntingMaxSeconds", 240, 10, 36000);
+            sabotage = b.comment("Let hauntings change the world a little: put out a torch behind you (the torch drops as an item,",
+                            "needs the mobGriefing gamerule) and leave a book in a chest at your base.")
+                    .define("sabotage", true);
+            wardRadius = b.comment("A soul torch, soul lantern or lit soul campfire protects players within this many blocks",
+                            "from the attacking form (0 turns wards off).")
+                    .defineInRange("wardRadius", 6, 0, 16);
+            eyeContactRule = b.comment("While it hunts you: looking at it makes it charge faster, looking away slows it down.")
+                    .define("eyeContactRule", true);
             encounterMaxMinutes = b.comment("An appearance gives up and fades away after this long.")
                     .defineInRange("encounterMaxMinutes", 5, 1, 60);
             overworldOnly = b.comment("Only appear on its own in the Overworld (/foglurker spawn works everywhere).")
