@@ -321,8 +321,10 @@ public final class FogLurkerCommands {
                     who.append(t != null ? t.getGameProfile().getName() : "?").append(" (").append(b.phase().name().toLowerCase(Locale.ROOT)).append(") ");
                 }
             }
+            boolean running = LurkerDirector.rollsRunning(src.getServer()) && !data.inGrace() && data.nextSpawnTicks() >= 0;
             reply(src, Component.literal("It is out there right now, hunting: " + who.toString().trim()
-                    + ". The timer restarts when it leaves.").withStyle(ChatFormatting.RED));
+                    + (running ? ". Next roll for everyone else in " + time(data.nextSpawnTicks()) + "."
+                    : ". The timer restarts when it leaves.")).withStyle(ChatFormatting.RED));
             return 0;
         }
         if (data.inGrace()) {

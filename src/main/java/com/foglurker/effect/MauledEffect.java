@@ -7,7 +7,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraftforge.event.entity.EntityMountEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
@@ -32,18 +31,25 @@ public class MauledEffect extends MobEffect {
     public static void onJump(LivingEvent.LivingJumpEvent event) {
         LivingEntity e = event.getEntity();
         if (isMauled(e)) {
-            e.setDeltaMovement(e.getDeltaMovement().multiply(1.0, 0.0, 1.0)); // the leg gives way
+            // The leg gives way: no height, and no free sprint-jump boost either (vanilla adds 0.2
+            // forward when you jump while sprinting, which would make holding space a speed exploit).
+            net.minecraft.world.phys.Vec3 v = e.getDeltaMovement();
+            if (e.isSprinting()) {
+                float f = e.getYRot() * net.minecraft.util.Mth.DEG_TO_RAD;
+                v = v.add(net.minecraft.util.Mth.sin(f) * 0.2F, 0.0, -net.minecraft.util.Mth.cos(f) * 0.2F);
+            }
+            e.setDeltaMovement(v.x, 0.0, v.z);
         }
     }
 
     @SubscribeEvent
     public static void onMount(EntityMountEvent event) {
-        if (event.isMounting() && event.getEntityMounting() instanceof Player p && isMauled(p)
+        // Server side only: the server decides who sits in a boat. Refusing on the client as well
+        // could leave the two disagreeing for a moment when the effect runs out.
+        if (event.isMounting() && event.getEntityMounting() instanceof ServerPlayer p && isMauled(p)
                 && event.getEntityBeingMounted() instanceof Boat) {
             event.setCanceled(true);
-            if (p instanceof ServerPlayer sp) {
-                sp.displayClientMessage(Component.literal("Your leg will not hold you.").withStyle(ChatFormatting.DARK_RED), true);
-            }
+            p.displayClientMessage(Component.literal("Your leg will not hold you.").withStyle(ChatFormatting.DARK_RED), true);
         }
     }
 }

@@ -478,6 +478,12 @@ public final class FogLurkerGameTests {
                     hard.setDeltaMovement(Vec3.ZERO);
                     hard.jumpFromGround();
                     check(hard.getDeltaMovement().y <= 0.0, "a mauled player still jumped (vy " + hard.getDeltaMovement().y + ")");
+                    hard.setSprinting(true);
+                    hard.setYRot(37F);
+                    hard.setDeltaMovement(Vec3.ZERO);
+                    hard.jumpFromGround();
+                    check(hard.getDeltaMovement().length() < 1e-4, "a mauled sprint-jump still gave a boost (" + hard.getDeltaMovement() + ")");
+                    hard.setSprinting(false);
                     var boat = boatAt(h, 3.5, 7.5);
                     check(!hard.startRiding(boat), "a mauled player got into a boat");
                     check(!hard.isPassenger(), "a mauled player is sitting in a boat");

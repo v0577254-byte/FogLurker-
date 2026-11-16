@@ -74,8 +74,7 @@ public final class LurkerDirector {
             com.foglurker.voice.VoiceRetention.heartbeat(System.currentTimeMillis(), online);
         }
         ACTIVE.removeIf(Entity::isRemoved);
-        if (naturalSpawnsPaused || data.inGrace() || ACTIVE.size() >= FogLurkerConfig.COMMON.maxConcurrent.get()
-                || (!ACTIVE.isEmpty() && freeCandidates(server).isEmpty())) {
+        if (naturalSpawnsPaused || data.inGrace() || !rollsRunning(server)) {
             return; // busy with everyone it could go after: the clock waits
         }
         if (data.nextSpawnTicks() < 0) {
@@ -190,6 +189,12 @@ public final class LurkerDirector {
 
     private static boolean eligible(ServerPlayer p) {
         return !(p instanceof FakePlayer) && p.isAlive() && !p.isSpectator() && !p.isCreative();
+    }
+
+    /** Whether the spawn-roll clock is counting down (it waits while it is busy with everyone it could visit). */
+    public static boolean rollsRunning(MinecraftServer server) {
+        ACTIVE.removeIf(Entity::isRemoved);
+        return ACTIVE.isEmpty() || (ACTIVE.size() < FogLurkerConfig.COMMON.maxConcurrent.get() && !freeCandidates(server).isEmpty());
     }
 
     /** Players it could appear to right now: not already being hunted, not just visited. */

@@ -105,7 +105,7 @@ public final class Hauntings {
         RandomSource r = server.overworld().getRandom();
         int min = FogLurkerConfig.COMMON.hauntingMinSeconds.get() * 20;
         int max = Math.max(min, FogLurkerConfig.COMMON.hauntingMaxSeconds.get() * 20);
-        if (nextAt < 0 || nextAt - now > max) {
+        if (nextAt < 0 || nextAt - now > (long) (max * fatigue()) + 1) {
             nextAt = now + min + r.nextInt(max - min + 1);
             return;
         }

@@ -57,12 +57,21 @@ public final class MimicChat {
      * @return a future that completes (possibly off-thread) with the message to send.
      */
     public static CompletableFuture<String> compose(Context ctx, Intent intent, @Nullable String heard, RandomSource random) {
+        return compose(ctx, intent, heard, true, random);
+    }
+
+    /**
+     * @param shareHeard false when the player who said {@code heard} turned chat learning off: their
+     *                   words are still used to pick a built-in answer on the server, but never sent to Gemini
+     */
+    public static CompletableFuture<String> compose(Context ctx, Intent intent, @Nullable String heard, boolean shareHeard,
+                                                    RandomSource random) {
         String fallback = template(ctx, intent, heard, random);
         if (!GeminiClient.available() || intent == Intent.CREEPY && random.nextFloat() < 0.5F) {
             return CompletableFuture.completedFuture(fallback);
         }
         String system = systemPrompt(ctx);
-        String user = userPrompt(ctx, intent, heard);
+        String user = userPrompt(ctx, intent, shareHeard ? heard : null);
         return GeminiClient.generate(system, user, 1.0F)
                 .thenApply(r -> r.text().map(t -> sanitize(t, ctx)).filter(t -> !t.isEmpty()).orElse(fallback))
                 .exceptionally(t -> fallback);

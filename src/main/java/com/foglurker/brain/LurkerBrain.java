@@ -1385,7 +1385,8 @@ public final class LurkerBrain {
         MimicChat.Context ctx = new MimicChat.Context(enc.copiedName(), t.getGameProfile().getName(), copiedProfile,
                 woodsDir, mob.level().isNight(), List.copyOf(said));
         MinecraftServer server = server();
-        MimicChat.compose(ctx, intent, heard, random).whenComplete((text, err) -> server.execute(() -> {
+        boolean shareHeard = heard == null || !savedData().profile(t.getUUID()).chatLearningOff;
+        MimicChat.compose(ctx, intent, heard, shareHeard, random).whenComplete((text, err) -> server.execute(() -> {
             chatInFlight = false;
             if (err != null || text == null || text.isBlank() || ended) {
                 return;
