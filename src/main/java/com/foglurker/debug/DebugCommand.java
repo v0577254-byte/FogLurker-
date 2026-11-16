@@ -315,6 +315,12 @@ public final class DebugCommand {
             rep.check(w, first && !second, "first hit " + (first ? "landed" : "MISSED") + ", instant second hit "
                     + (second ? "LANDED" : "blocked") + " (" + d.displayName() + " waits " + d.attackCooldownSeconds() + "s)");
         });
+        r.run("The bite", (rep, w) -> {
+            LurkerDifficulty d = FogLurkerSavedData.get(player.server).difficulty();
+            boolean mauls = d == LurkerDifficulty.HARD || d == LurkerDifficulty.DEATHWISH;
+            rep.check(w, com.foglurker.registry.ModEffects.MAULED.isPresent(), "Slowness I for 10 s"
+                    + (mauls ? " + Mauled (no jumping, no boats) on " + d.displayName() : " (Mauled only on Hard/Deathwish)"));
+        });
         r.run("Damage source", (rep, w) -> {
             FogLurkerEntity a = ModEntities.FOG_LURKER.get().create(level);
             var src = ModDamageTypes.source(a, ModDamageTypes.LURKER);

@@ -33,7 +33,8 @@ public final class PlayerEvents {
     public static void onRightClickBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
         if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel level
                 && level.getBlockState(event.getPos()).getBlock() instanceof net.minecraft.world.level.block.BellBlock) {
-            com.foglurker.brain.LurkerDirector.onBell(level, event.getPos());
+            com.foglurker.brain.LurkerDirector.onBell(level, event.getPos(),
+                    event.getEntity() instanceof ServerPlayer sp ? sp : null);
         }
     }
 

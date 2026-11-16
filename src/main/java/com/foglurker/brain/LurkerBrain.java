@@ -135,6 +135,8 @@ public final class LurkerBrain {
 
     // attack
     private int hits;
+    /** This encounter already counted as an escape. */
+    private boolean escaped;
     private int attackCooldown;
 
     // counterplay: soul-fire wards, and whether you are looking at it
@@ -779,6 +781,7 @@ public final class LurkerBrain {
                 mob.playSound(ModSounds.SCREAM.get(), 1.5F, 0.7F);
             }
             if (targetWaterTicks > 20 * 20) {
+                noteEscape(t);
                 vanish(false); // it gives up... this time
                 return;
             }
@@ -786,11 +789,22 @@ public final class LurkerBrain {
         if (age % 30 == 0) {
             mob.playSound(ModSounds.HEARTBEAT.get(), 1.0F, 1.2F);
         }
+        // Deathwish bites kill in one hit, so it always announces itself first: a screech, then 1.5 s.
+        boolean windingUp = difficulty() == LurkerDifficulty.DEATHWISH && phaseAge < DEATHWISH_WINDUP;
+        if (difficulty() == LurkerDifficulty.DEATHWISH && phaseAge == 1) {
+            mob.playSound(ModSounds.SCREAM.get(), 2.0F, 0.55F);
+        }
         // Claws still reach you from the shore if you only waded in.
         double reachSqr = 2.3 * 2.3;
-        if (!warded && mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
+        if (!warded && !windingUp && mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
             if (mob.doHurtTarget(t)) {
                 hits++;
+                escaped = false;
+                PlayerBehaviorProfile caught = savedData().profile(t.getUUID());
+                if (caught.escapes != 0) {
+                    caught.escapes = 0; // it got you: the grudge is settled
+                    savedData().setDirty();
+                }
             }
             // 3 s / 2.5 s / 2 s / 1.75 s / 1.5 s between hits depending on the mode.
             attackCooldown = difficulty().attackCooldownTicks();
@@ -905,6 +919,24 @@ public final class LurkerBrain {
             return false;
         }
         return ForgeHooks.canEntityDestroy(level, pos, mob);
+    }
+
+    private FogLurkerSavedData savedData() {
+        return FogLurkerSavedData.get(server());
+    }
+
+    /** Ticks at the start of a Deathwish attack in which it cannot bite yet. */
+    public static final int DEATHWISH_WINDUP = 30;
+
+    /** The target got away from an attack: it remembers, and is a little more likely to attack next time. */
+    private void noteEscape(@Nullable ServerPlayer t) {
+        if (t == null || escaped || !FogLurkerConfig.COMMON.escapeEscalation.get()) {
+            return;
+        }
+        escaped = true;
+        PlayerBehaviorProfile p = savedData().profile(t.getUUID());
+        p.escapes = Math.min(p.escapes + 1, 10);
+        savedData().setDirty();
     }
 
     /** Skips straight to hunting in its attacking form (used by tests). */
@@ -1102,6 +1134,9 @@ public final class LurkerBrain {
     public void onBell() {
         if (ended || phase == Phase.FLEE) {
             return;
+        }
+        if (phase == Phase.ATTACK || phase == Phase.TRANSFORM) {
+            noteEscape(target());
         }
         mob.playSound(ModSounds.SCREAM.get(), 2.0F, 1.3F);
         if (phase == Phase.TRANSFORM) {
@@ -1343,7 +1378,7 @@ public final class LurkerBrain {
     }
 
     private void say(ServerPlayer t, MimicChat.Intent intent, @Nullable String heard) {
-        if (chatInFlight || pendingChat != null || enc.copiedName() == null) {
+        if (!FogLurkerConfig.COMMON.impersonateInChat.get() || chatInFlight || pendingChat != null || enc.copiedName() == null) {
             return;
         }
         chatInFlight = true;

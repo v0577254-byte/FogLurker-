@@ -25,6 +25,12 @@ public final class RecentChat {
         return all.subList(Math.max(0, all.size() - n), all.size());
     }
 
+    /** Drops everything one player said (they turned chat learning off). */
+    public static synchronized void forget(String name) {
+        String prefix = "<" + name + "> ";
+        LINES.removeIf(l -> l.startsWith(prefix));
+    }
+
     public static synchronized void clear() {
         LINES.clear();
     }

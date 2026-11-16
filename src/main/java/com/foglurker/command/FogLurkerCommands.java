@@ -198,7 +198,41 @@ public final class FogLurkerCommands {
                                 .then(Commands.literal("decline").executes(FogLurkerCommands::declineTerms)))
                         .then(Commands.literal("status").executes(FogLurkerCommands::voiceStatus)))
                 .then(Commands.literal("optin").executes(FogLurkerCommands::optIn))
-                .then(Commands.literal("optout").executes(FogLurkerCommands::optOut));
+                .then(Commands.literal("optout").executes(FogLurkerCommands::optOut))
+                .then(Commands.literal("chatlearning")
+                        .executes(ctx -> chatLearning(ctx, null))
+                        .then(Commands.literal("on").executes(ctx -> chatLearning(ctx, true)))
+                        .then(Commands.literal("off").executes(ctx -> chatLearning(ctx, false))));
+    }
+
+    /**
+     * /fglurk chatlearning [on|off]: whether it may learn how you type. Off forgets every message it
+     * kept from you and keeps your chat out of what it sends to Gemini.
+     */
+    private static int chatLearning(CommandContext<CommandSourceStack> ctx, Boolean on) throws CommandSyntaxException {
+        ServerPlayer p = ctx.getSource().getPlayerOrException();
+        FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
+        var profile = data.profile(p.getUUID());
+        if (on == null) {
+            p.sendSystemMessage(PREFIX.copy().append(Component.literal(profile.chatLearningOff
+                    ? "It is not learning from your chat. Turn it back on with "
+                    : "It learns how you type from your chat (" + profile.chatSamples.size() + " messages kept). Turn it off with ")
+                    .withStyle(ChatFormatting.GRAY)).append(suggest(profile.chatLearningOff ? "/fglurk chatlearning on" : "/fglurk chatlearning off")));
+            return profile.chatLearningOff ? 0 : 1;
+        }
+        if (on) {
+            profile.chatLearningOff = false;
+            p.sendSystemMessage(PREFIX.copy().append(Component.literal("It will learn how you type again.").withStyle(ChatFormatting.GRAY)));
+        } else {
+            int forgotten = profile.chatSamples.size();
+            profile.chatLearningOff = true;
+            profile.chatSamples.clear();
+            com.foglurker.learning.RecentChat.forget(p.getGameProfile().getName());
+            p.sendSystemMessage(PREFIX.copy().append(Component.literal("It will no longer learn from your chat. Forgot "
+                    + forgotten + " message" + (forgotten == 1 ? "" : "s") + " it had kept.").withStyle(ChatFormatting.GRAY)));
+        }
+        data.setDirty();
+        return 1;
     }
 
     /** Operators, the console, or the host of a singleplayer / LAN world. */

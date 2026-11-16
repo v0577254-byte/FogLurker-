@@ -43,6 +43,12 @@ import java.util.Set;
 @Mod.EventBusSubscriber(modid = FogLurkerMod.MOD_ID)
 public final class LurkerDirector {
     private static final Set<FogLurkerEntity> ACTIVE = new HashSet<>();
+    /** Game tests switch natural appearances off so creatures from one test never wander into another. */
+    public static volatile boolean naturalSpawnsPaused;
+    /** Game time each player's last appearance ended, so nobody gets two in a row while others wait. */
+    private static final java.util.Map<java.util.UUID, Long> LAST_VISIT = new java.util.HashMap<>();
+    /** Game time until which bells do not work against an appearance aimed at that player. */
+    private static final java.util.Map<java.util.UUID, Long> BELL_IMMUNE_UNTIL = new java.util.HashMap<>();
 
     private LurkerDirector() {
     }
@@ -68,8 +74,9 @@ public final class LurkerDirector {
             com.foglurker.voice.VoiceRetention.heartbeat(System.currentTimeMillis(), online);
         }
         ACTIVE.removeIf(Entity::isRemoved);
-        if (data.inGrace() || !ACTIVE.isEmpty()) {
-            return;
+        if (naturalSpawnsPaused || data.inGrace() || ACTIVE.size() >= FogLurkerConfig.COMMON.maxConcurrent.get()
+                || (!ACTIVE.isEmpty() && freeCandidates(server).isEmpty())) {
+            return; // busy with everyone it could go after: the clock waits
         }
         if (data.nextSpawnTicks() < 0) {
             // The grace period just ended: first roll in 5 minutes.
@@ -98,12 +105,18 @@ public final class LurkerDirector {
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         ACTIVE.clear();
+        LAST_VISIT.clear();
+        BELL_IMMUNE_UNTIL.clear();
         RecentChat.clear();
         Hauntings.reset();
     }
 
     public static void onRemoved(FogLurkerEntity lurker) {
-        if (ACTIVE.remove(lurker) && ACTIVE.isEmpty() && lurker.getServer() != null) {
+        boolean was = ACTIVE.remove(lurker);
+        if (was && lurker.brain() != null && lurker.getServer() != null) {
+            LAST_VISIT.put(lurker.brain().targetId(), lurker.getServer().overworld().getGameTime());
+        }
+        if (was && ACTIVE.isEmpty() && lurker.getServer() != null) {
             FogLurkerSavedData data = FogLurkerSavedData.get(lurker.getServer());
             data.setNextSpawnTicks(rollInterval()); // next roll 5 minutes after it leaves
         }
@@ -114,17 +127,56 @@ public final class LurkerDirector {
         return new ArrayList<>(ACTIVE);
     }
 
-    /** A bell was rung: every creature within 32 blocks is driven off. */
-    public static int onBell(ServerLevel level, BlockPos bell) {
+    /**
+     * A bell was rung: every creature within 32 blocks is driven off. It learns, though: once a bell has
+     * driven it away from a player, bells do nothing against it for that player for a while
+     * ({@code bellCooldownMinutes}).
+     *
+     * @param ringer who rang it (told when the bell does not work), or null
+     * @return how many creatures were driven off
+     */
+    public static int onBell(ServerLevel level, BlockPos bell, @Nullable ServerPlayer ringer) {
         int driven = 0;
+        boolean ignored = false;
+        long now = level.getServer().overworld().getGameTime();
+        long cooldown = FogLurkerConfig.COMMON.bellCooldownMinutes.get() * 60L * 20L;
         for (FogLurkerEntity lurker : active()) {
             LurkerBrain brain = lurker.brain();
-            if (brain != null && lurker.level() == level && lurker.blockPosition().closerThan(bell, 32)) {
-                brain.onBell();
-                driven++;
+            if (brain == null || lurker.level() != level || !lurker.blockPosition().closerThan(bell, 32)
+                    || brain.phase() == LurkerBrain.Phase.FLEE) {
+                continue;
             }
+            java.util.UUID target = brain.targetId();
+            if (now < BELL_IMMUNE_UNTIL.getOrDefault(target, Long.MIN_VALUE)) {
+                ignored = true; // it has heard that bell before
+                continue;
+            }
+            brain.onBell();
+            if (cooldown > 0) {
+                BELL_IMMUNE_UNTIL.put(target, now + cooldown);
+            }
+            driven++;
+        }
+        if (ignored && ringer != null) {
+            ringer.displayClientMessage(net.minecraft.network.chat.Component.literal("The bell rings out... nothing runs this time.")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC), true);
         }
         return driven;
+    }
+
+    public static int onBell(ServerLevel level, BlockPos bell) {
+        return onBell(level, bell, null);
+    }
+
+    /** Forget bell immunity (tests and /foglurker despawn). */
+    public static void resetBells() {
+        BELL_IMMUNE_UNTIL.clear();
+    }
+
+    /** Attack chance after escalation: +10% per escape, up to +30%. */
+    public static double attackChance(LurkerDifficulty diff, PlayerBehaviorProfile profile) {
+        double bonus = FogLurkerConfig.COMMON.escapeEscalation.get() ? Math.min(0.3, profile.escapes * 0.1) : 0.0;
+        return Math.min(1.0, diff.attackChance() + bonus);
     }
 
     public static void onPlayerChat(ServerPlayer player, String text) {
@@ -140,13 +192,31 @@ public final class LurkerDirector {
         return !(p instanceof FakePlayer) && p.isAlive() && !p.isSpectator() && !p.isCreative();
     }
 
-    private static boolean trySpawnNaturally(MinecraftServer server, FogLurkerSavedData data) {
+    /** Players it could appear to right now: not already being hunted, not just visited. */
+    public static List<ServerPlayer> freeCandidates(MinecraftServer server) {
+        long now = server.overworld().getGameTime();
         List<ServerPlayer> candidates = new ArrayList<>();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            if (eligible(p) && (!FogLurkerConfig.COMMON.overworldOnly.get() || p.level().dimension() == Level.OVERWORLD)) {
+            if (eligible(p) && (!FogLurkerConfig.COMMON.overworldOnly.get() || p.level().dimension() == Level.OVERWORLD)
+                    && !isHunted(p.getUUID()) && now - LAST_VISIT.getOrDefault(p.getUUID(), Long.MIN_VALUE / 2) >= rollInterval() / 2) {
                 candidates.add(p);
             }
         }
+        return candidates;
+    }
+
+    private static boolean isHunted(java.util.UUID player) {
+        for (FogLurkerEntity l : ACTIVE) {
+            LurkerBrain b = l.brain();
+            if (!l.isRemoved() && b != null && b.targetId().equals(player)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean trySpawnNaturally(MinecraftServer server, FogLurkerSavedData data) {
+        List<ServerPlayer> candidates = freeCandidates(server);
         if (candidates.isEmpty()) {
             return false;
         }
@@ -307,8 +377,8 @@ public final class LurkerDirector {
         LurkerDifficulty diff = data.difficulty();
         ServerLevel level = target.serverLevel();
         boolean peaceful = level.getDifficulty() == Difficulty.PEACEFUL;
-        boolean willAttack = forcedAttack != null ? forcedAttack : !peaceful && r.nextDouble() < diff.attackChance();
         PlayerBehaviorProfile targetProfile = data.profile(target.getUUID());
+        boolean willAttack = forcedAttack != null ? forcedAttack : !peaceful && r.nextDouble() < attackChance(diff, targetProfile);
 
         ServerPlayer friend = pickFriend(target, r);
         boolean dogKnown = targetProfile.dogUuid != null;

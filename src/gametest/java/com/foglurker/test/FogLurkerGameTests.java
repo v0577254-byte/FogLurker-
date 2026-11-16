@@ -86,6 +86,7 @@ public final class FogLurkerGameTests {
      * GameTestHelper.makeMockServerPlayerInLevel() crashes because its connection has no channel.
      */
     private static ServerPlayer player(GameTestHelper h, double x, double z) {
+        LurkerDirector.naturalSpawnsPaused = true; // tests spawn what they need themselves
         ServerLevel level = h.getLevel();
         ServerPlayer p = new ServerPlayer(level.getServer(), level, new GameProfile(UUID.randomUUID(), "fogtest" + (++playerCounter)));
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
@@ -422,6 +423,204 @@ public final class FogLurkerGameTests {
             check(d.rollSpawn(0.1, 0.5), "a 0.1 roll on a 50/50 spawns");
             check(!d.rollSpawn(0.7, 0.5), "and the one after that is a normal 50/50 again");
             check(d.rollSpawn(0.7, 0.5), "...which, having missed, guarantees the next");
+            h.succeed();
+        });
+    }
+
+    // ------------------------------------------------------------------ the bite
+
+    private static net.minecraft.world.entity.vehicle.Boat boatAt(GameTestHelper h, double rx, double rz) {
+        Vec3 at = h.absoluteVec(new Vec3(rx, 0, rz));
+        var boat = new net.minecraft.world.entity.vehicle.Boat(net.minecraft.world.entity.EntityType.BOAT, h.getLevel());
+        boat.setPos(at.x, at.y, at.z);
+        h.getLevel().addFreshEntity(boat);
+        return boat;
+    }
+
+    @GameTest(template = "empty", batch = "bite", timeoutTicks = 200)
+    public static void theBiteSlowsAndMauls(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 16);
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer easy = player(h, 1.5, 1.5);
+            ServerPlayer hard = player(h, 1.5, 5.5);
+            ServerPlayer rower = player(h, 1.5, 9.5);
+            kickOtherPlayers(server, easy, hard, rower);
+            var rowboat = boatAt(h, 1.5, 9.5);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                LurkerDifficulty before = data.difficulty();
+                var mauled = com.foglurker.registry.ModEffects.MAULED.get();
+                var slow = net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN;
+                try {
+                    // Every mode: Slowness I for 10 seconds, but you can still jump and row away.
+                    data.setDifficulty(LurkerDifficulty.EASY);
+                    easy.setHealth(20F);
+                    FogLurkerEntity a = hunter(h, easy, 3.5, 1.5);
+                    check(a.doHurtTarget(easy), "the easy bite did not land");
+                    var s1 = easy.getEffect(slow);
+                    check(s1 != null && s1.getAmplifier() == 0 && s1.getDuration() > 190 && s1.getDuration() <= 200,
+                            "easy: expected Slowness I for 10 s, got " + s1);
+                    check(!easy.hasEffect(mauled), "easy bites must not maul");
+                    check(easy.startRiding(boatAt(h, 3.5, 3.5)), "on easy you can still get into a boat");
+                    a.brain().vanish(false);
+
+                    // Hard: Slowness I and Mauled: no jumping, no boats.
+                    data.setDifficulty(LurkerDifficulty.HARD);
+                    hard.setHealth(20F);
+                    FogLurkerEntity b = hunter(h, hard, 3.5, 5.5);
+                    check(b.doHurtTarget(hard), "the hard bite did not land");
+                    check(Math.abs(hard.getHealth() - 8F) < 0.01F, "hard bite should still deal 6 hearts, health " + hard.getHealth());
+                    var s2 = hard.getEffect(slow);
+                    check(s2 != null && s2.getAmplifier() == 0 && s2.getDuration() > 190, "hard: no Slowness I (" + s2 + ")");
+                    var m = hard.getEffect(mauled);
+                    check(m != null && m.getDuration() > 190 && m.getDuration() <= 200, "hard: no 10 s Mauled (" + m + ")");
+                    hard.setDeltaMovement(Vec3.ZERO);
+                    hard.jumpFromGround();
+                    check(hard.getDeltaMovement().y <= 0.0, "a mauled player still jumped (vy " + hard.getDeltaMovement().y + ")");
+                    var boat = boatAt(h, 3.5, 7.5);
+                    check(!hard.startRiding(boat), "a mauled player got into a boat");
+                    check(!hard.isPassenger(), "a mauled player is sitting in a boat");
+                    hard.removeEffect(mauled);
+                    hard.jumpFromGround();
+                    check(hard.getDeltaMovement().y > 0.3, "once it wears off you can jump again");
+                    check(hard.startRiding(boat), "once it wears off you can get into a boat again");
+                    hard.stopRiding();
+                    b.brain().vanish(false);
+
+                    // Hard, already in a boat: the bite drags you out.
+                    check(rower.startRiding(rowboat), "test setup: could not seat the rower");
+                    rower.setHealth(20F);
+                    FogLurkerEntity c = hunter(h, rower, 3.5, 9.5);
+                    check(c.doHurtTarget(rower), "the bite on the rower did not land");
+                    check(!rower.isPassenger(), "a hard bite should drag you out of your boat");
+                    c.brain().vanish(false);
+                } finally {
+                    data.setDifficulty(before);
+                }
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "windup", timeoutTicks = 400)
+    public static void deathwishScreamsBeforeItKills(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 16);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                LurkerDifficulty before = data.difficulty();
+                data.setDifficulty(LurkerDifficulty.DEATHWISH);
+                p.setHealth(20F);
+                FogLurkerEntity l;
+                try {
+                    l = hunter(h, p, 2.7, 1.5); // already within reach
+                } finally {
+                    data.setDifficulty(before);
+                }
+                h.runAfterDelay(LurkerBrain.DEATHWISH_WINDUP - 8, () -> logged(h, () ->
+                        check(p.isAlive() && p.getHealth() >= 20F, "deathwish bit before its wind-up was over")));
+                h.runAfterDelay(LurkerBrain.DEATHWISH_WINDUP - 4, () -> h.succeedWhen(() -> {
+                    check(p.isDeadOrDying(), "after the wind-up it should kill (" + l.brain().describe() + ")");
+                    l.brain().vanish(false);
+                }));
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "bell2", timeoutTicks = 600)
+    public static void bellsLoseTheirPowerAndEscapesEscalate(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            LurkerDirector.resetBells();
+            FogLurkerSavedData data = FogLurkerSavedData.get(server);
+            var profile = data.profile(p.getUUID());
+            check(Math.abs(LurkerDirector.attackChance(LurkerDifficulty.EASY, profile) - 0.2) < 1e-9, "fresh players get the base chance");
+            profile.escapes = 7;
+            check(Math.abs(LurkerDirector.attackChance(LurkerDifficulty.EASY, profile) - 0.5) < 1e-9, "the bonus is capped at +30%");
+            check(LurkerDirector.attackChance(LurkerDifficulty.DEATHWISH, profile) <= 1.0, "chance never goes above 100%");
+            profile.escapes = 0;
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                LurkerDifficulty before = data.difficulty();
+                data.setDifficulty(LurkerDifficulty.MEDIUM);
+                FogLurkerEntity first = hunter(h, p, 14.5, 1.5);
+                FogLurkerEntity second = null;
+                try {
+                    check(LurkerDirector.onBell(h.getLevel(), p.blockPosition(), p) == 1, "the first bell should work");
+                    check(first.brain().phase() == LurkerBrain.Phase.FLEE, "after the first bell it should flee");
+                    check(profile.escapes == 1, "escaping with a bell should count as an escape, got " + profile.escapes);
+                    check(Math.abs(LurkerDirector.attackChance(LurkerDifficulty.MEDIUM, profile) - (1.0 / 3.0 + 0.1)) < 1e-9,
+                            "one escape = +10%");
+                    second = hunter(h, p, 14.5, 3.5);
+                    check(LurkerDirector.onBell(h.getLevel(), p.blockPosition(), p) == 0, "a second bell so soon should not work");
+                    check(second.brain().phase() == LurkerBrain.Phase.ATTACK, "it should keep coming through the bell");
+                } finally {
+                    data.setDifficulty(before);
+                }
+                FogLurkerEntity hunting = second;
+                p.setHealth(20F);
+                h.succeedWhen(() -> {
+                    check(p.getHealth() < 20F, "it has not reached the player yet (" + hunting.brain().describe() + ")");
+                    check(profile.escapes == 0, "landing a hit should reset the escapes, still " + profile.escapes);
+                    hunting.brain().vanish(false);
+                    LurkerDirector.resetBells();
+                });
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "gate", timeoutTicks = 200)
+    public static void neverTwoAtOnceForOnePlayer(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 16);
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer hunted = player(h, 1.5, 1.5);
+            ServerPlayer free = player(h, 1.5, 6.5);
+            kickOtherPlayers(server, hunted, free);
+            FogLurkerEntity l = hunter(h, hunted, 6.5, 1.5);
+            List<ServerPlayer> c = LurkerDirector.freeCandidates(server);
+            check(!c.contains(hunted), "a player who is already being hunted was offered a second one");
+            check(c.contains(free), "the other player should still be up for a visit");
+            l.brain().vanish(true);
+            h.runAfterDelay(5, () -> logged(h, () -> {
+                check(!LurkerDirector.freeCandidates(server).contains(hunted), "it should not come straight back for the same player");
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "chat", timeoutTicks = 100)
+    public static void chatLearningCanBeTurnedOff(GameTestHelper h) {
+        logged(h, () -> {
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            FogLurkerSavedData data = FogLurkerSavedData.get(server);
+            var profile = data.profile(p.getUUID());
+            profile.addChat("omg wait for me");
+            profile.addChat("brb");
+            String name = p.getGameProfile().getName();
+            com.foglurker.learning.RecentChat.add(name, "omg wait for me");
+            var cmds = server.getCommands().getDispatcher();
+            cmds.execute("fglurk chatlearning off", p.createCommandSourceStack());
+            check(profile.chatLearningOff, "chatlearning off did not stick");
+            check(profile.chatSamples.isEmpty(), "turning it off should forget what it kept");
+            check(com.foglurker.learning.RecentChat.last(16).stream().noneMatch(l -> l.startsWith("<" + name + "> ")),
+                    "their lines are still in the recent chat it sends to Gemini");
+            profile.addChat("this must not be kept");
+            check(profile.chatSamples.isEmpty(), "it learned from chat after it was turned off");
+            var saved = com.foglurker.learning.PlayerBehaviorProfile.load(profile.save());
+            check(saved.chatLearningOff, "the choice must survive a restart");
+            cmds.execute("fglurk chatlearning on", p.createCommandSourceStack());
+            profile.addChat("ok back on");
+            check(profile.chatSamples.size() == 1, "it should learn again after turning it back on");
             h.succeed();
         });
     }

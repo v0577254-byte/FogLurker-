@@ -36,12 +36,12 @@ The Fog Lurker's real shape is **the pale crawler**. When it stops pretending, i
 
 ## Hauntings
 
-Between appearances (after the grace period) one player gets a small scare every minute and a half to four minutes. None of these can hurt you.
+Between appearances (after the grace period) one player gets a small scare every minute and a half to four minutes. They get rarer the longer a session goes on (up to 2.5 times further apart after a dozen), so they stay unsettling instead of routine. None of these can hurt you.
 
 - **Sounds only you can hear.** Footsteps coming up behind you. Footsteps crossing your roof. A chest in your base opening and closing. Something mining in the wall beside you underground.
 - **The edge of your vision.** It crouches at the edge of your screen. The moment you turn to look straight at it, it is gone without a sound. (It only ever exists on your own screen.)
 - **A torch goes out.** An ordinary torch you are not looking at is put out and drops as an item. Never a soul torch.
-- **A friend who is not online.** "Alex joined the game", a line of chat in Alex's typing style, and later "Alex left the game". Alex was never there. (Check the player list.)
+- **A friend who is not online.** "Alex joined the game", a line of chat in Alex's typing style, and later "Alex left the game". Alex was never there. (Check the player list.) Off when the server sets `impersonateInChat = false`.
 - **A book in your chest.** Signed with your own name, quoting things you said in chat, and telling you where you sleep. With a Gemini key its last page is written in your own typing style. At most one every 20 minutes, only at your base.
 
 ![At the edge of your vision](docs/images/apparition_edge.jpg)
@@ -62,14 +62,18 @@ Between appearances (after the grace period) one player gets a small scare every
 
 Its hits ignore armour, so you survive by knowing its rules, not by fighting.
 
+**Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out. Run *before* it reaches you; once it has your leg, the water trick and pillar-jumping are off the table until Mauled wears off. Milk clears both.
+
 | What | Effect |
 |---|---|
 | **Water** | It cannot swim. Get in water or a boat and it can only pace the shore; after 20 seconds it gives up. |
 | **Soul fire** | A soul torch, soul lantern or lit soul campfire protects everyone within 6 blocks. It will not shed its disguise there, will not come inside the circle, and cannot hit you. It circles outside and gives up after 20 seconds. (Soul sand comes from the Nether, so this is something you earn.) |
-| **Bells** | Ring a bell and anything within 32 blocks flees. |
+| **Bells** | Ring a bell and anything within 32 blocks flees. **It learns:** for 15 minutes after a bell drives it away from you, bells do nothing against it ("The bell rings out... nothing runs this time."). |
 | **Do not look at it** | While it hunts you, looking at it makes it charge 25% faster. Looking away slows it to walking pace, so you can outrun it, if you can stand running blind and listening to it behind you. |
 | **Deepslate and obsidian** | It cannot break them. |
 | **Totem of Undying** | Still works, even on Deathwish. |
+
+**Every escape makes it angrier.** Each time you get away from an attack (water, soul fire, a bell) it becomes 10% more likely to attack you the next time it appears, up to +30%. The grudge resets the moment it lands a bite on you.
 
 ![The screen closes in as it gets near](docs/images/vignette.jpg)
 
@@ -100,18 +104,20 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 | **Easy** | rarely (1 in 5) | 3 hearts | 2.5 s | 30 minutes | |
 | **Medium** *(default)* | 1 in 3 | 5 hearts | 2 s | 20 minutes (one Minecraft day) | |
 | **Hard** | 1 in 2 | 6 hearts | 1.75 s | 10 minutes | |
-| **Deathwish** | 3 in 4 | **one shot** | 1.5 s | 5 minutes | **50% faster** than every other mode |
+| **Deathwish** | 3 in 4 | **one shot** | 1.5 s | 5 minutes | **50% faster** than every other mode; it screams and gives you 1.5 s before its first bite |
 
 - It can never spam attacks: the time between hits is enforced on the creature itself.
 - After a set number of hits in one appearance it leaves: 1 on Very Easy, 2 on Easy, 3 on Medium, 4 on Hard, no limit on Deathwish. So on Hard, an appearance can deal up to 24 hearts, enough to kill you from full health if you stand and take it.
 - Hits ignore armour, so "5 hearts" really is 5 hearts. A Totem of Undying still saves you, even on Deathwish.
+- Every bite gives Slowness I for 10 s. On Hard and Deathwish it also gives Mauled for 10 s: no jumping, no boats.
+- Deathwish kills in one bite, so it always announces itself: a deep scream when it starts hunting, then 1.5 seconds before it can bite.
 - The grace period counts real play time from the very first time a world starts with the mod. Nothing appears during it, but it is already learning how everyone plays.
 - **After the grace period it rolls every 5 minutes:**
   1. 5 minutes after the grace period ends there is a **50/50** chance it appears.
   2. If it did **not** appear, it is **guaranteed** to appear at the next roll 5 minutes later.
   3. If it **did** appear, the next roll is a normal 50/50 again.
 
-  The timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
+  On a multiplayer server it can be after up to two players at once (`maxConcurrent`), but never two at once for the same player, and never straight back to someone it just left. With one player online the timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
 - On vanilla Peaceful difficulty it never attacks, it only watches.
 
 ## Commands
@@ -137,6 +143,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/fglurk optin` | everyone | Opt in to voice snippets |
 | `/fglurk optout` | everyone | Opt out **and delete every stored snippet** |
 | `/fglurk voicesnippets status` | everyone | Whether you are opted in and how many snippets exist |
+| `/fglurk chatlearning [on\|off]` | everyone | Whether it may learn how you type. `off` forgets every message it kept from you and keeps your chat out of what it sends to Gemini |
 
 `/flurk` and `/fglurk` both work for every voice command.
 
@@ -201,7 +208,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `foglurker-1.0.3.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `foglurker-1.0.4.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -224,7 +231,11 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `allowDoppelganger` | true | When you are alone it can copy *you* |
 | `minPlayerSeparation` | 48 | Players must be this far apart before it impersonates one to the other |
 | `chatVisibility` | `TARGET_ONLY` | `EVERYONE` lets the impersonated player see their own fake messages too |
-| `learnChat` | true | Remember recent chat lines to copy typing style |
+| `learnChat` | true | Remember recent chat lines to copy typing style (players can opt out with `/fglurk chatlearning off`) |
+| `impersonateInChat` | true | Let it send fake chat as a player (the mimic's lines and the "friend who is not online" haunting). Off: it still copies skins, voices and movement |
+| `bellCooldownMinutes` | 15 | After a bell drives it off a player, bells do not work against it for that player for this long (0 = bells always work) |
+| `escapeEscalation` | true | Each escape makes the next appearance 10% more likely to attack (up to +30%); a bite resets it |
+| `maxConcurrent` | 2 | How many players it can hunt at the same time on a server |
 | `gemini.model` | `gemini-flash-latest` | Plus `fallbackModels`, `timeoutSeconds` |
 | `voice.maxSnippetsPerPlayer` | 40 | |
 | `voice.recordChance` | 0.35 | |
@@ -238,7 +249,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/foglurker-1.0.3.jar
+./gradlew build               # -> build/libs/foglurker-1.0.4.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
@@ -254,6 +265,11 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
+- the bite: Slowness I for 10 s on Easy; on Hard also Mauled, which cancels jumps, refuses boats and drags you out of the one you sit in, and both work again once it wears off
+- Deathwish cannot bite during its 1.5 s wind-up, then kills
+- a second bell within the cooldown does nothing, escaping with a bell adds +10% (capped at +30%), and a bite resets it
+- it never hunts one player twice at once and does not come straight back to the player it just left
+- `/fglurk chatlearning off` forgets your messages, drops them from the Gemini context, stops learning, and survives a restart
 - hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests
 - indoors at home the watcher appears outside your roof; spotted in its real shape it flops flat
 - `/foglurker endgrace` and `/foglurker force hide|stalk|attack` work and are cheats-only; it finds tall grass, lies down with a low hitbox, drops flat when looked at while stalking, and attacks on command

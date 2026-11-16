@@ -268,13 +268,16 @@ public final class BehaviorTracker {
         String text = event.getRawText();
         // Chat can be decorated off-thread; do all bookkeeping on the server thread.
         p.server.execute(() -> {
-            RecentChat.add(p.getGameProfile().getName(), text);
+            FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
+            boolean optedOut = data.profile(p.getUUID()).chatLearningOff;
+            if (!optedOut) {
+                RecentChat.add(p.getGameProfile().getName(), text); // what it shows Gemini as "recent chat"
+            }
             Window w = WINDOWS.get(p.getUUID());
             if (w != null) {
                 w.chats++;
             }
-            if (FogLurkerConfig.COMMON.learnChat.get()) {
-                FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
+            if (FogLurkerConfig.COMMON.learnChat.get() && !optedOut) {
                 data.profile(p.getUUID()).addChat(text);
                 data.setDirty();
             }

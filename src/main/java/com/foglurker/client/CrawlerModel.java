@@ -307,5 +307,15 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
         float open = aggressive ? 0.95F : 0.5F;
         float quiver = aggressive ? Mth.sin(ageInTicks * 1.3F) * 0.1F : Mth.sin(ageInTicks * 0.07F) * 0.08F;
         jaw.xRot = open + quiver;
+        // The bite: head dips to leg height and the jaw slams shut, then gapes again.
+        if (this.attackTime > 0F) {
+            float bite = Mth.sin(this.attackTime * Mth.PI);
+            head.xRot += bite * 0.7F;
+            neck.xRot += bite * 0.35F;
+            jaw.xRot = Mth.lerp(bite, jaw.xRot, 0.02F);
+            if (this.attackTime < 0.35F) {
+                jaw.xRot = Mth.lerp(this.attackTime / 0.35F, 1.2F, jaw.xRot); // gape wide right before it snaps
+            }
+        }
     }
 }

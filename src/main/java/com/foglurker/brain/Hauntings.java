@@ -75,7 +75,11 @@ public final class Hauntings {
     private Hauntings() {
     }
 
+    /** Hauntings so far this session: they get rarer as it goes on, so they stay scary instead of routine. */
+    private static int count;
+
     public static void reset() {
+        count = 0;
         QUEUE.clear();
         nextAt = -1;
     }
@@ -108,7 +112,8 @@ public final class Hauntings {
         if (now < nextAt) {
             return;
         }
-        nextAt = now + min + r.nextInt(max - min + 1);
+        count++;
+        nextAt = now + (long) ((min + r.nextInt(max - min + 1)) * fatigue());
 
         List<ServerPlayer> candidates = new ArrayList<>();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
@@ -126,6 +131,11 @@ public final class Hauntings {
         if (!candidates.isEmpty()) {
             haunt(candidates.get(r.nextInt(candidates.size())), data, r);
         }
+    }
+
+    /** 1x for the first few, growing to 2.5x after a dozen hauntings this session. */
+    public static double fatigue() {
+        return 1.0 + Math.min(1.5, Math.max(0, count - 3) * 0.15);
     }
 
     private static boolean isBeingHunted(ServerPlayer p) {
@@ -170,7 +180,7 @@ public final class Hauntings {
             case SOUND -> sound(p, data, r);
             case APPARITION -> apparition(p);
             case TORCH -> snuffTorch(p, r);
-            case GHOST_FRIEND -> ghostFriend(p, data, r);
+            case GHOST_FRIEND -> FogLurkerConfig.COMMON.impersonateInChat.get() && ghostFriend(p, data, r);
             case BOOK -> leaveBook(p, data, r);
         };
     }

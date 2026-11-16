@@ -61,6 +61,11 @@ public final class PlayerBehaviorProfile {
     public int homeY;
     public int homeZ;
     public String homeDim = "";
+
+    /** Times this player got away from an attack (water, soul fire, a bell) since it last landed a hit. */
+    public int escapes;
+    /** The player asked it not to learn from their chat (/fglurk chatlearning off). */
+    public boolean chatLearningOff;
     private int homeHits;
     private int awayHits;
     /** Game time of the last book it left for them (not saved). */
@@ -104,7 +109,7 @@ public final class PlayerBehaviorProfile {
     }
 
     public void addChat(String msg) {
-        if (msg == null) {
+        if (msg == null || chatLearningOff) {
             return;
         }
         String m = msg.strip();
@@ -191,6 +196,8 @@ public final class PlayerBehaviorProfile {
         }
         t.putInt("dogCollar", dogCollar);
         t.putFloat("dogSit", dogSitRatio);
+        t.putInt("escapes", escapes);
+        t.putBoolean("noChatLearn", chatLearningOff);
         if (homeKnown) {
             t.putIntArray("home", new int[]{homeX, homeY, homeZ, homeHits, awayHits});
             t.putString("homeDim", homeDim);
@@ -227,6 +234,8 @@ public final class PlayerBehaviorProfile {
         }
         p.dogCollar = t.contains("dogCollar") ? t.getInt("dogCollar") : -1;
         p.dogSitRatio = t.contains("dogSit") ? t.getFloat("dogSit") : 0.3F;
+        p.escapes = t.getInt("escapes");
+        p.chatLearningOff = t.getBoolean("noChatLearn");
         int[] home = t.getIntArray("home");
         if (home.length == 5) {
             p.homeKnown = true;

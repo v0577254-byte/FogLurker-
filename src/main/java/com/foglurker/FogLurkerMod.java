@@ -28,6 +28,7 @@ public final class FogLurkerMod {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ModEntities.ENTITIES.register(modBus);
         ModSounds.SOUNDS.register(modBus);
+        com.foglurker.registry.ModEffects.EFFECTS.register(modBus);
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(this::commonSetup);
 

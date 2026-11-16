@@ -46,6 +46,10 @@ public final class FogLurkerConfig {
         public final ForgeConfigSpec.EnumValue<ChatVisibility> chatVisibility;
         public final ForgeConfigSpec.BooleanValue learnChat;
         public final ForgeConfigSpec.IntValue minPlayerSeparation;
+        public final ForgeConfigSpec.BooleanValue impersonateInChat;
+        public final ForgeConfigSpec.IntValue bellCooldownMinutes;
+        public final ForgeConfigSpec.BooleanValue escapeEscalation;
+        public final ForgeConfigSpec.IntValue maxConcurrent;
 
         public final ForgeConfigSpec.ConfigValue<String> geminiModel;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> geminiFallbackModels;
@@ -96,6 +100,18 @@ public final class FogLurkerConfig {
                     .defineEnum("chatVisibility", ChatVisibility.TARGET_ONLY);
             learnChat = b.comment("Remember players' recent chat messages so it can copy how they type.")
                     .define("learnChat", true);
+            impersonateInChat = b.comment("Let it send fake chat messages as a player (the mimic's lines and the 'friend who is not online' haunting).",
+                            "Turn this off for servers where fake player chat is not okay; it still copies skins, voices and movement.")
+                    .define("impersonateInChat", true);
+            bellCooldownMinutes = b.comment("After a bell drives it off a player, bells do not scare it away from that player again",
+                            "for this many minutes (it learns). 0 = bells always work.")
+                    .defineInRange("bellCooldownMinutes", 15, 0, 240);
+            escapeEscalation = b.comment("Every time you escape it (water, soul fire, a bell) it gets 10% more likely to attack you next time,",
+                            "up to +30%. Landing a hit on you resets it.")
+                    .define("escapeEscalation", true);
+            maxConcurrent = b.comment("How many players it can be after at the same time on a multiplayer server.",
+                            "It never goes after the same player twice at once.")
+                    .defineInRange("maxConcurrent", 2, 1, 8);
             b.pop();
 
             b.push("gemini");

@@ -564,10 +564,40 @@ public class FogLurkerEntity extends PathfinderMob {
             this.playSound(ModSounds.ATTACK.get(), 1.0F, 0.8F + this.random.nextFloat() * 0.3F);
             if (target instanceof LivingEntity living) {
                 living.knockback(0.6D, this.getX() - target.getX(), this.getZ() - target.getZ());
+                if (isAttackForm()) {
+                    chomp(living, diff);
+                }
             }
             this.setLastHurtMob(target);
         }
         return hit;
+    }
+
+    /**
+     * The bite goes into your leg: Slowness I for 10 seconds on every mode. On Hard and Deathwish it
+     * also mauls the leg for those 10 seconds: no jumping, no getting into a boat, and it drags you
+     * out of a boat you are sitting in on land.
+     */
+    private void chomp(LivingEntity victim, LurkerDifficulty diff) {
+        if (!victim.isAlive()) {
+            return;
+        }
+        victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN,
+                200, 0, false, true, true), this);
+        this.playSound(SoundEvents.EVOKER_FANGS_ATTACK, 1.0F, 0.6F);
+        boolean mauls = diff == LurkerDifficulty.HARD || diff == LurkerDifficulty.DEATHWISH;
+        if (mauls) {
+            victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(com.foglurker.registry.ModEffects.MAULED.get(),
+                    200, 0, false, true, true), this);
+            if (victim.getVehicle() instanceof net.minecraft.world.entity.vehicle.Boat) {
+                victim.stopRiding();
+            }
+        }
+        if (victim instanceof net.minecraft.server.level.ServerPlayer sp) {
+            sp.displayClientMessage(net.minecraft.network.chat.Component.literal(mauls
+                    ? "It bit into your leg. You can't jump."
+                    : "It bit into your leg.").withStyle(net.minecraft.ChatFormatting.DARK_RED), true);
+        }
     }
 
     @Override
