@@ -35,6 +35,8 @@ final class SvcBackend implements VoiceBridge.Backend {
     private final VoicechatServerApi api;
     private final Map<UUID, Recorder> recorders = new ConcurrentHashMap<>();
     private final Map<Integer, AudioPlayer> playing = new ConcurrentHashMap<>();
+    /** Whose voice each playing clip is, so opting out can cut it off mid-sentence. */
+    private final Map<AudioPlayer, UUID> playingOwner = new ConcurrentHashMap<>();
 
     SvcBackend(VoicechatServerApi api) {
         this.api = api;
@@ -82,6 +84,11 @@ final class SvcBackend implements VoiceBridge.Backend {
 
     @Override
     public void forget(UUID player) {
+        playingOwner.forEach((clip, owner) -> {
+            if (owner.equals(player)) {
+                clip.stopPlaying();
+            }
+        });
         Recorder r = recorders.remove(player);
         if (r != null) {
             r.discard();
@@ -217,7 +224,13 @@ final class SvcBackend implements VoiceBridge.Backend {
                 player.setOnStopped(() -> {
                     encoder.close();
                     playing.remove(entityId, player);
+                    playingOwner.remove(player);
                 });
+                if (!VoiceConsent.isOptedIn(voiceOwner)) {
+                    encoder.close();
+                    return; // opted out while the clip was loading
+                }
+                playingOwner.put(player, voiceOwner);
                 playing.put(entityId, player);
                 player.startPlaying();
             } catch (Throwable t) {

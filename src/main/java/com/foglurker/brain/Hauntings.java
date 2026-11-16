@@ -332,7 +332,9 @@ public final class Hauntings {
                 continue;
             }
             BlockEntity be = level.getBlockEntity(pos);
-            if (!(be instanceof Container c) || be.saveWithoutMetadata().contains("LootTable")) {
+            boolean storage = be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
+                    || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity;
+            if (!storage || !(be instanceof Container c) || be.saveWithoutMetadata().contains("LootTable")) {
                 continue;
             }
             if (needFreeSlot && freeSlot(c) < 0) {

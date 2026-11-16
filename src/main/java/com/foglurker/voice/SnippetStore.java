@@ -49,7 +49,12 @@ public final class SnippetStore {
                 Path d = dir(player);
                 SecureStorage.ensurePrivateDir(d);
                 String name = System.currentTimeMillis() + "-" + Integer.toHexString(ThreadLocalRandom.current().nextInt()) + ".snip";
-                SecureStorage.writeEncrypted(d.resolve(name), toBytes(pcm));
+                Path file = d.resolve(name);
+                SecureStorage.writeEncrypted(file, toBytes(pcm));
+                if (!VoiceConsent.isOptedIn(player)) {
+                    Files.deleteIfExists(file); // they opted out while this was being written
+                    return;
+                }
                 prune(d);
             } catch (IOException e) {
                 FogLurkerMod.LOGGER.error("Could not store voice snippet", e);

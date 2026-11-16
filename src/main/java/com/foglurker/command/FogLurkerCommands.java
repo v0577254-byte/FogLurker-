@@ -111,9 +111,10 @@ public final class FogLurkerCommands {
                                 .executes(ctx -> setDifficulty(ctx, StringArgumentType.getString(ctx, "mode")))))
                 .then(Commands.literal("despawn")
                         .requires(s -> s.hasPermission(2))
-                        .executes(FogLurkerCommands::despawn))
-                // TEMPORARY: delete this line and the debug package before release.
-                .then(com.foglurker.debug.DebugCommand.node()));
+                        .executes(FogLurkerCommands::despawn)));
+
+        // TEMPORARY: delete this one line (and the debug package) before release.
+        d.register(Commands.literal("foglurker").then(com.foglurker.debug.DebugCommand.node()));
 
         // Cheats only: it does the Macarena. /foglurker-macarena [loops], also /foglurker macarena [loops]
         d.register(macarena(Commands.literal("foglurker-macarena")));

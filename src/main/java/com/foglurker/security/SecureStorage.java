@@ -105,6 +105,14 @@ public final class SecureStorage {
             if (Files.isRegularFile(keyFile) && Files.size(keyFile) == 32) {
                 raw = Files.readAllBytes(keyFile);
             } else {
+                if (Files.exists(keyFile)) {
+                    // Damaged key: keep it (it may be recoverable) and say so loudly instead of silently
+                    // replacing it, which would make everything encrypted with it unreadable without warning.
+                    Path aside = keyFile.resolveSibling(".master.key.damaged-" + System.currentTimeMillis());
+                    Files.move(keyFile, aside);
+                    FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key was damaged and was moved to {}. A new key was "
+                            + "created: existing voice snippets and the Gemini API key cannot be read and must be set again.", aside);
+                }
                 raw = new byte[32];
                 RANDOM.nextBytes(raw);
                 writeAtomic(keyFile, raw);
@@ -164,6 +172,10 @@ public final class SecureStorage {
             ensurePrivateDir(parent);
         }
         Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+        Files.deleteIfExists(tmp);
+        if (POSIX) {
+            Files.createFile(tmp, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        }
         Files.write(tmp, bytes);
         restrict(tmp, false);
         try {

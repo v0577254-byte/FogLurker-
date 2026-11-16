@@ -103,6 +103,7 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 | **Deathwish** | 3 in 4 | **one shot** | 1.5 s | 5 minutes | **50% faster** than every other mode |
 
 - It can never spam attacks: the time between hits is enforced on the creature itself.
+- After a set number of hits in one appearance it leaves: 1 on Very Easy, 2 on Easy, 3 on Medium, 4 on Hard, no limit on Deathwish. So on Hard, an appearance can deal up to 24 hearts, enough to kill you from full health if you stand and take it.
 - Hits ignore armour, so "5 hearts" really is 5 hearts. A Totem of Undying still saves you, even on Deathwish.
 - The grace period counts real play time from the very first time a world starts with the mod. Nothing appears during it, but it is already learning how everyone plays.
 - **After the grace period it rolls every 5 minutes:**
@@ -153,7 +154,7 @@ It runs about 50 checks and lists each one in chat with ✔ or ✘. It also play
 - **Server side:** registration, damage types and tags, mod files, every mode's numbers (damage, time between hits, grace), a dry-run spawn of every shape near you (nothing actually spawns), refusal of nearby water, the hit cooldown, water rules, what it has learned about you, chat-style copying, voice chat status, the secure folder and its encryption, snippet storage, voice effects, and Gemini (with a live test if a key is set).
 - **Your game:** renderer, crawler model, textures, sounds, language file, every disguise puppet and the swim animation.
 
-**Removing it before release:** delete `src/main/java/com/foglurker/debug/`, `network/DebugPacket.java` and `client/ClientDebug.java`, plus the two lines marked `TEMPORARY` in `command/FogLurkerCommands.java` and `network/ModNetwork.java`.
+**Removing it before release:** delete `src/main/java/com/foglurker/debug/`, `network/DebugPacket.java` and `client/ClientDebug.java`, the single `d.register(...)` line marked `TEMPORARY` in `command/FogLurkerCommands.java`, and the five-line `CHANNEL.messageBuilder(DebugPacket...)` block marked `TEMPORARY` in `network/ModNetwork.java`.
 
 ## Voice snippets (opt-in)
 

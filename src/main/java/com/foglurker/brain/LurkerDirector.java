@@ -418,7 +418,7 @@ public final class LurkerDirector {
         int minSep = FogLurkerConfig.COMMON.minPlayerSeparation.get();
         List<ServerPlayer> far = new ArrayList<>();
         for (ServerPlayer p : target.server.getPlayerList().getPlayers()) {
-            if (p == target || p instanceof FakePlayer || p.isSpectator()) {
+            if (p == target || p instanceof FakePlayer || p.isSpectator() || !p.isAlive()) {
                 continue;
             }
             if (p.level() != target.level() || p.distanceTo(target) >= minSep) {

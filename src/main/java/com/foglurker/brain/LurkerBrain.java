@@ -269,6 +269,8 @@ public final class LurkerBrain {
             crouchSpam = 0;
         }
         mob.setLying(false);
+        bestToWoods = Double.MAX_VALUE;
+        lureStuck = 0;
     }
 
     // =================================================================== main loop
@@ -560,6 +562,8 @@ public final class LurkerBrain {
             if (lookedAt == 1) {
                 mob.playSound(ModSounds.WHISPER.get(), 1.0F, 0.7F);
             }
+        } else if (age % 4 == 0 && lookedAt > 0) {
+            lookedAt--; // brief glances spread over minutes do not add up
         }
         if (dist < watchFleeDistance || lookedAt > 30) {
             if (enc.willAttack() && canAttack(t) && canRevealNow(t)) {
@@ -588,7 +592,8 @@ public final class LurkerBrain {
         }
         mob.setLying(false);
         lookedAt = Math.max(0, lookedAt - 1);
-        if (stalkTo == null || mob.position().distanceToSqr(stalkTo) < 2 || phaseAge % 120 == 0) {
+        boolean arrived = stalkTo != null && mob.position().distanceToSqr(stalkTo) < 2;
+        if ((stalkTo == null && phaseAge % 20 == 0) || arrived || phaseAge % 120 == 0) { // never search every tick
             double inner = Math.max(5, dist - 7);
             stalkTo = SpotFinder.findSpawn(level(), t, inner, inner + 4, mob.position().subtract(t.position()), true, true, random);
         }

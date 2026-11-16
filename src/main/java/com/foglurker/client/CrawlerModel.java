@@ -281,7 +281,8 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
         }
 
         // Uncanny idles. Standing dead still, a limb twitches now and then...
-        float seed = e.getId() * 7.3F;
+        // floorMod: apparitions use negative IDs, and a negative seed made these checks always true.
+        float seed = Math.floorMod(e.getId(), 1000) * 7.3F;
         if (amount < 0.05F) {
             float twitch = (ageInTicks + seed) % 67F;
             if (twitch < 3F) {

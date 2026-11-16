@@ -501,7 +501,7 @@ public class FogLurkerEntity extends PathfinderMob {
             return pose == Pose.CROUCHING ? 1.27F : pose == Pose.SWIMMING ? 0.4F : 1.62F;
         }
         if (getDisguise() == Disguise.CRAWLER) {
-            return 0.95F; // the head hangs low and forward
+            return isLying() ? 0.5F : 0.95F; // the head hangs low and forward
         }
         return dims.height * 0.85F;
     }

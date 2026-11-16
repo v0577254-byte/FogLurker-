@@ -33,6 +33,9 @@ public final class Wards {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (BlockPos p : BlockPos.betweenClosed(center.offset(-r, -r, -r), center.offset(r, r, r))) {
+            if (!level.isLoaded(p)) {
+                continue; // never load or generate chunks just to look for torches
+            }
             BlockState s = level.getBlockState(p);
             if (!s.is(ModTags.WARDS)) {
                 continue;
