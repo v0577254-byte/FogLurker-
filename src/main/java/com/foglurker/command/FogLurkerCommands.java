@@ -73,33 +73,29 @@ public final class FogLurkerCommands {
         CommandDispatcher<CommandSourceStack> d = event.getDispatcher();
         d.register(Commands.literal("foglurker")
                 .then(Commands.literal("spawn")
-                        .requires(s -> s.hasPermission(2))
-                        .executes(ctx -> spawn(ctx, ctx.getSource().getPlayerOrException(), "random", "random"))
+                        .executes(cheats(ctx -> spawn(ctx, ctx.getSource().getPlayerOrException(), "random", "random")))
                         .then(Commands.argument("target", EntityArgument.player())
-                                .executes(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"), "random", "random"))
+                                .executes(cheats(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"), "random", "random")))
                                 .then(Commands.argument("disguise", StringArgumentType.word()).suggests(DISGUISES)
-                                        .executes(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"),
-                                                StringArgumentType.getString(ctx, "disguise"), "random"))
+                                        .executes(cheats(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"),
+                                                StringArgumentType.getString(ctx, "disguise"), "random")))
                                         .then(Commands.argument("behavior", StringArgumentType.word()).suggests(BEHAVIORS)
-                                                .executes(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"),
+                                                .executes(cheats(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"),
                                                         StringArgumentType.getString(ctx, "disguise"),
-                                                        StringArgumentType.getString(ctx, "behavior")))))))
+                                                        StringArgumentType.getString(ctx, "behavior"))))))))
                 .then(Commands.literal("gracetimer").executes(FogLurkerCommands::graceTimer))
                 .then(Commands.literal("endgrace")
-                        .requires(s -> s.hasPermission(2))
-                        .executes(FogLurkerCommands::endGrace))
+                        .executes(cheats(FogLurkerCommands::endGrace)))
                 .then(Commands.literal("force")
-                        .requires(s -> s.hasPermission(2))
                         .then(forceNode("hide", LurkerDirector.Forced.HIDE))
                         .then(forceNode("stalk", LurkerDirector.Forced.STALK))
                         .then(forceNode("attack", LurkerDirector.Forced.ATTACK))
                         .then(Commands.literal("meet")
-                                .executes(ctx -> forceMeet(ctx, ctx.getSource().getPlayerOrException()))
+                                .executes(cheats(ctx -> forceMeet(ctx, ctx.getSource().getPlayerOrException())))
                                 .then(Commands.argument("target", EntityArgument.player())
-                                        .executes(ctx -> forceMeet(ctx, EntityArgument.getPlayer(ctx, "target"))))))
+                                        .executes(cheats(ctx -> forceMeet(ctx, EntityArgument.getPlayer(ctx, "target")))))))
                 .then(Commands.literal("spawntimer")
-                        .requires(s -> s.hasPermission(2))
-                        .executes(FogLurkerCommands::spawnTimer))
+                        .executes(cheats(FogLurkerCommands::spawnTimer)))
                 .then(Commands.literal("naturalspawning")
                         .executes(ctx -> naturalSpawning(ctx, null))
                         .then(Commands.literal("on").requires(FogLurkerCommands::isAdmin).executes(ctx -> naturalSpawning(ctx, true)))
@@ -118,8 +114,7 @@ public final class FogLurkerCommands {
                                 .suggests(DIFFICULTIES)
                                 .executes(ctx -> setDifficulty(ctx, StringArgumentType.getString(ctx, "mode")))))
                 .then(Commands.literal("despawn")
-                        .requires(s -> s.hasPermission(2))
-                        .executes(FogLurkerCommands::despawn)));
+                        .executes(cheats(FogLurkerCommands::despawn))));
 
         // TEMPORARY: delete this one line (and the debug package) before release.
         d.register(Commands.literal("foglurker").then(com.foglurker.debug.DebugCommand.node()));
@@ -134,10 +129,10 @@ public final class FogLurkerCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> macarena(LiteralArgumentBuilder<CommandSourceStack> node) {
-        return node.requires(s -> s.hasPermission(2))
-                .executes(ctx -> macarena(ctx, 3))
+        return node
+                .executes(cheats(ctx -> macarena(ctx, 3)))
                 .then(Commands.argument("loops", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 20))
-                        .executes(ctx -> macarena(ctx, com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "loops"))));
+                        .executes(cheats(ctx -> macarena(ctx, com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "loops")))));
     }
 
     private static int macarena(CommandContext<CommandSourceStack> ctx, int loops) throws CommandSyntaxException {
@@ -168,9 +163,9 @@ public final class FogLurkerCommands {
 
     private static LiteralArgumentBuilder<CommandSourceStack> forceNode(String name, LurkerDirector.Forced what) {
         return Commands.literal(name)
-                .executes(ctx -> force(ctx, ctx.getSource().getPlayerOrException(), what))
+                .executes(cheats(ctx -> force(ctx, ctx.getSource().getPlayerOrException(), what)))
                 .then(Commands.argument("target", EntityArgument.player())
-                        .executes(ctx -> force(ctx, EntityArgument.getPlayer(ctx, "target"), what)));
+                        .executes(cheats(ctx -> force(ctx, EntityArgument.getPlayer(ctx, "target"), what))));
     }
 
     private static int force(CommandContext<CommandSourceStack> ctx, ServerPlayer target, LurkerDirector.Forced what) {
@@ -256,6 +251,21 @@ public final class FogLurkerCommands {
         }
         data.setDirty();
         return 1;
+    }
+
+    /**
+     * Cheats-only commands stay visible to everyone and say what is needed, instead of Minecraft hiding
+     * them and answering a confusing "Incorrect argument for command".
+     */
+    private static com.mojang.brigadier.Command<CommandSourceStack> cheats(com.mojang.brigadier.Command<CommandSourceStack> c) {
+        return ctx -> {
+            if (!ctx.getSource().hasPermission(2)) {
+                ctx.getSource().sendFailure(Component.literal("That command needs cheats. Singleplayer: press Esc, Open to LAN, "
+                        + "set Allow Cheats to ON, Start LAN World (or make the world with cheats on). On a server, ask an operator."));
+                return 0;
+            }
+            return c.run(ctx);
+        };
     }
 
     /** Operators, the console, or the host of a singleplayer / LAN world. */

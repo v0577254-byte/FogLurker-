@@ -1227,8 +1227,9 @@ public final class FogLurkerGameTests {
             kickOtherPlayers(server, p);
             var root = server.getCommands().getDispatcher().getRoot();
             check(root.getChild("foglurker-macarena") != null, "/foglurker-macarena is not registered");
-            check(!root.getChild("foglurker-macarena").canUse(p.createCommandSourceStack().withPermission(0)),
-                    "/foglurker-macarena must be cheats only");
+            check(server.getCommands().getDispatcher().execute("foglurker-macarena 1", p.createCommandSourceStack().withPermission(0)) == 0
+                    && h.getLevel().getEntities(com.foglurker.registry.ModEntities.FOG_LURKER.get(), FogLurkerEntity::isDancing).isEmpty(),
+                    "/foglurker-macarena must be cheats only (and say so)");
             int before = h.getLevel().getEntities(com.foglurker.registry.ModEntities.FOG_LURKER.get(), e -> true).size();
             server.getCommands().getDispatcher().execute("foglurker-macarena 1", p.createCommandSourceStack().withPermission(2));
             List<? extends FogLurkerEntity> dancers = h.getLevel().getEntities(com.foglurker.registry.ModEntities.FOG_LURKER.get(),
@@ -1461,10 +1462,15 @@ public final class FogLurkerGameTests {
             kickOtherPlayers(server, p);
             var d = server.getCommands().getDispatcher();
             var op = p.createCommandSourceStack().withPermission(2).withSuppressedOutput();
-            check(!d.getRoot().getChild("foglurker").getChild("endgrace").canUse(p.createCommandSourceStack().withPermission(0)),
-                    "endgrace must be cheats only");
-            check(!d.getRoot().getChild("foglurker").getChild("force").canUse(p.createCommandSourceStack().withPermission(0)),
+            var noCheats = p.createCommandSourceStack().withPermission(0).withSuppressedOutput();
+            check(d.execute("foglurker endgrace", noCheats) == 0, "endgrace must be cheats only");
+            int out = LurkerDirector.active().size();
+            check(d.execute("foglurker force attack", noCheats) == 0 && LurkerDirector.active().size() == out,
                     "force must be cheats only");
+            // Without cheats the command is still found (no "Incorrect argument for command"), it just refuses.
+            check(d.parse("foglurker force attack", noCheats).getExceptions().isEmpty()
+                    && d.parse("foglurker force attack", noCheats).getContext().getCommand() != null,
+                    "players without cheats should get a clear refusal, not a parse error");
 
             FogLurkerSavedData data = FogLurkerSavedData.get(server);
             d.execute("foglurker endgrace", op);

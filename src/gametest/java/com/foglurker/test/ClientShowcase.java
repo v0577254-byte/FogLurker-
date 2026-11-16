@@ -58,6 +58,10 @@ public final class ClientShowcase {
             scaresScene(mc, server);
             return;
         }
+        if ("fogattack".equals(System.getProperty("foglurker.scene"))) {
+            fogAttackScene(mc, server);
+            return;
+        }
         switch (ticks) {
             case 60 -> {
                 mc.options.hideGui = true;
@@ -104,6 +108,40 @@ public final class ClientShowcase {
     // ------------------------------------------------------------------ apparition, vignette, sinking
 
     private static FogLurkerEntity sinker;
+
+    private static final class FogLurkerEntityCount {
+        static boolean none(MinecraftServer server) {
+            return com.foglurker.brain.LurkerDirector.active().isEmpty();
+        }
+    }
+
+    /** Exactly what a player does: survival, /foglurker force attack, and the fog has to come from the server. */
+    private static void fogAttackScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.serverLevel().setDayTime(6000);
+                p.setGameMode(GameType.SURVIVAL);
+                p.setInvulnerable(true);
+            });
+            case 70 -> FogLurkerMod.LOGGER.info("Showcase: cheats allowed {}, player op level 2: {}",
+                    server.getWorldData().getAllowCommands(), sp(server).hasPermissions(2));
+            case 80 -> mc.player.connection.sendCommand("foglurker force attack");
+            case 90 -> server.execute(() -> {
+                if (FogLurkerEntityCount.none(server)) {
+                    FogLurkerMod.LOGGER.info("Showcase: the command did nothing; running it as an operator instead");
+                    server.getCommands().performPrefixedCommand(sp(server).createCommandSourceStack().withPermission(2), "foglurker force attack");
+                }
+            });
+            case 100, 140, 180, 220, 260 -> FogLurkerMod.LOGGER.info("Showcase: fog {} heading for {} (tick {}), creatures out: {}",
+                    ClientEffects.currentFog(), ClientEffects.fogTargetNow(), ticks,
+                    mc.level.getEntitiesOfClass(FogLurkerEntity.class, mc.player.getBoundingBox().inflate(64)).size());
+            case 230 -> shot(mc, "foglurker_fog_attack.png");
+            case 300 -> mc.stop();
+            default -> {
+            }
+        }
+    }
 
     private static void scaresScene(Minecraft mc, MinecraftServer server) {
         switch (ticks) {

@@ -34,6 +34,15 @@ public final class ClientEffects {
     private ClientEffects() {
     }
 
+    /** Current fog thickness (0..1) and what it is heading for; for the debug checks. */
+    public static float currentFog() {
+        return fog;
+    }
+
+    public static float fogTargetNow() {
+        return fogTarget;
+    }
+
     public static void setFogTarget(float intensity) {
         fogTarget = Mth.clamp(intensity, 0F, 1F);
         sinceFogPacket = 0;
