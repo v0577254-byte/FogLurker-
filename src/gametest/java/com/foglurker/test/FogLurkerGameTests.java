@@ -739,7 +739,7 @@ public final class FogLurkerGameTests {
             check(l != null && l.distanceTo(p) < 20, "the watcher should appear right outside, was "
                     + (l == null ? "null" : String.valueOf(l.distanceTo(p))));
             h.runAfterDelay(30, () -> {
-                check(!l.isRemoved() && !l.isSinking(), "it left the window straight away");
+                check(!l.isRemoved() && !l.isFlopped(), "it left the window straight away");
                 l.brain().vanish(true);
                 // Send the player back down so later tests find them where they expect.
                 h.succeed();
@@ -759,9 +759,131 @@ public final class FogLurkerGameTests {
                 h.runAfterDelay(10, () -> logged(h, () -> {
                     check(l.onGround(), "it should be standing on the ground");
                     l.brain().vanish(false);
-                    check(l.isSinking() && !l.isRemoved(), "spotted in its real shape it should sink, not pop");
-                    h.succeedWhen(() -> check(l.isRemoved(), "it never finished sinking"));
+                    check(l.isFlopped() && !l.isRemoved(), "spotted in its real shape it should flop flat, not pop");
+                    h.succeedWhen(() -> check(l.isRemoved(), "it never finished flopping"));
                 }));
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "force", timeoutTicks = 900)
+    public static void forceHideStalkAttackAndEndGrace(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 30);
+            ServerLevel level = h.getLevel();
+            MinecraftServer server = level.getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            var d = server.getCommands().getDispatcher();
+            var op = p.createCommandSourceStack().withPermission(2).withSuppressedOutput();
+            check(!d.getRoot().getChild("foglurker").getChild("endgrace").canUse(p.createCommandSourceStack().withPermission(0)),
+                    "endgrace must be cheats only");
+            check(!d.getRoot().getChild("foglurker").getChild("force").canUse(p.createCommandSourceStack().withPermission(0)),
+                    "force must be cheats only");
+
+            FogLurkerSavedData data = FogLurkerSavedData.get(server);
+            d.execute("foglurker endgrace", op);
+            check(!data.inGrace(), "endgrace did not end the grace period");
+            LurkerDifficulty before = data.difficulty();
+            data.setDifficulty(LurkerDifficulty.VERY_EASY); // the longest grace: must still be over
+            check(!data.inGrace(), "switching to a longer mode brought the grace period back");
+            data.setDifficulty(before);
+
+            // A patch of tall grass 26 blocks away for it to hide in.
+            var grass = net.minecraft.world.level.block.Blocks.TALL_GRASS.defaultBlockState();
+            for (int x = 24; x <= 28; x++) {
+                for (int z = -2; z <= 2; z++) {
+                    net.minecraft.world.level.block.DoublePlantBlock.placeAt(level, grass, rel(h, x, 0, z), 2);
+                }
+            }
+            Vec3 cover = com.foglurker.brain.SpotFinder.findCover(level, rel(h, 20, 0, 1), p.position(), 14, 20);
+            check(cover != null && cover.distanceTo(Vec3.atBottomCenterOf(rel(h, 26, 0, 0))) < 4,
+                    "it should find the tall grass to hide in, found " + cover);
+
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                d.execute("foglurker force hide", op);
+                FogLurkerEntity hider = LurkerDirector.active().get(0);
+                check(hider.getDisguise() == Disguise.CRAWLER && !hider.brain().encounter().willAttack(), "hide: should be the pale crawler, not attacking");
+                h.runAfterDelay(140, () -> logged(h, () -> {
+                    check(hider.isRemoved() || hider.isLying() || hider.isFlopped(),
+                            "hide: it should be lying down by now (" + hider.brain().describe() + ")");
+                    check(hider.isRemoved() || !hider.isLying() || hider.getBbHeight() < 0.7F, "lying down, its hitbox should be low too");
+                    if (!hider.isRemoved()) {
+                        hider.brain().vanish(true);
+                    }
+
+                    d.execute("foglurker force stalk", op);
+                    FogLurkerEntity stalker = LurkerDirector.active().get(0);
+                    String spawnedAt = stalker.blockPosition().toShortString() + " d=" + stalker.distanceTo(p);
+                    check(stalker.brain().encounter().mode() == LurkerBrain.Mode.STALKER, "stalk: wrong mode");
+                    // Look straight at it: it must drop flat and freeze.
+                    double dx = stalker.getX() - p.getX();
+                    double dz = stalker.getZ() - p.getZ();
+                    float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90F;
+                    p.teleportTo(level, p.getX(), p.getY(), p.getZ(), yaw, 0F);
+                    p.setYHeadRot(yaw); // a real client keeps the head turned too; "looking" is judged by the head
+                    h.runAfterDelay(10, () -> logged(h, () -> {
+                        check(stalker.isRemoved() || stalker.isLying(), "stalk: looked at, it should drop flat ("
+                                + stalker.brain().describe() + ", player at " + p.blockPosition().toShortString()
+                                + " yaw " + p.getYRot() + ", dist " + stalker.distanceTo(p) + ", LOS " + p.hasLineOfSight(stalker)
+                                + ", spawned " + spawnedAt + ", view " + p.getViewVector(1F) + " rot " + p.getYRot() + "/" + p.getXRot()
+                                + ", dir " + stalker.position().subtract(p.getEyePosition()).normalize() + ")");
+                        if (!stalker.isRemoved()) {
+                            stalker.brain().vanish(true);
+                        }
+                        p.setHealth(20F);
+                        d.execute("foglurker force attack", op);
+                        FogLurkerEntity hunter = LurkerDirector.active().get(0);
+                        check(hunter.brain().phase() == LurkerBrain.Phase.ATTACK, "attack: it should be hunting at once");
+                        h.succeedWhen(() -> {
+                            check(p.getHealth() < 20F, "attack: no hit yet (" + hunter.brain().describe() + ")");
+                            hunter.brain().vanish(true);
+                        });
+                    }));
+                }));
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "retention", timeoutTicks = 200)
+    public static void voiceSnippetsExpireAfterThirtyDays(GameTestHelper h) {
+        logged(h, () -> {
+            long day = 24L * 60 * 60 * 1000;
+            long now = System.currentTimeMillis();
+            short[] pcm = new short[48000];
+            for (int i = 0; i < pcm.length; i++) {
+                pcm[i] = (short) (Math.sin(i / 20.0) * 8000);
+            }
+            UUID gone = UUID.randomUUID();
+            UUID active = UUID.randomUUID();
+            VoiceConsent.optIn(gone);
+            VoiceConsent.optIn(active);
+            SnippetStore.saveAsync(gone, pcm);
+            SnippetStore.saveAsync(active, pcm);
+            h.runAfterDelay(30, () -> logged(h, () -> {
+                check(SnippetStore.count(gone) == 1 && SnippetStore.count(active) == 1, "snippets were not saved");
+                // "gone" removed the mod 31 days ago and never came back; "active" played yesterday.
+                VoiceConsent.touch(gone, now - 31 * day);
+                VoiceConsent.touch(active, now - day);
+                int expired = VoiceConsent.expireStale(now, com.foglurker.voice.VoiceRetention.RETENTION_MILLIS);
+                check(expired >= 1 && SnippetStore.count(gone) == 0 && !VoiceConsent.isOptedIn(gone),
+                        "31 days unseen: snippets must be deleted");
+                check(SnippetStore.count(active) == 1 && VoiceConsent.isOptedIn(active), "seen yesterday: snippets must stay");
+
+                // The whole mod unused for 31 days: everything is wiped when it next starts.
+                com.foglurker.voice.VoiceRetention.stamp(now - 31 * day);
+                com.foglurker.voice.VoiceRetention.onStart(now);
+                check(SnippetStore.count(active) == 0 && !VoiceConsent.isOptedIn(active),
+                        "after 31 days without the mod running, every snippet must be wiped on start");
+                // ...but a normal restart keeps everything.
+                VoiceConsent.optIn(active);
+                com.foglurker.voice.VoiceRetention.onStart(now + day);
+                check(VoiceConsent.isOptedIn(active), "a normal restart must not wipe anything");
+                VoiceConsent.optOut(active);
+                String note = new String(java.nio.file.Files.readAllBytes(SecureStorage.root().resolve("READ_ME.txt")),
+                        StandardCharsets.UTF_8);
+                check(note.contains("safe") || note.contains("delete it"), "the folder note is missing");
+                h.succeed();
             }));
         });
     }

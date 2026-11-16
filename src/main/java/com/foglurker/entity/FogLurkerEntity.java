@@ -73,8 +73,10 @@ public class FogLurkerEntity extends PathfinderMob {
     public static final int FLAG_SITTING = 2;
     public static final int FLAG_ANGRY = 4;
     public static final int FLAG_DANCING = 8;
-    public static final int FLAG_SINKING = 16;
-    private static final int SINK_TICKS = 26;
+    public static final int FLAG_FLOPPED = 16;
+    /** Lying down in cover with its legs tucked under it (a watcher hiding in grass and bushes). */
+    public static final int FLAG_LYING = 32;
+    private static final int FLOP_TICKS = 24;
 
     /** Replaced by the client setup so the entity can drive its client-side disguise model. */
     public static Consumer<FogLurkerEntity> clientTicker = e -> {
@@ -83,8 +85,8 @@ public class FogLurkerEntity extends PathfinderMob {
     @Nullable
     private LurkerBrain brain;
     // sinking into the ground when spotted
-    private int sinkLeft;
-    private int clientSinkStart = -1;
+    private int flopLeft;
+    private int clientFlopStart = -1;
 
     // /foglurker-macarena
     private int danceTick;
@@ -166,7 +168,7 @@ public class FogLurkerEntity extends PathfinderMob {
             tickDance();
             return;
         }
-        if (isSinking()) {
+        if (isFlopped()) {
             this.getNavigation().stop();
             return;
         }
@@ -195,16 +197,20 @@ public class FogLurkerEntity extends PathfinderMob {
                 clientDanceStart = this.tickCount;
             }
             clientWasDancing = dancing;
-            if (isSinking() && clientSinkStart < 0) {
-                clientSinkStart = this.tickCount;
+            if (isFlopped() && clientFlopStart < 0) {
+                clientFlopStart = this.tickCount;
             }
             if (dancing) {
                 this.yBodyRot = this.getYHeadRot(); // turn the whole body on the hop
             }
             clientTicker.accept(this);
         } else {
-            this.climbing = isAttackForm() && this.horizontalCollision && !isSinking();
-            if (sinkLeft > 0 && --sinkLeft == 0) {
+            this.climbing = isAttackForm() && this.horizontalCollision && !isFlopped();
+            if (flopLeft > 0 && --flopLeft == 0) {
+                if (this.level() instanceof ServerLevel level) {
+                    level.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF, getX(), getY() + 0.1, getZ(),
+                            14, 0.5, 0.05, 0.5, 0.01);
+                }
                 this.discard();
             }
         }
@@ -219,27 +225,39 @@ public class FogLurkerEntity extends PathfinderMob {
         return this.climbing;
     }
 
-    // ------------------------------------------------------------------ sinking away
+    // ------------------------------------------------------------------ lying in cover / flopping flat
 
-    public boolean isSinking() {
-        return hasFlag(FLAG_SINKING);
+    public boolean isLying() {
+        return hasFlag(FLAG_LYING);
     }
 
-    /** Spotted: instead of running it slowly sinks into the ground, still staring, and is gone. */
-    public void beginSink() {
-        setFlag(FLAG_SINKING, true);
+    public void setLying(boolean lying) {
+        if (lying != isLying()) {
+            setFlag(FLAG_LYING, lying);
+            refreshDimensions();
+        }
+    }
+
+    public boolean isFlopped() {
+        return hasFlag(FLAG_FLOPPED);
+    }
+
+    /** Spotted: it flops flat on the ground like a pancake, lies there a moment, and is gone. */
+    public void beginFlop() {
+        setFlag(FLAG_FLOPPED, true);
         setInvulnerable(true);
         this.getNavigation().stop();
         this.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-        sinkLeft = SINK_TICKS;
+        flopLeft = FLOP_TICKS;
     }
 
     /** Client: 0 = standing, 1 = fully under. */
-    public float sinkProgress(float partialTick) {
-        if (!isSinking() || clientSinkStart < 0) {
+    public float flopProgress(float partialTick) {
+        if (!isFlopped() || clientFlopStart < 0) {
             return 0F;
         }
-        return net.minecraft.util.Mth.clamp((this.tickCount + partialTick - clientSinkStart) / (SINK_TICKS - 2F), 0F, 1F);
+        // Fast: it is flat within a fifth of a second, then just lies there.
+        return net.minecraft.util.Mth.clamp((this.tickCount + partialTick - clientFlopStart) / 4F, 0F, 1F);
     }
 
     // ------------------------------------------------------------------ the macarena
@@ -457,7 +475,7 @@ public class FogLurkerEntity extends PathfinderMob {
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
         super.onSyncedDataUpdated(key);
-        if (DATA_DISGUISE.equals(key)) {
+        if (DATA_DISGUISE.equals(key) || DATA_FLAGS.equals(key)) {
             this.refreshDimensions();
         }
     }
@@ -467,6 +485,9 @@ public class FogLurkerEntity extends PathfinderMob {
         Disguise d = getDisguise();
         if (d == Disguise.PLAYER && pose == Pose.CROUCHING) {
             return EntityDimensions.scalable(0.6F, 1.5F);
+        }
+        if (d == Disguise.CRAWLER && isLying()) {
+            return EntityDimensions.scalable(0.9F, 0.6F); // flat in the grass: no hitbox poking out
         }
         if (d == Disguise.PLAYER && pose == Pose.SWIMMING) {
             return EntityDimensions.scalable(0.6F, 0.6F);

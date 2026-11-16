@@ -24,6 +24,8 @@ public final class VoiceConsent {
             "by agreeing to these terms you allow for the mod to make small snippets of your voice and store it in a secure folder in your account/server settings";
 
     private static final Set<UUID> OPTED_IN = ConcurrentHashMap.newKeySet();
+    /** When each opted-in player was last online (epoch millis). Snippets expire 30 days after. */
+    private static final java.util.Map<UUID, Long> LAST_SEEN = new ConcurrentHashMap<>();
     private static volatile boolean loaded;
 
     private VoiceConsent() {
@@ -49,6 +51,10 @@ public final class VoiceConsent {
                     for (JsonElement e : root.getAsJsonArray("optedIn")) {
                         OPTED_IN.add(UUID.fromString(e.getAsString()));
                     }
+                    if (root.has("lastSeen")) {
+                        root.getAsJsonObject("lastSeen").entrySet().forEach(en ->
+                                LAST_SEEN.put(UUID.fromString(en.getKey()), en.getValue().getAsLong()));
+                    }
                 } catch (Exception e) {
                     FogLurkerMod.LOGGER.error("Could not read voice consent list; treating everyone as opted out", e);
                 }
@@ -65,13 +71,60 @@ public final class VoiceConsent {
     public static void optIn(UUID player) {
         ensureLoaded();
         OPTED_IN.add(player);
+        LAST_SEEN.put(player, System.currentTimeMillis());
         save();
+    }
+
+    /** Records that an opted-in player is online now. */
+    public static void touch(UUID player, long nowMillis) {
+        ensureLoaded();
+        if (OPTED_IN.contains(player)) {
+            LAST_SEEN.put(player, nowMillis);
+            save();
+        }
+    }
+
+    /**
+     * Opts out (and deletes the snippets of) every opted-in player who has not been online for
+     * {@code maxAgeMillis}, e.g. someone who removed the mod and so can no longer join.
+     *
+     * @return how many players' snippets were deleted
+     */
+    public static int expireStale(long nowMillis, long maxAgeMillis) {
+        ensureLoaded();
+        int expired = 0;
+        for (UUID id : java.util.List.copyOf(OPTED_IN)) {
+            Long seen = LAST_SEEN.get(id);
+            if (seen == null) {
+                LAST_SEEN.put(id, nowMillis); // from before this feature: start their clock now
+                save();
+            } else if (nowMillis - seen > maxAgeMillis) {
+                optOut(id);
+                expired++;
+            }
+        }
+        return expired;
+    }
+
+    /** Forgets every opt-in and deletes every snippet (used when the mod was unused for too long). */
+    public static int wipeEverything() {
+        ensureLoaded();
+        OPTED_IN.clear();
+        LAST_SEEN.clear();
+        save();
+        return SnippetStore.deleteEveryone();
+    }
+
+    public static java.util.Optional<Long> lastSeen(UUID player) {
+        ensureLoaded();
+        return java.util.Optional.ofNullable(LAST_SEEN.get(player));
     }
 
     /** Opts out and deletes every snippet stored for this player. */
     public static int optOut(UUID player) {
         ensureLoaded();
         OPTED_IN.remove(player);
+        LAST_SEEN.remove(player);
         save();
         VoiceBridge.forget(player);
         return SnippetStore.deleteAll(player);
@@ -82,6 +135,9 @@ public final class VoiceConsent {
         JsonArray arr = new JsonArray();
         OPTED_IN.forEach(id -> arr.add(id.toString()));
         root.add("optedIn", arr);
+        JsonObject seen = new JsonObject();
+        LAST_SEEN.forEach((id, t) -> seen.addProperty(id.toString(), t));
+        root.add("lastSeen", seen);
         try {
             SecureStorage.writeEncrypted(file(), root.toString().getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {

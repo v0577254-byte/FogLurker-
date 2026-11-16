@@ -38,12 +38,12 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity> {
             pose.translate((lurker.getRandom().nextFloat() - 0.5F) * j, 0, (lurker.getRandom().nextFloat() - 0.5F) * j);
         }
         this.shadowRadius = Math.max(0.3F, lurker.getBbWidth() * 0.7F);
-        float sink = lurker.sinkProgress(partialTick);
-        if (sink > 0F) {
-            // Sinking into the ground: slide the whole thing down through the floor.
+        float flop = lurker.flopProgress(partialTick);
+        if (flop > 0F) {
+            // Flops flat like a pancake: squashed onto the ground and spread out.
             pose.pushPose();
-            pose.translate(0F, -sink * (lurker.getBbHeight() + 0.4F), 0F);
-            this.shadowRadius *= 1F - sink;
+            float k = flop * flop * (3 - 2 * flop);
+            pose.scale(1F + 0.35F * k, 1F - 0.88F * k, 1F + 0.35F * k);
         }
         if (!showTrue) {
             LivingEntity dummy = DisguiseCache.get(lurker);
@@ -66,7 +66,7 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity> {
         if (transforming) {
             pose.popPose();
         }
-        if (sink > 0F) {
+        if (flop > 0F) {
             pose.popPose();
         }
     }

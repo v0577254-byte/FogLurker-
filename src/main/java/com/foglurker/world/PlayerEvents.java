@@ -17,6 +17,17 @@ public final class PlayerEvents {
     private PlayerEvents() {
     }
 
+    /** Voice snippet retention: wipe anything that outlived its 30 days before the world even loads. */
+    @SubscribeEvent
+    public static void onServerStarted(net.minecraftforge.event.server.ServerStartedEvent event) {
+        com.foglurker.voice.VoiceRetention.onStart(System.currentTimeMillis());
+    }
+
+    @SubscribeEvent
+    public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        com.foglurker.voice.VoiceConsent.touch(event.getEntity().getUUID(), System.currentTimeMillis());
+    }
+
     /** Ringing a bell drives the Fog Lurker away. */
     @SubscribeEvent
     public static void onRightClickBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
@@ -32,6 +43,7 @@ public final class PlayerEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
+        VoiceConsent.touch(player.getUUID(), System.currentTimeMillis());
         if (!VoiceBridge.isActive() || !FogLurkerConfig.COMMON.showVoiceNoticeOnJoin.get()
                 || VoiceConsent.isOptedIn(player.getUUID())) {
             return;

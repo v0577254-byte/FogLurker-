@@ -51,9 +51,12 @@ Between appearances (after the grace period) one player gets a small scare every
 - **Out in the open** it uses the woods, as before.
 - **In a cave or mine** it waits in the darkest spots it can find, just past the reach of your torches, and a watcher stands at the end of the tunnel rather than far away.
 - **At home** it learns where you live (your bed, or wherever you open chests the most). When you are indoors, a watcher appears right outside, 5 to 16 blocks away, where you can see it through a window or an open door.
-- **Spotted in its real shape, it does not run.** It sinks slowly into the ground, still looking at you.
+- **It hides in tall grass and bushes.** When it watches you as itself it slinks to the thickest tall grass, ferns or leafy bush nearby and lies down in it like a dog, legs tucked under, with only its eyes showing. Its hitbox lies down too.
+- **Spotted in its real shape, it does not run.** It flops flat on the ground like a pancake, lies there a moment, and is gone.
 
-![Sinking into the ground](docs/images/sinking.jpg)
+| Lying in the grass | Lying down (grass cleared) | Flopped |
+|---|---|---|
+| ![Hiding in tall grass](docs/images/lying.jpg) | ![Lying like a dog](docs/images/lying_open.jpg) | ![Pancake flop](docs/images/flop.jpg) |
 
 ## How to survive it
 
@@ -118,6 +121,10 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 |---|---|---|
 | `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `crawler` (itself), `random` |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
+| `/foglurker endgrace` | cheats / op | Ends the grace period right now (stays ended even if you switch to a mode with a longer one). The first spawn roll comes 5 minutes later |
+| `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
+| `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
+| `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
@@ -160,6 +167,7 @@ Nobody is ever recorded without opting in. `/flurk voicesnippets terms` shows ex
 How it works:
 - Only while Simple Voice Chat is running. Each player sees a one-time notice on their first join pointing them to the terms.
 - About a third of what an opted-in player says (configurable) is kept as a 0.6–6 second clip. Up to 40 clips per player are kept, and the oldest are replaced first.
+- **Snippets expire.** If an opted-in player has not been online for 30 days (for example, they removed the mod and so can no longer join the server), their snippets are deleted automatically. If the whole mod goes unused for 30 days and is then started again, it deletes every snippet before doing anything else. A mod that has been removed cannot run any code, so the secure folder also contains a `READ_ME.txt` saying it is safe to delete by hand.
 - Clips play back through Simple Voice Chat from the creature's position, under their own **"Fog Lurker"** volume slider. They sound natural while it pretends, uncanny when it slips, and deep and distorted when it reveals itself.
 - The voice is "replicated" by replaying and splicing your real recorded words with audio effects. No AI voice cloning is used, and **voice clips never leave the server**. Gemini only ever sees chat text.
 
@@ -192,7 +200,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `foglurker-1.0.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `foglurker-1.0.3.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -229,7 +237,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/foglurker-1.0.0.jar
+./gradlew build               # -> build/libs/foglurker-1.0.3.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
@@ -246,7 +254,9 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
 - hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests
-- indoors at home the watcher appears outside your roof; spotted in its real shape it sinks into the ground
+- indoors at home the watcher appears outside your roof; spotted in its real shape it flops flat
+- `/foglurker endgrace` and `/foglurker force hide|stalk|attack` work and are cheats-only; it finds tall grass, lies down with a low hitbox, drops flat when looked at while stalking, and attacks on command
+- voice snippets of a player unseen for 31 days are deleted, a player seen yesterday keeps theirs, and a mod unused for 31 days wipes everything on start
 - `/foglurker-macarena` is cheats-only, spawns one harmless dancer that turns on count 16 and leaves after its loops
 - `/foglurker debugeverything` runs end to end
 

@@ -61,6 +61,17 @@ public final class FogLurkerSavedData extends SavedData {
         return graceRemainingTicks() > 0;
     }
 
+    /** Ends the grace period now, whatever the mode (even if it is later switched to a longer one). */
+    public void endGrace() {
+        long longest = 0;
+        for (LurkerDifficulty d : LurkerDifficulty.values()) {
+            longest = Math.max(longest, d.graceTicks());
+        }
+        graceElapsedTicks = Math.max(graceElapsedTicks, longest);
+        nextSpawnTicks = -1; // the 5 minute roll timer starts on the next tick
+        setDirty();
+    }
+
     public void tickGrace() {
         if (inGrace()) {
             graceElapsedTicks++;

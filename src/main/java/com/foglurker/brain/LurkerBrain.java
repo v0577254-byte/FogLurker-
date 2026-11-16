@@ -66,7 +66,9 @@ public final class LurkerBrain {
         /** Shambles with the zombies at night. */
         ZOMBIE,
         /** True form, far away, just watching. Gone when you look too long or come too close. */
-        WATCHER
+        WATCHER,
+        /** True form, creeping closer from hiding spot to hiding spot; drops flat whenever you look. */
+        STALKER
     }
 
     public enum Phase {
@@ -114,6 +116,11 @@ public final class LurkerBrain {
     @Nullable
     private Vec3 wanderTarget;
     private boolean saidArrived;
+    @Nullable
+    private Vec3 coverSpot;
+    private boolean coverSearched;
+    @Nullable
+    private Vec3 stalkTo;
     @Nullable
     private BlockPos fakeMine;
     /** A watcher leaves when you come this close (smaller when it started at your window or down a tunnel). */
@@ -261,6 +268,7 @@ public final class LurkerBrain {
             mob.setCrouching(false);
             crouchSpam = 0;
         }
+        mob.setLying(false);
     }
 
     // =================================================================== main loop
@@ -524,13 +532,28 @@ public final class LurkerBrain {
         switch (enc.mode()) {
             case WATCHER -> watcher(t, dist);
             case DOPPELGANGER -> doppelganger(t, dist);
+            case STALKER -> stalker(t, dist);
             default -> herd(t, dist);
         }
     }
 
     private void watcher(ServerPlayer t, double dist) {
         fog(t, 0.35F);
-        halt();
+        // It does not stand about in the open: it slinks to tall grass, ferns or a bush and lies down
+        // in it like a dog, legs tucked under, only its head and eyes showing.
+        if (!coverSearched) {
+            coverSearched = true;
+            coverSpot = SpotFinder.findCover(level(), mob.blockPosition(), t.position(), 14,
+                    Math.min(24, Math.max(watchFleeDistance + 3, dist - 2)));
+        }
+        boolean goingToCover = coverSpot != null && mob.position().distanceToSqr(coverSpot) > 0.8 && phaseAge < 400;
+        if (goingToCover) {
+            mob.setLying(false);
+            goTo(coverSpot, speedFor(2.6));
+        } else {
+            halt();
+            mob.setLying(mob.getDisguise() == Disguise.CRAWLER);
+        }
         stare(t);
         if (isLookedAtBy(t)) {
             lookedAt++;
@@ -541,6 +564,43 @@ public final class LurkerBrain {
         if (dist < watchFleeDistance || lookedAt > 30) {
             if (enc.willAttack() && canAttack(t) && canRevealNow(t)) {
                 setPhase(Phase.TRANSFORM); // you looked for too long
+            } else {
+                vanish(false);
+            }
+        }
+    }
+
+    /**
+     * Stalking: it creeps closer through cover while you are not looking. The moment you look its
+     * way it drops flat into the grass and holds still. Close enough, it either attacks or is gone.
+     */
+    private void stalker(ServerPlayer t, double dist) {
+        fog(t, 0.3F + (float) Mth.clamp((24 - dist) / 24, 0, 1) * 0.35F);
+        boolean seen = isWatchedBy(t);
+        if (seen) {
+            halt();
+            mob.setLying(true);
+            stare(t);
+            if (++lookedAt > 100 && dist < 10) {
+                vanish(false); // you stared it down
+            }
+            return;
+        }
+        mob.setLying(false);
+        lookedAt = Math.max(0, lookedAt - 1);
+        if (stalkTo == null || mob.position().distanceToSqr(stalkTo) < 2 || phaseAge % 120 == 0) {
+            double inner = Math.max(5, dist - 7);
+            stalkTo = SpotFinder.findSpawn(level(), t, inner, inner + 4, mob.position().subtract(t.position()), true, true, random);
+        }
+        if (stalkTo != null) {
+            goTo(stalkTo, speedFor(3.2 * difficulty().speedMultiplier()));
+        }
+        stare(t);
+        if (dist < 5) {
+            if (enc.willAttack() && canAttack(t) && canRevealNow(t)) {
+                mob.playSound(ModSounds.SCREAM.get(), 2.0F, 1.0F);
+                ModNetwork.send(t, new ScarePacket(50));
+                huntNow();
             } else {
                 vanish(false);
             }
@@ -932,7 +992,7 @@ public final class LurkerBrain {
         ended = true;
         ServerLevel level = level();
         if (!screaming && mob.isAttackForm() && mob.onGround() && !mob.isInWater()) {
-            // Spotted in its real shape: it does not run. It sinks into the ground, still looking at you.
+            // Spotted in its real shape: it does not run. It flops flat on the ground like a pancake.
             VoiceBridge.stop(mob);
             if (breaking != null) {
                 level.destroyBlockProgress(mob.getId(), breaking, -1);
@@ -942,7 +1002,7 @@ public final class LurkerBrain {
                 ModNetwork.send(seen, new FogPacket(0F));
             }
             mob.playSound(ModSounds.WHISPER.get(), 0.8F, 0.6F);
-            mob.beginSink();
+            mob.beginFlop();
             return;
         }
         double h = mob.getBbHeight();

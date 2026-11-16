@@ -34,6 +34,10 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
     private final ModelPart rightShin;
     private final ModelPart leftLeg;
     private final ModelPart leftShin;
+    private final ModelPart rightHand;
+    private final ModelPart leftHand;
+    private final ModelPart rightFoot;
+    private final ModelPart leftFoot;
 
     public CrawlerModel(ModelPart root) {
         this.root = root;
@@ -49,6 +53,10 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
         this.rightShin = rightLeg.getChild("shin");
         this.leftLeg = root.getChild("left_leg");
         this.leftShin = leftLeg.getChild("shin");
+        this.rightHand = rightForearm.getChild("hand");
+        this.leftHand = leftForearm.getChild("hand");
+        this.rightFoot = rightShin.getChild("foot");
+        this.leftFoot = leftShin.getChild("foot");
     }
 
     public static LayerDefinition createBodyLayer() {
@@ -146,6 +154,40 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
         }
     }
 
+    /**
+     * Lying in cover like a dog: belly on the ground, front and back legs folded flat underneath,
+     * head low with its jaw nearly shut, eyes on you.
+     */
+    private void lieDown(float ageInTicks, float netHeadYaw, float headPitch) {
+        float breathe = Mth.sin(ageInTicks * 0.06F) * 0.25F;
+        body.setPos(0F, 20.6F - breathe * 0.4F, -5.0F);
+        body.setRotation(0.03F, 0F, 0F);
+        neck.setPos(0F, 19.5F - breathe * 0.3F, -5.5F);
+        neck.setRotation(-0.55F, 0F, 0F);
+        head.xRot = 0.45F + Mth.clamp(headPitch * Mth.DEG_TO_RAD * 0.3F, -0.2F, 0.15F);
+        head.yRot = Mth.clamp(netHeadYaw * Mth.DEG_TO_RAD * 0.6F, -0.6F, 0.6F);
+        head.zRot = 0.12F + Mth.sin(ageInTicks * 0.03F) * 0.05F;
+        jaw.xRot = 0.06F + Math.max(0F, Mth.sin(ageInTicks * 0.05F)) * 0.05F;
+        // Front legs folded back under the chest, hands flat.
+        rightArm.setPos(-3.6F, 22.4F, -5.5F);
+        rightArm.setRotation(Mth.HALF_PI, 0F, 0F);
+        rightForearm.setRotation(-3.17F, 0F, 0F);
+        rightHand.setRotation(1.6F, 0F, 0F);
+        leftArm.setPos(3.6F, 22.4F, -5.5F);
+        leftArm.setRotation(Mth.HALF_PI, 0F, 0F);
+        leftForearm.setRotation(-3.17F, 0F, 0F);
+        leftHand.setRotation(1.6F, 0F, 0F);
+        // Back legs folded forward under the belly.
+        rightLeg.setPos(-3.4F, 22.0F, 9.0F);
+        rightLeg.setRotation(-Mth.HALF_PI, 0F, 0F);
+        rightShin.setRotation(3.17F, 0F, 0F);
+        rightFoot.setRotation(-1.6F, 0F, 0F);
+        leftLeg.setPos(3.4F, 22.0F, 9.0F);
+        leftLeg.setRotation(-Mth.HALF_PI, 0F, 0F);
+        leftShin.setRotation(3.17F, 0F, 0F);
+        leftFoot.setRotation(-1.6F, 0F, 0F);
+    }
+
     /** Rears up on its hind legs and does the Macarena with its far-too-long arms. */
     private void dance(float t) {
         float countF = t / MacarenaDance.TICKS_PER_COUNT;
@@ -203,6 +245,10 @@ public class CrawlerModel extends HierarchicalModel<FogLurkerEntity> {
         this.root().getAllParts().forEach(ModelPart::resetPose);
         if (e.isDancing()) {
             dance(e.danceTime(ageInTicks - (int) ageInTicks));
+            return;
+        }
+        if (e.isLying()) {
+            lieDown(ageInTicks, netHeadYaw, headPitch);
             return;
         }
         boolean aggressive = e.isAggressive();

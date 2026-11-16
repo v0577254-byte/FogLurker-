@@ -62,6 +62,11 @@ public final class LurkerDirector {
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         data.tickGrace();
         Hauntings.tick(server, data);
+        if (server.getTickCount() % 12000 == 0) { // every 10 minutes
+            List<java.util.UUID> online = new ArrayList<>();
+            server.getPlayerList().getPlayers().forEach(p -> online.add(p.getUUID()));
+            com.foglurker.voice.VoiceRetention.heartbeat(System.currentTimeMillis(), online);
+        }
         ACTIVE.removeIf(Entity::isRemoved);
         if (data.inGrace() || !ACTIVE.isEmpty()) {
             return;
@@ -215,6 +220,60 @@ public final class LurkerDirector {
             spot = SpotFinder.findSpawn(level, target, 12, 24, null, true, false, r);
         }
         return new DryRun(enc, spot);
+    }
+
+    /** What /foglurker force makes it do. */
+    public enum Forced {
+        /** Lie in tall grass or a bush and watch. Never attacks. */
+        HIDE,
+        /** Creep closer from cover to cover; drops flat when looked at. Vanishes when it gets close. */
+        STALK,
+        /** Hunt right now. */
+        ATTACK
+    }
+
+    /** Spawns the pale crawler (no disguise) near {@code target} doing exactly what was asked. */
+    @Nullable
+    public static FogLurkerEntity spawnPale(ServerPlayer target, Forced what) {
+        ServerLevel level = target.serverLevel();
+        FogLurkerSavedData data = FogLurkerSavedData.get(target.server);
+        RandomSource r = level.getRandom();
+        LurkerBrain.Mode mode = what == Forced.STALK ? LurkerBrain.Mode.STALKER : LurkerBrain.Mode.WATCHER;
+        Encounter enc = new Encounter(target.getUUID(), mode, Disguise.CRAWLER, null, null, what == Forced.ATTACK,
+                data.difficulty(), 0, null);
+        Vec3 pos = switch (what) {
+            case HIDE -> pickSpot(level, target, enc, r);
+            case STALK -> SpotFinder.findSpawn(level, target, 18, 28, null, true, true, r);
+            case ATTACK -> SpotFinder.findSpawn(level, target, 10, 18, null, true, false, r);
+        };
+        if (pos == null) {
+            pos = SpotFinder.findSpawn(level, target, 8, 20, null, false, false, r);
+        }
+        if (pos == null || !SpotFinder.isDry(level, BlockPos.containing(pos))) {
+            return null;
+        }
+        FogLurkerEntity lurker = place(level, target, pos, enc);
+        if (lurker != null && what == Forced.ATTACK && lurker.brain() != null) {
+            lurker.brain().huntNow();
+        }
+        return lurker;
+    }
+
+    @Nullable
+    private static FogLurkerEntity place(ServerLevel level, ServerPlayer target, Vec3 pos, Encounter enc) {
+        FogLurkerEntity lurker = ModEntities.FOG_LURKER.get().create(level);
+        if (lurker == null) {
+            return null;
+        }
+        float yaw = (float) Math.toDegrees(Math.atan2(target.getZ() - pos.z, target.getX() - pos.x)) - 90F;
+        lurker.moveTo(pos.x, pos.y, pos.z, yaw, 0F);
+        lurker.setYHeadRot(yaw);
+        lurker.setYBodyRot(yaw);
+        lurker.begin(enc);
+        level.addFreshEntity(lurker);
+        ACTIVE.add(lurker);
+        FogLurkerSavedData.get(target.server).countEncounter();
+        return lurker;
     }
 
     /** Gives a hand-summoned creature (/summon) a plan against the nearest player. */

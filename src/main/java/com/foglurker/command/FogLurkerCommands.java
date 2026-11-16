@@ -85,6 +85,14 @@ public final class FogLurkerCommands {
                                                         StringArgumentType.getString(ctx, "disguise"),
                                                         StringArgumentType.getString(ctx, "behavior")))))))
                 .then(Commands.literal("gracetimer").executes(FogLurkerCommands::graceTimer))
+                .then(Commands.literal("endgrace")
+                        .requires(s -> s.hasPermission(2))
+                        .executes(FogLurkerCommands::endGrace))
+                .then(Commands.literal("force")
+                        .requires(s -> s.hasPermission(2))
+                        .then(forceNode("hide", LurkerDirector.Forced.HIDE))
+                        .then(forceNode("stalk", LurkerDirector.Forced.STALK))
+                        .then(forceNode("attack", LurkerDirector.Forced.ATTACK)))
                 .then(Commands.literal("spawntimer")
                         .requires(s -> s.hasPermission(2))
                         .executes(FogLurkerCommands::spawnTimer))
@@ -146,6 +154,37 @@ public final class FogLurkerCommands {
         level.addFreshEntity(dancer);
         reply(ctx.getSource(), Component.literal("The Fog Lurker does the Macarena ("
                 + loops + (loops == 1 ? " loop" : " loops") + ").").withStyle(ChatFormatting.LIGHT_PURPLE));
+        return 1;
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> forceNode(String name, LurkerDirector.Forced what) {
+        return Commands.literal(name)
+                .executes(ctx -> force(ctx, ctx.getSource().getPlayerOrException(), what))
+                .then(Commands.argument("target", EntityArgument.player())
+                        .executes(ctx -> force(ctx, EntityArgument.getPlayer(ctx, "target"), what)));
+    }
+
+    private static int force(CommandContext<CommandSourceStack> ctx, ServerPlayer target, LurkerDirector.Forced what) {
+        FogLurkerEntity lurker = LurkerDirector.spawnPale(target, what);
+        if (lurker == null) {
+            ctx.getSource().sendFailure(Component.literal("Nowhere dry for it to appear near " + target.getGameProfile().getName() + "."));
+            return 0;
+        }
+        String doing = switch (what) {
+            case HIDE -> "is lying in the grass, watching";
+            case STALK -> "is stalking them (it drops flat whenever they look)";
+            case ATTACK -> "is hunting them. Now.";
+        };
+        reply(ctx.getSource(), Component.literal("The pale crawler " + doing + " " + target.getGameProfile().getName()
+                + " (" + Math.round(lurker.distanceTo(target)) + " blocks away).").withStyle(ChatFormatting.GRAY));
+        return 1;
+    }
+
+    private static int endGrace(CommandContext<CommandSourceStack> ctx) {
+        FogLurkerSavedData.get(ctx.getSource().getServer()).endGrace();
+        ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal(
+                "The grace period is over. It is out there. First spawn roll in "
+                        + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes.").withStyle(ChatFormatting.DARK_RED)), true);
         return 1;
     }
 

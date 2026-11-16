@@ -153,12 +153,66 @@ public final class ClientShowcase {
                 sinker.setYBodyRot(180F);
                 sinker.setNoAi(true);
                 level.addFreshEntity(sinker);
+                // Lying in a patch of tall grass and ferns, like a dog.
+                for (int x = -2; x <= 2; x++) {
+                    for (int z = 4; z <= 8; z++) {
+                        if (x == 0 && z == 6) {
+                            continue;
+                        }
+                        var plant = (x + z) % 3 == 0 ? Blocks.LARGE_FERN.defaultBlockState() : Blocks.TALL_GRASS.defaultBlockState();
+                        net.minecraft.world.level.block.DoublePlantBlock.placeAt(level, plant, new BlockPos(stageX + x, stageY, stageZ + z), 2);
+                    }
+                }
+                sinker.setLying(true);
             });
+            case 260 -> {
+                mc.options.hideGui = true;
+                shot(mc, "foglurker_lying.png");
+            }
+            case 270 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.teleportTo(p.serverLevel(), stageX + 3.5, stageY, stageZ + 3.0, 45F, 22F);
+            });
+            case 300 -> shot(mc, "foglurker_lying_close.png");
+            case 310 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.teleportTo(p.serverLevel(), stageX + 0.5, stageY, stageZ + 0.5, 0F, 8F);
+            });
+            case 395 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                for (int x = -2; x <= 2; x++) {
+                    for (int z = 4; z <= 8; z++) {
+                        level.setBlock(new BlockPos(stageX + x, stageY, stageZ + z), Blocks.AIR.defaultBlockState(), 2);
+                        level.setBlock(new BlockPos(stageX + x, stageY + 1, stageZ + z), Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+                p.teleportTo(level, stageX + 2.5, stageY, stageZ + 3.5, 35F, 25F);
+            });
+            case 410 -> shot(mc, "foglurker_lying_open.png");
+            case 412 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.teleportTo(p.serverLevel(), stageX + 3.5, stageY, stageZ + 6.5, 90F, 15F);
+            });
+            case 422 -> shot(mc, "foglurker_lying_side.png");
             case 425 -> mc.options.hideGui = false;
             case 430 -> shot(mc, "foglurker_vignette.png");
             case 432 -> mc.options.hideGui = true;
-            case 440 -> server.execute(() -> sinker.beginSink());
-            case 453 -> shot(mc, "foglurker_sinking.png");
+            case 434 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                sinker.setLying(false);
+                for (int x = -2; x <= 2; x++) {
+                    for (int z = 4; z <= 8; z++) {
+                        level.setBlock(new BlockPos(stageX + x, stageY, stageZ + z), Blocks.AIR.defaultBlockState(), 2);
+                        level.setBlock(new BlockPos(stageX + x, stageY + 1, stageZ + z), Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+                p.teleportTo(level, stageX + 0.5, stageY, stageZ + 2.0, 0F, 22F);
+            });
+            case 444 -> shot(mc, "foglurker_standing.png");
+            case 446 -> server.execute(() -> sinker.beginFlop());
+            case 456 -> shot(mc, "foglurker_flop.png");
             case 480 -> mc.stop();
             default -> {
             }

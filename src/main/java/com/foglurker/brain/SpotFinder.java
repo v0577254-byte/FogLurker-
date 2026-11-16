@@ -150,6 +150,65 @@ public final class SpotFinder {
         return null;
     }
 
+    /** How much a block hides something lying in it. Never sweet berry bushes (they hurt). */
+    private static int coverValue(BlockState s) {
+        if (s.is(Blocks.TALL_GRASS) || s.is(Blocks.LARGE_FERN)) {
+            return 4;
+        }
+        if (s.is(BlockTags.LEAVES)) {
+            return 3; // bushes, azaleas, low branches
+        }
+        if (s.is(Blocks.GRASS) || s.is(Blocks.FERN)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /**
+     * The best patch of tall grass, ferns or bushes within {@code radius} of {@code around} that is at
+     * least {@code minDistFromPlayer} from the player, dry, and somewhere it can lie flat. Null if none
+     * is good enough.
+     */
+    @Nullable
+    public static Vec3 findCover(ServerLevel level, BlockPos around, Vec3 player, int radius, double minDistFromPlayer) {
+        Vec3 best = null;
+        double bestScore = 0;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                for (int dy = -3; dy <= 3; dy++) {
+                    BlockPos p = around.offset(dx, dy, dz);
+                    if (!loaded(level, p.getX(), p.getZ())) {
+                        continue;
+                    }
+                    BlockState s = level.getBlockState(p);
+                    BlockPos below = p.below();
+                    int score = coverValue(s) * 2;
+                    if (score == 0 || !s.getCollisionShape(level, p).isEmpty()
+                            || !level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()
+                            || !level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)
+                            || !isDry(level, p)) {
+                        continue;
+                    }
+                    for (int ox = -1; ox <= 1; ox++) {
+                        for (int oz = -1; oz <= 1; oz++) {
+                            if (ox != 0 || oz != 0) {
+                                score += coverValue(level.getBlockState(p.offset(ox, 0, oz)));
+                                score += coverValue(level.getBlockState(p.offset(ox, 1, oz))) / 2;
+                            }
+                        }
+                    }
+                    Vec3 spot = Vec3.atBottomCenterOf(p);
+                    double total = score - Math.sqrt(dx * dx + dz * dz) * 0.35;
+                    if (spot.distanceTo(player) >= minDistFromPlayer && total > bestScore) {
+                        bestScore = total;
+                        best = spot;
+                    }
+                }
+            }
+        }
+        return bestScore >= 6 ? best : null;
+    }
+
     /** True if the player is swimming, in a boat, or standing in water: somewhere the attacking form cannot follow. */
     public static boolean isInOrOnWater(Entity e) {
         if (e.isInWater() || e.getVehicle() != null && e.getVehicle().isInWater()) {
