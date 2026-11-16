@@ -187,7 +187,16 @@ Without a key the creature uses a built-in phrase system that still copies each 
 2. In game (as op, or the host of a singleplayer/LAN world): `/foglurker setgeminiapikey <your key>`.
 3. It tests the key and tells you whether it works.
 
-You can also set the `FOGLURKER_GEMINI_API_KEY` environment variable on a server. The model is configurable (default `gemini-flash-latest`, falling back to `gemini-2.5-flash` and `gemini-flash-lite-latest`). Recent chat lines and the impersonated player's recent chat messages are sent to Google to write each line.
+You can also set the `FOGLURKER_GEMINI_API_KEY` environment variable on a server (a key saved with the command takes priority). `/foglurker geministatus` shows the masked key, where it comes from, the models in use, whether Gemini is paused and why, and tests it.
+
+How the key is handled:
+- It is stored AES-256-GCM encrypted in `foglurker_secure/`, never in a world save, never sent to players, and never logged. Chat only ever shows a masked preview (`AIza…k3Fq`).
+- It is sent only to Google, in the `x-goog-api-key` header (never in a URL), over HTTPS.
+- If Google rejects the key it stops asking for 10 minutes (or until you set a key again) and uses the built-in phrases, so a bad key never slows the game down or spams requests. If a model is rate limited it skips that model for as long as Google asks and uses the next one.
+- Every request has a time limit; if Google is slow or unreachable the creature simply uses a built-in phrase.
+- Models are configurable (default `gemini-flash-latest`, falling back to `gemini-2.5-flash` and `gemini-flash-lite-latest`). Names like `models/gemini-2.5-flash` work too; anything that is not a valid model id is ignored with a warning.
+
+What is sent to Google: the names of the two players involved, recent chat lines and the impersonated player's recent chat messages, to write each line in their style. Anyone can keep their chat out of it with `/fglurk chatlearning off`. Server owners can turn fake chat off entirely with `impersonateInChat = false`. Voice snippets are never sent anywhere.
 
 ## The secure folder
 
@@ -270,6 +279,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - a second bell within the cooldown does nothing, escaping with a bell adds +10% (capped at +30%), and a bite resets it
 - it never hunts one player twice at once and does not come straight back to the player it just left
 - `/fglurk chatlearning off` forgets your messages, drops them from the Gemini context, stops learning, and survives a restart
+- the Gemini client against a fake Gemini server: falls back past missing (404), forbidden (403), broken (502) and rate-limited (429) models; retries without the thinking budget once and remembers it; stops at once on an invalid key and pauses until a key is set again; waits as long as Google asks after a rate limit; reports safety blocks and empty replies; never sends a malformed key; times out on a hung server; the key is only ever in the header; replies are cleaned of formatting codes, invisible characters and split emoji
 - hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests
 - indoors at home the watcher appears outside your roof; spotted in its real shape it flops flat
 - `/foglurker endgrace` and `/foglurker force hide|stalk|attack` work and are cheats-only; it finds tall grass, lies down with a low hitbox, drops flat when looked at while stalking, and attacks on command

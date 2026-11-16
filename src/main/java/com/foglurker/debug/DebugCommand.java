@@ -480,11 +480,15 @@ public final class DebugCommand {
             r.skip("Gemini API key", "not set: built-in phrases are used");
             return;
         }
-        r.pass("Gemini API key", ApiKeyStore.masked(key) + ", model " + FogLurkerConfig.COMMON.geminiModel.get()
-                + " (testing, result follows)");
+        r.pass("Gemini API key", ApiKeyStore.masked(key) + (ApiKeyStore.fromEnvironment() ? " (environment variable)" : " (saved, encrypted)")
+                + ", models " + String.join(", ", GeminiClient.models()) + " (testing, result follows)");
+        String paused = GeminiClient.pausedReason();
+        if (paused != null) {
+            r.skip("Gemini paused", paused);
+        }
         GeminiClient.test().whenComplete((result, err) -> server.execute(() -> {
             boolean ok = err == null && result != null && result.text().isPresent();
-            String detail = ok ? "replied" : err != null ? err.getMessage() : result == null ? "no answer" : result.error();
+            String detail = ok ? "replied" : err != null ? "request failed" : result == null ? "no answer" : result.error();
             src.sendSuccess(() -> Component.literal(ok ? "✔ " : "✘ ").withStyle(ok ? ChatFormatting.GREEN : ChatFormatting.RED)
                     .append(Component.literal("Gemini test").withStyle(ChatFormatting.WHITE))
                     .append(Component.literal(" — " + detail).withStyle(ChatFormatting.GRAY)), false);

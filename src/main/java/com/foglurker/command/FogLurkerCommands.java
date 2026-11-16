@@ -352,15 +352,25 @@ public final class FogLurkerCommands {
         try {
             if (key.equalsIgnoreCase("clear") || key.equalsIgnoreCase("remove") || key.equalsIgnoreCase("none")) {
                 ApiKeyStore.set(null);
-                reply(src, Component.literal("Gemini API key removed. It will use its built-in phrases instead.")
-                        .withStyle(ChatFormatting.GRAY));
+                GeminiClient.clearBackoff();
+                if (ApiKeyStore.isSet()) {
+                    reply(src, Component.literal("The saved Gemini API key was removed, but the server's FOGLURKER_GEMINI_API_KEY "
+                            + "environment variable still holds one, so Gemini stays on. Remove that variable to turn it off.")
+                            .withStyle(ChatFormatting.GOLD));
+                } else {
+                    reply(src, Component.literal("Gemini API key removed. It will use its built-in phrases instead.")
+                            .withStyle(ChatFormatting.GRAY));
+                }
                 return 1;
             }
-            if (key.contains(" ") || key.length() < 20) {
-                src.sendFailure(Component.literal("That does not look like a Gemini API key (get one at aistudio.google.com/apikey)."));
+            if (!ApiKeyStore.isPlausible(key)) {
+                // Never echo what was typed: it may be a real key with a typo.
+                src.sendFailure(Component.literal("That does not look like a Gemini API key: it should be one word of 20 or more "
+                        + "letters, digits and symbols with no spaces (get one at aistudio.google.com/apikey)."));
                 return 0;
             }
             ApiKeyStore.set(key);
+            GeminiClient.clearBackoff();
         } catch (IOException e) {
             FogLurkerMod.LOGGER.error("Could not store Gemini API key", e);
             src.sendFailure(Component.literal("Could not save the key: " + e.getMessage()));
@@ -380,8 +390,13 @@ public final class FogLurkerCommands {
                     + "Set one with /foglurker setgeminiapikey <key>.").withStyle(ChatFormatting.GRAY));
             return 0;
         }
-        reply(src, Component.literal("Gemini key " + ApiKeyStore.masked(key) + ", model "
-                + FogLurkerConfig.COMMON.geminiModel.get() + ". Testing...").withStyle(ChatFormatting.GRAY));
+        reply(src, Component.literal("Gemini key " + ApiKeyStore.masked(key)
+                + (ApiKeyStore.fromEnvironment() ? " (from the FOGLURKER_GEMINI_API_KEY environment variable)" : " (saved, encrypted)")
+                + ", models " + String.join(", ", GeminiClient.models()) + ". Testing...").withStyle(ChatFormatting.GRAY));
+        String paused = GeminiClient.pausedReason();
+        if (paused != null) {
+            reply(src, Component.literal("Paused: " + paused + ".").withStyle(ChatFormatting.GOLD));
+        }
         testGemini(src);
         return 1;
     }
@@ -393,7 +408,7 @@ public final class FogLurkerCommands {
                 reply(src, Component.literal("The Gemini key works. It will now write its own chat messages.")
                         .withStyle(ChatFormatting.GREEN));
             } else {
-                String why = err != null ? err.getMessage() : result == null ? "no answer" : result.error();
+                String why = err != null ? "request failed" : result == null ? "no answer" : result.error();
                 reply(src, Component.literal("Gemini test failed: " + why
                         + ". The key is kept; check it and set it again if needed.").withStyle(ChatFormatting.RED));
             }

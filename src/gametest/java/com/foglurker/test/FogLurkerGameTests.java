@@ -427,6 +427,235 @@ public final class FogLurkerGameTests {
         });
     }
 
+    // ------------------------------------------------------------------ Gemini
+
+    /** One request the fake Gemini server saw. */
+    private record SeenRequest(String model, String path, String key, String body) {
+    }
+
+    /**
+     * Runs the real Gemini client against a fake Gemini server on this machine (nothing reaches Google):
+     * fallbacks, the thinking retry, a rejected key, rate limits, safety blocks, garbage replies, a hung
+     * server, and that the key only ever travels in the header.
+     */
+    // The game-test server ticks far faster than 20/s, so this waits on wall-clock work with a big tick budget.
+    @GameTest(template = "empty", batch = "gemini", timeoutTicks = 100000)
+    public static void geminiClientHandlesEverything(GameTestHelper h) {
+        LurkerDirector.naturalSpawnsPaused = true;
+        java.util.concurrent.atomic.AtomicReference<String> outcome = new java.util.concurrent.atomic.AtomicReference<>();
+        Thread runner = new Thread(() -> {
+            try {
+                geminiScenarios();
+                outcome.set("OK");
+            } catch (Throwable t) {
+                outcome.set(t.getMessage() == null ? t.toString() : t.getMessage());
+            }
+        }, "FogLurker-GeminiTest");
+        runner.setDaemon(true);
+        runner.start();
+        h.succeedWhen(() -> {
+            String o = outcome.get();
+            check(o != null, "the Gemini scenarios are still running");
+            check(o.equals("OK"), o);
+        });
+    }
+
+    private static void geminiScenarios() throws Exception {
+        List<SeenRequest> seen = java.util.Collections.synchronizedList(new ArrayList<>());
+        com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(
+                new java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0), 0);
+        server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "FakeGemini");
+            t.setDaemon(true);
+            return t;
+        }));
+        server.createContext("/models/", ex -> {
+            String path = ex.getRequestURI().toString();
+            String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            String model = path.substring("/models/".length(), path.indexOf(':'));
+            seen.add(new SeenRequest(model, path, ex.getRequestHeaders().getFirst("x-goog-api-key"), body));
+            int status = 200;
+            String reply;
+            switch (model) {
+                case "gone" -> {
+                    status = 404;
+                    reply = "{\"error\":{\"code\":404,\"message\":\"models/gone is not found\",\"status\":\"NOT_FOUND\"}}";
+                }
+                case "ok-model" -> reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"let me think\",\"thought\":true},"
+                        + "{\"text\":\"hey come here\"}]},\"finishReason\":\"STOP\"}]}";
+                case "thinker" -> {
+                    if (body.contains("thinkingBudget")) {
+                        status = 400;
+                        reply = "{\"error\":{\"code\":400,\"message\":\"Budget 0 is invalid. This model only works in thinking mode.\","
+                                + "\"status\":\"INVALID_ARGUMENT\"}}";
+                    } else {
+                        reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]}}]}";
+                    }
+                }
+                case "badkey" -> {
+                    status = 400;
+                    reply = "{\"error\":{\"code\":400,\"message\":\"API key not valid. Please pass a valid API key.\","
+                            + "\"status\":\"INVALID_ARGUMENT\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\","
+                            + "\"reason\":\"API_KEY_INVALID\",\"domain\":\"googleapis.com\"}]}}";
+                }
+                case "busy" -> {
+                    status = 429;
+                    reply = "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota\",\"status\":\"RESOURCE_EXHAUSTED\","
+                            + "\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"37s\"}]}}";
+                }
+                case "private" -> {
+                    status = 403;
+                    reply = "{\"error\":{\"code\":403,\"message\":\"Permission denied on this model\",\"status\":\"PERMISSION_DENIED\"}}";
+                }
+                case "flaky" -> {
+                    status = 502;
+                    reply = "<html><body>Bad Gateway</body></html>";
+                }
+                case "safety" -> reply = "{\"candidates\":[{\"finishReason\":\"SAFETY\",\"index\":0}]}";
+                case "blocked" -> reply = "{\"promptFeedback\":{\"blockReason\":\"PROHIBITED_CONTENT\"}}";
+                case "overthink" -> reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hmm\",\"thought\":true}]},"
+                        + "\"finishReason\":\"MAX_TOKENS\"}]}";
+                case "garbage" -> reply = "{\"candidates\":\"what\"}";
+                case "hang" -> {
+                    try {
+                        Thread.sleep(6_000); // longer than the 2 s test timeout
+                    } catch (InterruptedException ignored) {
+                    }
+                    reply = "{}";
+                }
+                default -> {
+                    status = 500;
+                    reply = "{}";
+                }
+            }
+            byte[] out = reply.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(status, out.length);
+            ex.getResponseBody().write(out);
+            ex.close();
+        });
+        server.start();
+        String previous = ApiKeyStore.storedKey();
+        String key = "AIzaFAKE_test_key_0123456789abcdefXYZ";
+        try {
+            com.foglurker.chat.GeminiClient.setBaseUrlForTests("http://127.0.0.1:" + server.getAddress().getPort() + "/models/");
+            com.foglurker.chat.GeminiClient.clearBackoff();
+            ApiKeyStore.set(key);
+
+            // Fallback past a missing model; thought parts are not part of the answer; the key is in the header only.
+            var r = gem(List.of("gone", "ok-model"), key);
+            check(r.text().orElse("").equals("hey come here"), "fallback/thought filtering gave " + r);
+            check(seen.size() == 2 && seen.get(0).model().equals("gone") && seen.get(1).model().equals("ok-model"),
+                    "expected gone then ok-model, saw " + seen.stream().map(SeenRequest::model).toList());
+            for (SeenRequest q : seen) {
+                check(key.equals(q.key()), "the key must be sent in the x-goog-api-key header");
+                check(!q.path().contains(key) && !q.path().contains("key="), "the key leaked into the URL: " + q.path());
+                check(q.body().contains("\"thinkingBudget\":0") && q.body().contains("\"maxOutputTokens\":1024"),
+                        "unexpected request body " + q.body());
+                check(!q.body().contains(key), "the key leaked into the request body");
+            }
+
+            // A model that must think: retried once without the budget, and remembered.
+            seen.clear();
+            check(gem(List.of("thinker"), key).text().orElse("").equals("ok"), "thinking retry failed");
+            check(seen.size() == 2 && !seen.get(1).body().contains("thinkingBudget") && seen.get(1).body().contains("4096"),
+                    "the retry should drop the budget and allow room to think");
+            seen.clear();
+            check(gem(List.of("thinker"), key).text().isPresent() && seen.size() == 1, "it should remember the model must think");
+
+            // A model the project cannot use (403) is skipped; a 502 HTML page is skipped.
+            seen.clear();
+            check(gem(List.of("private", "flaky", "ok-model"), key).text().isPresent() && seen.size() == 3,
+                    "403 and 502 should fall through to the next model");
+            check(com.foglurker.chat.GeminiClient.available(List.of("ok-model")), "a model-specific 403 must not disable the key");
+
+            // Rate limit: tries the next model, and skips the limited one for as long as Google asked.
+            seen.clear();
+            check(gem(List.of("busy", "ok-model"), key).text().isPresent(), "a 429 should fall through to the next model");
+            check(com.foglurker.chat.GeminiClient.available(List.of("busy", "ok-model")), "one limited model must not pause Gemini");
+            seen.clear();
+            check(gem(List.of("busy", "ok-model"), key).text().isPresent() && seen.size() == 1
+                    && seen.get(0).model().equals("ok-model"), "the limited model should be skipped, saw "
+                    + seen.stream().map(SeenRequest::model).toList());
+            check(!com.foglurker.chat.GeminiClient.available(List.of("busy")), "with every model limited it should wait");
+            String paused = com.foglurker.chat.GeminiClient.pausedReason(List.of("busy"));
+            check(paused != null && paused.matches("rate limited by Google; retrying in 3[0-8]s"),
+                    "it should wait the 37 s Google asked for: " + paused);
+            seen.clear();
+            var limited = gem(List.of("busy"), key);
+            check(limited.status() == 429 && !limited.text().isPresent() && seen.isEmpty(),
+                    "while limited it should not ask at all");
+            com.foglurker.chat.GeminiClient.clearBackoff();
+            check(com.foglurker.chat.GeminiClient.available(List.of("busy")), "clearBackoff should lift the limit");
+
+            // A bad key: stops at once (no point asking other models), pauses, and says why without the key.
+            seen.clear();
+            var bad = gem(List.of("badkey", "ok-model"), key);
+            check(!bad.text().isPresent() && seen.size() == 1, "an invalid key should not be tried on every model");
+            check(!com.foglurker.chat.GeminiClient.available(List.of("ok-model")), "a rejected key should pause Gemini");
+            String why = com.foglurker.chat.GeminiClient.pausedReason(List.of("ok-model"));
+            check(why != null && why.contains("API key not valid") && !why.contains(key), "pause reason: " + why);
+            String other = "AIzaOTHER_test_key_0123456789abcdefXYZ";
+            ApiKeyStore.set(other);
+            check(com.foglurker.chat.GeminiClient.available(List.of("ok-model")), "setting a different key should work straight away");
+            ApiKeyStore.set(key);
+            check(gem(List.of("ok-model"), key).text().isPresent(), "an explicit test of the key still runs while paused");
+            check(com.foglurker.chat.GeminiClient.available(List.of("ok-model")), "a key that works again un-pauses Gemini");
+
+            // Empty answers say why.
+            check(gem(List.of("safety"), key).error().contains("SAFETY"), "safety block should be reported");
+            check(gem(List.of("blocked"), key).error().contains("PROHIBITED_CONTENT"), "prompt block should be reported");
+            check(gem(List.of("overthink"), key).error().contains("token limit"), "MAX_TOKENS should be reported");
+            check(gem(List.of("garbage"), key).error().contains("Unreadable"), "garbage should be reported");
+            check(gem(List.of("nope-500"), key).status() == 500, "a 500 on the last model should be reported");
+
+            // A key that could never be sent is refused before any request.
+            seen.clear();
+            var weird = gem(List.of("ok-model"), "AIza key with spaces 0123456789");
+            check(!weird.text().isPresent() && seen.isEmpty(), "an impossible key must not be sent");
+            check(!ApiKeyStore.isPlausible("short") && !ApiKeyStore.isPlausible("AIzaéabcdefghijklmnopqrstu")
+                    && ApiKeyStore.isPlausible(key), "key format check");
+            check(ApiKeyStore.masked("shortkey12345").equals("****"), "short keys must be fully masked");
+
+            // A hung server: the request times out and the future still completes.
+            long t0 = System.currentTimeMillis();
+            var hung = gem(List.of("hang"), key);
+            long took = System.currentTimeMillis() - t0;
+            check(!hung.text().isPresent() && took < com.foglurker.chat.GeminiClient.overallTimeoutSeconds() * 1000L,
+                    "a hung server should fail within the time limit (" + took + " ms, " + hung + ")");
+
+            // Model names from the config are cleaned up; a bad one can never change the URL.
+            check(com.foglurker.chat.GeminiClient.cleanModels(java.util.Arrays.asList("models/gemini-2.5-flash", " gemini-2.5-flash ",
+                    "../evil", "a/b", "x?key=1", "", null)).equals(List.of("gemini-2.5-flash")), "model name cleaning");
+
+            // What Gemini writes is cleaned before it reaches chat.
+            var ctx = new MimicChat.Context("Steve", "Alex", null, "north", false, List.of());
+            String clean = MimicChat.sanitize("**<Steve> hey​ come‮ here§c!**\nsecond line", ctx);
+            check(clean.equals("hey come here!"), "sanitize gave \"" + clean + "\"");
+            String emoji = MimicChat.clip("a".repeat(119) + "😀", 120);
+            check(emoji.equals("a".repeat(119)), "clip split an emoji");
+            check(MimicChat.sanitize("\"\u0007\"", ctx).isEmpty(), "control characters should be removed");
+
+            // parse() never throws on nonsense.
+            for (String junk : new String[]{"", "null", "[]", "{\"candidates\":[1]}", "{\"candidates\":[{\"content\":{\"parts\":[5]}}]}", "<html>"}) {
+                var p = com.foglurker.chat.GeminiClient.parse(200, junk);
+                check(!p.text().isPresent(), "junk reply produced text: " + junk);
+            }
+        } finally {
+            com.foglurker.chat.GeminiClient.setBaseUrlForTests(null);
+            com.foglurker.chat.GeminiClient.clearBackoff();
+            ApiKeyStore.set(previous);
+            server.stop(0);
+        }
+    }
+
+    private static com.foglurker.chat.GeminiClient.Result gem(List<String> models, String key) throws Exception {
+        var f = com.foglurker.chat.GeminiClient.generate(models, key, "system", "user", 1.0F);
+        var r = f.get(com.foglurker.chat.GeminiClient.overallTimeoutSeconds() + 5L, java.util.concurrent.TimeUnit.SECONDS);
+        check(r != null, "no result");
+        return r;
+    }
+
     // ------------------------------------------------------------------ the bite
 
     private static net.minecraft.world.entity.vehicle.Boat boatAt(GameTestHelper h, double rx, double rz) {
@@ -1113,6 +1342,7 @@ public final class FogLurkerGameTests {
         check(tamperDetected, "tampering was not detected");
 
         String key = "AIzaTESTKEY_0123456789abcdef";
+        String realKey = ApiKeyStore.storedKey(); // put back afterwards so tests never delete a real key
         ApiKeyStore.set(key);
         check(key.equals(ApiKeyStore.get()), "API key did not round-trip");
         String onDisk = new String(Files.readAllBytes(SecureStorage.root().resolve("gemini_api_key.enc")),
@@ -1121,6 +1351,7 @@ public final class FogLurkerGameTests {
         check(ApiKeyStore.masked(key).equals("AIza…cdef"), "masking is wrong: " + ApiKeyStore.masked(key));
         ApiKeyStore.set(null);
         check(!Files.exists(SecureStorage.root().resolve("gemini_api_key.enc")), "clearing did not delete the key file");
+        ApiKeyStore.set(realKey);
 
         UUID id = UUID.randomUUID();
         check(!VoiceConsent.isOptedIn(id), "players must start opted out");

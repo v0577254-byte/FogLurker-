@@ -8,6 +8,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,48 +17,188 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Minimal async client for the Gemini API (generativelanguage.googleapis.com).
- * Only chat text is ever sent; voice snippets never leave the server.
+ *
+ * <ul>
+ *   <li>Only chat text is ever sent; voice snippets never leave the server.</li>
+ *   <li>The key travels in the {@code x-goog-api-key} header, never in the URL, and is never logged.</li>
+ *   <li>Every future returned here always completes (with a failed {@link Result} rather than an
+ *       exception), within {@link #overallTimeoutSeconds()}.</li>
+ *   <li>A key Google rejects is not retried for 10 minutes (or until a key is set again), and a model
+ *       that is rate limited is skipped for as long as Google asks, so a broken key or an empty quota
+ *       never costs a request per chat line.</li>
+ * </ul>
  */
 public final class GeminiClient {
-    private static final String BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
+    private static final String DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
+    /** Model ids as Google writes them, e.g. gemini-2.5-flash, gemini-flash-latest. */
+    private static final Pattern MODEL_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,99}");
+    private static final Pattern RETRY_DELAY = Pattern.compile("^(\\d+(?:\\.\\d+)?)s$");
+    private static final long KEY_REJECTED_MILLIS = 10 * 60_000L;
+    private static final long DEFAULT_RATE_LIMIT_MILLIS = 60_000L;
+    private static final long MAX_RATE_LIMIT_MILLIS = 10 * 60_000L;
+    /**
+     * Output token caps. They only cap the reply (you pay for what is generated, not the cap), but on
+     * models that think, thinking counts against them, so they must be roomy or the reply comes back empty.
+     */
+    private static final int MAX_TOKENS = 1024;
+    private static final int MAX_TOKENS_THINKING = 4096;
+
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8))
             .build();
     /** Models that reject "thinkingBudget: 0"; we stop sending it to them. */
     private static final Map<String, Boolean> THINKING_REJECTED = new ConcurrentHashMap<>();
-    private static volatile long rateLimitedUntil;
+    private static final Set<String> WARNED_MODELS = ConcurrentHashMap.newKeySet();
+    /** Free-tier limits are per model, so rate limits are tracked per model (model -> wait until, epoch ms). */
+    private static final Map<String, Long> MODEL_LIMITED_UNTIL = new ConcurrentHashMap<>();
+    private static volatile String base = DEFAULT_BASE;
+    /** Request timeout override for the game tests (seconds), or 0 to use the config. */
+    private static volatile int testTimeoutSeconds;
+    private static volatile long keyRejectedUntil;
+    /** The key Google rejected (compared by value, so setting a different key works straight away). */
+    private static volatile String rejectedKey;
+    private static volatile String lastProblem;
 
     private GeminiClient() {
     }
 
-    public record Result(Optional<String> text, int status, String error) {
+    /**
+     * @param reason Google's machine-readable reason when there is one (API_KEY_INVALID, SAFETY, MAX_TOKENS...)
+     */
+    public record Result(Optional<String> text, int status, @Nullable String error, @Nullable String reason) {
         static Result ok(String t) {
-            return new Result(Optional.of(t), 200, null);
+            return new Result(Optional.of(t), 200, null, null);
         }
 
         static Result fail(int status, String error) {
-            return new Result(Optional.empty(), status, error);
+            return new Result(Optional.empty(), status, error, null);
+        }
+
+        static Result fail(int status, String error, @Nullable String reason) {
+            return new Result(Optional.empty(), status, error, reason);
         }
     }
 
+    /** Whether a request is worth making right now: a key is set, not rejected, and some model is not rate limited. */
     public static boolean available() {
-        return ApiKeyStore.isSet() && System.currentTimeMillis() > rateLimitedUntil;
+        return available(models());
     }
 
-    private static List<String> models() {
-        LinkedHashSet<String> m = new LinkedHashSet<>();
-        m.add(FogLurkerConfig.COMMON.geminiModel.get().trim());
-        for (String s : FogLurkerConfig.COMMON.geminiFallbackModels.get()) {
-            m.add(s.trim());
+    public static boolean available(List<String> models) {
+        String key = ApiKeyStore.get();
+        if (key == null || models.isEmpty()) {
+            return false;
         }
-        m.removeIf(String::isEmpty);
+        long now = System.currentTimeMillis();
+        if (now < keyRejectedUntil && key.equals(rejectedKey)) {
+            return false;
+        }
+        for (String m : models) {
+            if (!isLimited(m, now)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isLimited(String model, long now) {
+        Long until = MODEL_LIMITED_UNTIL.get(model);
+        return until != null && now < until;
+    }
+
+    /** Human-readable reason Gemini is paused, or null when it is not. Never contains the key. */
+    @Nullable
+    public static String pausedReason() {
+        return pausedReason(models());
+    }
+
+    @Nullable
+    public static String pausedReason(List<String> models) {
+        long now = System.currentTimeMillis();
+        String key = ApiKeyStore.get();
+        if (key != null && now < keyRejectedUntil && key.equals(rejectedKey)) {
+            return "Google rejected the key (" + lastProblem + "); retrying in " + ((keyRejectedUntil - now) / 1000 + 1)
+                    + "s or when a key is set again";
+        }
+        long soonest = Long.MAX_VALUE;
+        for (String m : models) {
+            if (!isLimited(m, now)) {
+                return null;
+            }
+            soonest = Math.min(soonest, MODEL_LIMITED_UNTIL.get(m));
+        }
+        return models.isEmpty() ? null : "rate limited by Google; retrying in " + ((soonest - now) / 1000 + 1) + "s";
+    }
+
+    /** Forget a rejected key or rate limits (a key was just set, or tests). */
+    public static void clearBackoff() {
+        MODEL_LIMITED_UNTIL.clear();
+        keyRejectedUntil = 0;
+        rejectedKey = null;
+        lastProblem = null;
+    }
+
+    /**
+     * Points the client at a local fake Gemini server with a short request timeout (game tests only);
+     * null restores Google's and the configured timeout.
+     */
+    public static void setBaseUrlForTests(@Nullable String url) {
+        base = url == null ? DEFAULT_BASE : url;
+        testTimeoutSeconds = url == null ? 0 : 2;
+        THINKING_REJECTED.clear();
+    }
+
+    private static int requestTimeoutSeconds() {
+        int t = testTimeoutSeconds;
+        return t > 0 ? t : FogLurkerConfig.COMMON.geminiTimeoutSeconds.get();
+    }
+
+    public static int overallTimeoutSeconds() {
+        // One slow attempt plus the "no thinking" retry, with a little slack.
+        return requestTimeoutSeconds() * 2 + 5;
+    }
+
+    /** The configured models, cleaned up: "models/" prefixes removed, duplicates and invalid names dropped. */
+    public static List<String> models() {
+        List<String> raw = new ArrayList<>();
+        raw.add(FogLurkerConfig.COMMON.geminiModel.get());
+        raw.addAll(FogLurkerConfig.COMMON.geminiFallbackModels.get());
+        return cleanModels(raw);
+    }
+
+    public static List<String> cleanModels(List<String> raw) {
+        LinkedHashSet<String> m = new LinkedHashSet<>();
+        for (String s : raw) {
+            if (s == null) {
+                continue;
+            }
+            String name = s.trim();
+            if (name.startsWith("models/")) {
+                name = name.substring("models/".length());
+            }
+            if (name.isEmpty()) {
+                continue;
+            }
+            if (!MODEL_NAME.matcher(name).matches()) {
+                if (WARNED_MODELS.add(name)) {
+                    FogLurkerMod.LOGGER.warn("Ignoring Gemini model name \"{}\" in the Fog Lurker config: not a valid model id", name);
+                }
+                continue;
+            }
+            m.add(name);
+        }
         return new ArrayList<>(m);
     }
 
@@ -67,32 +208,120 @@ public final class GeminiClient {
         if (key == null) {
             return CompletableFuture.completedFuture(Result.fail(0, "No Gemini API key set"));
         }
-        return tryModels(key, models(), 0, system, user, temperature);
+        return generate(models(), key, system, user, temperature);
+    }
+
+    /** Same as {@link #generate(String, String, float)} with explicit models and key. Always completes normally. */
+    public static CompletableFuture<Result> generate(List<String> models, String key, String system, String user,
+                                                     float temperature) {
+        if (!ApiKeyStore.isPlausible(key)) {
+            return CompletableFuture.completedFuture(Result.fail(0,
+                    "The stored key has characters a Gemini key cannot have; set it again"));
+        }
+        if (models.isEmpty()) {
+            return CompletableFuture.completedFuture(Result.fail(0, "No valid Gemini model names in the config"));
+        }
+        CompletableFuture<Result> attempt;
+        try {
+            attempt = tryModels(key, models, 0, system, user, temperature, null);
+        } catch (RuntimeException e) {
+            return CompletableFuture.completedFuture(Result.fail(0, "Gemini request failed: " + e.getClass().getSimpleName()));
+        }
+        return attempt
+                .exceptionally(t -> Result.fail(0, "Gemini request failed: " + rootMessage(t)))
+                .completeOnTimeout(Result.fail(0, "Gemini took too long to answer"), overallTimeoutSeconds(), TimeUnit.SECONDS);
     }
 
     private static CompletableFuture<Result> tryModels(String key, List<String> models, int index, String system,
-                                                       String user, float temperature) {
+                                                       String user, float temperature, @Nullable Result lastFailure) {
         if (index >= models.size()) {
-            return CompletableFuture.completedFuture(Result.fail(404, "None of the configured Gemini models are available"));
+            Result r = lastFailure != null ? lastFailure
+                    : Result.fail(404, "None of the configured Gemini models are available");
+            if (isKeyProblem(r)) {
+                rejectKey(key, r); // every model refused this key
+            }
+            return CompletableFuture.completedFuture(r);
         }
         String model = models.get(index);
+        if (isLimited(model, System.currentTimeMillis())) {
+            // Still waiting out this model's rate limit: do not even ask.
+            return tryModels(key, models, index + 1, system, user, temperature,
+                    Result.fail(429, "Gemini model " + model + " is rate limited; waiting as Google asked", "RATE_LIMITED"));
+        }
         boolean disableThinking = !THINKING_REJECTED.containsKey(model);
         return call(key, model, system, user, temperature, disableThinking).thenCompose(r -> {
-            if (r.status() == 400 && disableThinking && r.error() != null
-                    && r.error().toLowerCase().contains("think")) {
+            if (r.status() == 400 && disableThinking && mentionsThinking(r.error())) {
                 THINKING_REJECTED.put(model, Boolean.TRUE);
                 return call(key, model, system, user, temperature, false);
             }
             return CompletableFuture.completedFuture(r);
         }).thenCompose(r -> {
-            if (r.status() == 404 || (r.status() >= 500 && r.status() < 600)) {
-                return tryModels(key, models, index + 1, system, user, temperature);
+            if (r.text().isPresent()) {
+                if (key.equals(rejectedKey)) {
+                    clearBackoff(); // the key works after all (an API was enabled, billing fixed...)
+                }
+                return CompletableFuture.completedFuture(r);
+            }
+            if ("API_KEY_INVALID".equals(r.reason())) {
+                rejectKey(key, r); // the key itself is wrong: no model will take it
+                return CompletableFuture.completedFuture(r);
+            }
+            if (isKeyProblem(r)) {
+                // Could be this model only (e.g. a preview model the project has no access to): try the others.
+                return tryModels(key, models, index + 1, system, user, temperature, r);
             }
             if (r.status() == 429) {
-                rateLimitedUntil = System.currentTimeMillis() + 60_000L;
+                // Free-tier limits are per model: the next model may still have quota.
+                MODEL_LIMITED_UNTIL.put(model, System.currentTimeMillis() + rateLimitMillis(r));
+                return tryModels(key, models, index + 1, system, user, temperature, r);
+            }
+            if (r.status() == 404 || (r.status() >= 500 && r.status() < 600)) {
+                return tryModels(key, models, index + 1, system, user, temperature, r);
             }
             return CompletableFuture.completedFuture(r);
         });
+    }
+
+    private static void rejectKey(String key, Result r) {
+        rejectedKey = key;
+        keyRejectedUntil = System.currentTimeMillis() + KEY_REJECTED_MILLIS;
+        lastProblem = r.error();
+        FogLurkerMod.LOGGER.warn("Gemini refused the API key ({}). Using built-in phrases; retrying in 10 minutes "
+                + "or when a key is set again.", r.error());
+    }
+
+    private static boolean mentionsThinking(@Nullable String error) {
+        if (error == null) {
+            return false;
+        }
+        String e = error.toLowerCase(Locale.ROOT);
+        return e.contains("think") || e.contains("budget");
+    }
+
+    /** Errors that will not go away by themselves: a bad, disabled or restricted key, or an unsupported location. */
+    private static boolean isKeyProblem(Result r) {
+        if (r.status() == 401 || r.status() == 403) {
+            return true;
+        }
+        String reason = r.reason() == null ? "" : r.reason();
+        if (reason.equals("API_KEY_INVALID") || reason.equals("API_KEY_SERVICE_BLOCKED") || reason.equals("SERVICE_DISABLED")
+                || reason.equals("FAILED_PRECONDITION")) {
+            return true;
+        }
+        String e = r.error() == null ? "" : r.error().toLowerCase(Locale.ROOT);
+        return r.status() == 400 && (e.contains("api key") || e.contains("location is not supported"));
+    }
+
+    private static long rateLimitMillis(Result r) {
+        // Google says how long to wait ("retryDelay": "37s") in the error details; parse() puts it in reason.
+        if (r.reason() != null) {
+            Matcher m = RETRY_DELAY.matcher(r.reason());
+            if (m.matches()) {
+                long ms = (long) (Double.parseDouble(m.group(1)) * 1000);
+                return Math.max(1000L, Math.min(MAX_RATE_LIMIT_MILLIS, ms));
+            }
+        }
+        return DEFAULT_RATE_LIMIT_MILLIS;
     }
 
     private static CompletableFuture<Result> call(String key, String model, String system, String user,
@@ -109,7 +338,7 @@ public final class GeminiClient {
         body.add("contents", contents);
         JsonObject gen = new JsonObject();
         gen.addProperty("temperature", temperature);
-        gen.addProperty("maxOutputTokens", disableThinking ? 96 : 1024);
+        gen.addProperty("maxOutputTokens", disableThinking ? MAX_TOKENS : MAX_TOKENS_THINKING);
         if (disableThinking) {
             JsonObject thinking = new JsonObject();
             thinking.addProperty("thinkingBudget", 0);
@@ -119,19 +348,20 @@ public final class GeminiClient {
 
         HttpRequest req;
         try {
-            req = HttpRequest.newBuilder(URI.create(BASE + model + ":generateContent"))
-                    .timeout(Duration.ofSeconds(FogLurkerConfig.COMMON.geminiTimeoutSeconds.get()))
+            req = HttpRequest.newBuilder(URI.create(base + model + ":generateContent"))
+                    .timeout(Duration.ofSeconds(requestTimeoutSeconds()))
                     .header("Content-Type", "application/json")
                     .header("x-goog-api-key", key)
                     .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                     .build();
         } catch (IllegalArgumentException e) {
-            return CompletableFuture.completedFuture(Result.fail(0, "Bad model name: " + model));
+            // Never include the exception text: it can quote the header value (the key).
+            return CompletableFuture.completedFuture(Result.fail(0, "Could not build the request for model " + model));
         }
         return HTTP.sendAsync(req, HttpResponse.BodyHandlers.ofString())
                 .thenApply(resp -> parse(resp.statusCode(), resp.body()))
                 .exceptionally(t -> {
-                    FogLurkerMod.LOGGER.debug("Gemini request failed", t);
+                    FogLurkerMod.LOGGER.debug("Gemini request to {} failed: {}", model, rootMessage(t));
                     return Result.fail(0, "Could not reach Gemini: " + rootMessage(t));
                 });
     }
@@ -144,49 +374,111 @@ public final class GeminiClient {
         return arr;
     }
 
-    private static Result parse(int status, String body) {
+    /** Turns a raw HTTP reply into a {@link Result}. Never throws. Public for the game tests. */
+    public static Result parse(int status, String body) {
         try {
-            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            JsonElement parsed = JsonParser.parseString(body == null ? "" : body);
+            if (!parsed.isJsonObject()) {
+                return Result.fail(status, status == 200 ? "Unreadable reply from Gemini" : "HTTP " + status);
+            }
+            JsonObject root = parsed.getAsJsonObject();
             if (status != 200) {
-                String msg = root.has("error") && root.getAsJsonObject("error").has("message")
-                        ? root.getAsJsonObject("error").get("message").getAsString() : ("HTTP " + status);
-                return Result.fail(status, msg);
+                return error(status, root);
             }
-            JsonArray candidates = root.getAsJsonArray("candidates");
+            if (root.has("candidates") && !root.get("candidates").isJsonArray()) {
+                return Result.fail(200, "Unreadable reply from Gemini");
+            }
+            JsonArray candidates = root.has("candidates") ? root.getAsJsonArray("candidates") : null;
             if (candidates == null || candidates.isEmpty()) {
-                return Result.fail(200, "Gemini returned no text");
+                String block = root.has("promptFeedback") && root.get("promptFeedback").isJsonObject()
+                        ? string(root.getAsJsonObject("promptFeedback"), "blockReason") : null;
+                return block != null
+                        ? Result.fail(200, "Gemini blocked the request (" + block + ")", block)
+                        : Result.fail(200, "Gemini returned no text");
             }
-            JsonObject content = candidates.get(0).getAsJsonObject().getAsJsonObject("content");
-            if (content == null || !content.has("parts")) {
-                return Result.fail(200, "Gemini returned no text");
-            }
+            JsonObject first = candidates.get(0).getAsJsonObject();
+            String finish = string(first, "finishReason");
             StringBuilder sb = new StringBuilder();
-            for (JsonElement el : content.getAsJsonArray("parts")) {
-                JsonObject part = el.getAsJsonObject();
-                if (part.has("thought") && part.get("thought").getAsBoolean()) {
-                    continue;
-                }
-                if (part.has("text")) {
-                    sb.append(part.get("text").getAsString());
+            JsonObject content = first.has("content") && first.get("content").isJsonObject() ? first.getAsJsonObject("content") : null;
+            if (content != null && content.has("parts") && content.get("parts").isJsonArray()) {
+                for (JsonElement el : content.getAsJsonArray("parts")) {
+                    if (!el.isJsonObject()) {
+                        continue;
+                    }
+                    JsonObject part = el.getAsJsonObject();
+                    if (part.has("thought") && part.get("thought").isJsonPrimitive() && part.get("thought").getAsBoolean()) {
+                        continue; // its private reasoning, not the answer
+                    }
+                    String t = string(part, "text");
+                    if (t != null) {
+                        sb.append(t);
+                    }
                 }
             }
             String text = sb.toString().trim();
-            return text.isEmpty() ? Result.fail(200, "Gemini returned no text") : Result.ok(text);
-        } catch (Exception e) {
+            if (!text.isEmpty()) {
+                return Result.ok(text);
+            }
+            if ("MAX_TOKENS".equals(finish)) {
+                return Result.fail(200, "Gemini used up its token limit before answering", finish);
+            }
+            return finish != null && !"STOP".equals(finish)
+                    ? Result.fail(200, "Gemini returned no text (" + finish + ")", finish)
+                    : Result.fail(200, "Gemini returned no text");
+        } catch (RuntimeException e) {
             return Result.fail(status, status == 200 ? "Unreadable reply from Gemini" : "HTTP " + status);
         }
     }
 
-    private static String rootMessage(Throwable t) {
-        Throwable c = t;
-        while (c.getCause() != null) {
-            c = c.getCause();
+    private static Result error(int status, JsonObject root) {
+        JsonObject err = root.has("error") && root.get("error").isJsonObject() ? root.getAsJsonObject("error") : null;
+        if (err == null) {
+            return Result.fail(status, "HTTP " + status);
         }
-        return c.getClass().getSimpleName() + (c.getMessage() == null ? "" : ": " + c.getMessage());
+        String msg = string(err, "message");
+        String reason = null;
+        if (err.has("details") && err.get("details").isJsonArray()) {
+            for (JsonElement d : err.getAsJsonArray("details")) {
+                if (!d.isJsonObject()) {
+                    continue;
+                }
+                JsonObject o = d.getAsJsonObject();
+                String r = string(o, "reason");
+                String delay = string(o, "retryDelay");
+                if (status == 429 && delay != null) {
+                    reason = delay;
+                } else if (r != null && reason == null) {
+                    reason = r;
+                }
+            }
+        }
+        if (reason == null) {
+            reason = string(err, "status");
+        }
+        return Result.fail(status, msg != null && !msg.isBlank() ? oneLine(msg) : "HTTP " + status, reason);
     }
 
-    /** Sends a tiny request to check that a key works. */
+    @Nullable
+    private static String string(JsonObject o, String field) {
+        JsonElement e = o.get(field);
+        return e != null && e.isJsonPrimitive() ? e.getAsString() : null;
+    }
+
+    private static String oneLine(String s) {
+        String t = s.replaceAll("\\s+", " ").trim();
+        return t.length() > 200 ? t.substring(0, 200) + "..." : t;
+    }
+
+    private static String rootMessage(Throwable t) {
+        Throwable c = t;
+        while (c.getCause() != null && c.getCause() != c) {
+            c = c.getCause();
+        }
+        return c.getClass().getSimpleName() + (c.getMessage() == null ? "" : ": " + oneLine(c.getMessage()));
+    }
+
+    /** Sends a tiny request to check that the stored key works (ignores any back-off). */
     public static CompletableFuture<Result> test() {
-        return generate("Reply with exactly the word: ok", "ping", 0F);
+        return generate("Reply with exactly the word: ok", "ping", 1.0F);
     }
 }
