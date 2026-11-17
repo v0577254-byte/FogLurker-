@@ -277,7 +277,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `voice.voiceDistance` | 32 | |
 | `voice.showVoiceNoticeOnJoin` | true | |
 
-`config/foglurker-client.toml`: `fogEffects`, `screenEffects`.
+`config/foglurker-client.toml`: `fogEffects` (the fog), `screenEffects` (shake and vignette), `fogOverlay` (also draw the fog as a see-through layer over the screen, so it shows even when a shader pack or rendering mod replaces Minecraft's fog; on by default). `/foglurker debugeverything` checks whether the world fog is working on your game.
 
 ## Building from source
 

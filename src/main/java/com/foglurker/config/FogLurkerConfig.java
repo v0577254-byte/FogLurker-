@@ -146,12 +146,16 @@ public final class FogLurkerConfig {
     public static final class Client {
         public final ForgeConfigSpec.BooleanValue fogEffects;
         public final ForgeConfigSpec.BooleanValue screenEffects;
+        public final ForgeConfigSpec.BooleanValue fogOverlay;
 
         Client(ForgeConfigSpec.Builder b) {
             fogEffects = b.comment("Thick fog rolls in while the creature is hunting you.")
                     .define("fogEffects", true);
             screenEffects = b.comment("Camera shake and vignette when it reveals itself.")
                     .define("screenEffects", true);
+            fogOverlay = b.comment("Also draw the fog as a see-through layer over the screen. This shows even when a shader pack",
+                            "or another mod replaces Minecraft's own fog.")
+                    .define("fogOverlay", true);
         }
     }
 }

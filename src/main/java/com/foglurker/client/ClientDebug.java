@@ -21,6 +21,7 @@ import java.util.List;
  * TEMPORARY (part of /foglurker debugeverything): checks the client side and prints the results in
  * your own chat. Remove together with DebugCommand and DebugPacket before release.
  */
+@net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = com.foglurker.FogLurkerMod.MOD_ID, value = net.minecraftforge.api.distmarker.Dist.CLIENT)
 public final class ClientDebug {
     private static int passed;
     private static int failed;
@@ -128,6 +129,30 @@ public final class ClientDebug {
         say(Component.literal("Now playing a 3 second fog + heartbeat test...").withStyle(ChatFormatting.GRAY));
         ClientEffects.setFogTarget(0.6F);
         ClientEffects.scare(40);
+        // Two seconds in, check that Minecraft is really using the creature's fog.
+        fogCheckIn = 40;
+    }
+
+    private static int fogCheckIn;
+
+    @net.minecraftforge.eventbus.api.SubscribeEvent
+    public static void onClientTick(net.minecraftforge.event.TickEvent.ClientTickEvent event) {
+        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END || fogCheckIn <= 0 || --fogCheckIn > 0) {
+            return;
+        }
+        int asked = ClientEffects.fogEventsLastSecond();
+        int used = ClientEffects.fogAppliedLastSecond();
+        boolean ok = used > 0;
+        String detail = ok ? "the world fog is working (" + used + " frames in the last second)"
+                : asked == 0 ? "Minecraft never asked for the world fog: a shader pack or rendering mod replaces it. "
+                + "The fog veil over the screen still shows it" + (FogLurkerConfig.CLIENT.fogOverlay.get() ? "." : " (turn fogOverlay on).")
+                : !FogLurkerConfig.CLIENT.fogEffects.get() ? "fogEffects is off in config/foglurker-client.toml"
+                : "the fog was asked for but not used (" + asked + " frames); tell the mod author";
+        passed = 0;
+        failed = 0;
+        check("World fog", ok, detail);
+        check("Fog veil", FogLurkerConfig.CLIENT.fogOverlay.get(), FogLurkerConfig.CLIENT.fogOverlay.get()
+                ? "on: the fog also shows as a layer over the screen" : "off (fogOverlay in config/foglurker-client.toml)");
     }
 
     private static void check(String what, boolean ok, String detail) {

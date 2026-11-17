@@ -77,6 +77,12 @@ public final class ClientEffects {
         if (mc.isPaused()) {
             return;
         }
+        if (mc.level.getGameTime() % 20 == 0) {
+            fogEventsLastSecond = fogEvents;
+            fogAppliedLastSecond = fogApplied;
+            fogEvents = 0;
+            fogApplied = 0;
+        }
         if (++sinceFogPacket > 80) {
             fogTarget = 0; // the server stopped telling us it is near
         }
@@ -113,12 +119,30 @@ public final class ClientEffects {
         reset();
     }
 
+    // World-fog bookkeeping, so /foglurker debugeverything can tell whether anything blocks it.
+    private static int fogEvents;
+    private static int fogEventsLastSecond;
+    private static int fogApplied;
+    private static int fogAppliedLastSecond;
+    private static int fogColor = 0xC0C6CE;
+
+    /** Minecraft asked for the world fog this many times in the last second (0 = something skips Forge's fog). */
+    public static int fogEventsLastSecond() {
+        return fogEventsLastSecond;
+    }
+
+    /** ...and this many of those used the creature's fog. */
+    public static int fogAppliedLastSecond() {
+        return fogAppliedLastSecond;
+    }
+
     private static float fogNow(double partialTick) {
         return Mth.lerp((float) partialTick, fogPrev, fog);
     }
 
     @SubscribeEvent
     public static void onRenderFog(ViewportEvent.RenderFog event) {
+        fogEvents++;
         if (!FogLurkerConfig.CLIENT.fogEffects.get() || event.getType() != FogType.NONE) {
             return;
         }
@@ -126,6 +150,7 @@ public final class ClientEffects {
         if (f < 0.01F) {
             return;
         }
+        fogApplied++;
         // Falls off fast: ~60 blocks of view while it stalks, ~14 while it lures you deep, ~9 when it attacks.
         float vanillaFar = event.getFarPlaneDistance();
         float far = Math.min(vanillaFar, 8.0F + (vanillaFar - 8.0F) * (float) Math.pow(1.0F - f, 2.2F));
@@ -148,6 +173,9 @@ public final class ClientEffects {
         event.setRed(Mth.lerp(f, event.getRed(), avg * 0.95F));
         event.setGreen(Mth.lerp(f, event.getGreen(), avg * 0.98F));
         event.setBlue(Mth.lerp(f, event.getBlue(), avg * 1.05F));
+        // Remember the colour so the screen veil matches it (pale by day, dark at night).
+        fogColor = ((int) (Mth.clamp(event.getRed(), 0F, 1F) * 255) << 16) | ((int) (Mth.clamp(event.getGreen(), 0F, 1F) * 255) << 8)
+                | (int) (Mth.clamp(event.getBlue(), 0F, 1F) * 255);
     }
 
     @SubscribeEvent
@@ -163,6 +191,17 @@ public final class ClientEffects {
 
     /** Dark red pulse when it reveals itself; a faint darkening while the fog is thick. */
     public static void renderOverlay(ForgeGui gui, GuiGraphics graphics, float partialTick, int width, int height) {
+        // The fog veil: a see-through layer of fog over the whole view, thicker toward the edges. It works
+        // even when shaders or a rendering mod replace Minecraft's world fog.
+        float veil = FogLurkerConfig.CLIENT.fogEffects.get() && FogLurkerConfig.CLIENT.fogOverlay.get() ? fogNow(partialTick) : 0F;
+        if (veil > 0.02F && !Minecraft.getInstance().options.hideGui) {
+            int base = (int) (Mth.clamp(veil * 0.42F, 0F, 1F) * 255);
+            int edge = (int) (Mth.clamp(veil * 0.72F, 0F, 1F) * 255);
+            graphics.fill(0, 0, width, height, (base << 24) | fogColor);
+            int band = height / 3;
+            graphics.fillGradient(0, 0, width, band, ((edge - base) << 24) | fogColor, fogColor & 0xFFFFFF);
+            graphics.fillGradient(0, height - band, width, height, fogColor & 0xFFFFFF, ((edge - base) << 24) | fogColor);
+        }
         if (!FogLurkerConfig.CLIENT.screenEffects.get()) {
             return;
         }
