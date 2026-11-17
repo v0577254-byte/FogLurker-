@@ -19,8 +19,6 @@ import net.minecraft.world.item.SwordItem;
 import net.minecraft.world.item.Tiers;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.BlockPos;
@@ -37,8 +35,8 @@ import java.util.List;
  *   <li>Against the Fog Lurker a fully charged hit does 10, a critical hit 15, straight through its armour
  *       (see {@link FogLurkerEntity#hurt}).</li>
  *   <li>Right-click: a scare burst, a sonic boom it is afraid of. 10 of them; its durability bar shows how
- *       many are left. Hitting things never wears it. Recharge it by crafting it with The Fog of the Day and
- *       The Fog of the Night, one charge each (5 of each refills it).</li>
+ *       many are left. Hitting things never wears it. Recharge it in a crafting table: the sword in the
+ *       middle, The Fog of the Day or of the Night around it, one charge each. It cannot be enchanted.</li>
  * </ul>
  */
 public class ProtectorOfTheFogItem extends SwordItem {
@@ -77,14 +75,25 @@ public class ProtectorOfTheFogItem extends SwordItem {
         return false;
     }
 
+    // Unenchantable: not at a table, not with books on an anvil.
+    @Override
+    public boolean isEnchantable(ItemStack stack) {
+        return false;
+    }
+
+    @Override
+    public int getEnchantmentValue() {
+        return 0;
+    }
+
     @Override
     public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
-        return enchantment != Enchantments.MENDING && super.canApplyAtEnchantingTable(stack, enchantment);
+        return false;
     }
 
     @Override
     public boolean isBookEnchantable(ItemStack stack, ItemStack book) {
-        return !EnchantmentHelper.getEnchantments(book).containsKey(Enchantments.MENDING) && super.isBookEnchantable(stack, book);
+        return false;
     }
 
     // ------------------------------------------------------------------ the scare burst
@@ -94,8 +103,8 @@ public class ProtectorOfTheFogItem extends SwordItem {
         ItemStack stack = player.getItemInHand(hand);
         if (charges(stack) <= 0) {
             if (!level.isClientSide) {
-                player.displayClientMessage(Component.literal("No scare bursts left. Craft it with The Fog of the Day and "
-                        + "The Fog of the Night to recharge it.").withStyle(ChatFormatting.GRAY), true);
+                player.displayClientMessage(Component.literal("No scare bursts left. Put it in the middle of a crafting table "
+                        + "with The Fog of the Day or of the Night around it to recharge.").withStyle(ChatFormatting.GRAY), true);
             }
             return InteractionResultHolder.fail(stack);
         }

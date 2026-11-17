@@ -11,65 +11,62 @@ import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.Level;
 
 /**
- * Recharging The Protector of the Fog: the sword plus equal numbers of The Fog of the Day and The Fog of
- * the Night, anywhere in a crafting grid. Each fog item gives back one scare burst, so 5 of each refill it
- * from empty (in two crafts, because the grid holds 8 fog items at most).
+ * Recharging The Protector of the Fog in a crafting table: the sword in the middle slot, and The Fog of the
+ * Day or The Fog of the Night in any of the slots around it. Each fog item gives back one scare burst, so
+ * you can put them in one at a time. Nothing goes to waste: it will not take more than it is missing.
  */
 public class ProtectorRechargeRecipe extends CustomRecipe {
     public ProtectorRechargeRecipe(ResourceLocation id, CraftingBookCategory category) {
         super(id, category);
     }
 
-    /** @return {sword slot, day count, night count}, or null if this is not a recharge */
-    private static int[] scan(CraftingContainer grid) {
-        int sword = -1;
-        int day = 0;
-        int night = 0;
-        for (int i = 0; i < grid.getContainerSize(); i++) {
+    /** @return how many fog items are around the sword, or 0 if this is not a recharge */
+    private static int scan(CraftingContainer grid) {
+        if (grid.getWidth() != 3 || grid.getHeight() != 3) {
+            return 0; // the sword goes in the middle of a crafting table
+        }
+        ItemStack sword = grid.getItem(4);
+        if (!sword.is(ModItems.PROTECTOR_OF_THE_FOG.get()) || sword.getDamageValue() <= 0) {
+            return 0;
+        }
+        int fog = 0;
+        for (int i = 0; i < 9; i++) {
+            if (i == 4) {
+                continue;
+            }
             ItemStack s = grid.getItem(i);
             if (s.isEmpty()) {
                 continue;
             }
-            if (s.is(ModItems.PROTECTOR_OF_THE_FOG.get()) && sword < 0) {
-                sword = i;
-            } else if (s.is(ModItems.FOG_OF_THE_DAY.get())) {
-                day++;
-            } else if (s.is(ModItems.FOG_OF_THE_NIGHT.get())) {
-                night++;
+            if (s.is(ModItems.FOG_OF_THE_DAY.get()) || s.is(ModItems.FOG_OF_THE_NIGHT.get())) {
+                fog++;
             } else {
-                return null;
+                return 0;
             }
         }
-        if (sword < 0 || day == 0 || day != night) {
-            return null;
-        }
-        ItemStack s = grid.getItem(sword);
-        if (s.getDamageValue() <= 0 || day + night > s.getDamageValue()) {
-            return null; // already full, or more fog than it can take (nothing goes to waste)
-        }
-        return new int[]{sword, day, night};
+        return fog > sword.getDamageValue() ? 0 : fog;
     }
 
     @Override
     public boolean matches(CraftingContainer grid, Level level) {
-        return scan(grid) != null;
+        return scan(grid) > 0;
     }
 
     @Override
     public ItemStack assemble(CraftingContainer grid, RegistryAccess access) {
-        int[] found = scan(grid);
-        if (found == null) {
+        int fog = scan(grid);
+        if (fog <= 0) {
             return ItemStack.EMPTY;
         }
-        ItemStack result = grid.getItem(found[0]).copy();
+        ItemStack result = grid.getItem(4).copy();
         result.setCount(1);
-        result.setDamageValue(Math.max(0, result.getDamageValue() - found[1] - found[2]));
+        result.setDamageValue(Math.max(0, result.getDamageValue() - fog));
         return result;
     }
 
     @Override
     public boolean canCraftInDimensions(int width, int height) {
-        return width * height >= 3;
+        return width >= 3 && height >= 3;
     }
 
     @Override

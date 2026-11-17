@@ -700,25 +700,53 @@ public final class FogLurkerGameTests {
                 p.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, stack);
                 var result = sword.use(h.getLevel(), p, net.minecraft.world.InteractionHand.MAIN_HAND);
                 check(result.getResult() == net.minecraft.world.InteractionResult.FAIL, "an empty sword must not burst");
-                // Recharge: one charge per fog item, equal day and night, never past full.
+                // Recharge: the sword in the middle of a crafting table, fog items around it, one charge each.
                 var recipe = new com.foglurker.item.ProtectorRechargeRecipe(new net.minecraft.resources.ResourceLocation("foglurker", "t"),
                         net.minecraft.world.item.crafting.CraftingBookCategory.EQUIPMENT);
                 var grid = new net.minecraft.world.inventory.TransientCraftingContainer(
                         net.minecraft.world.inventory.ChestMenu.threeRows(0, p.getInventory()), 3, 3);
-                grid.setItem(0, stack.copy());
-                for (int i = 1; i <= 4; i++) {
-                    grid.setItem(i, new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_DAY.get()));
-                    grid.setItem(i + 4, new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get()));
+                ItemStack day = new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_DAY.get());
+                ItemStack night = new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get());
+                grid.setItem(4, stack.copy());
+                grid.setItem(0, day.copy());
+                check(recipe.matches(grid, h.getLevel()), "one fog item at a time should recharge");
+                check(com.foglurker.item.ProtectorOfTheFogItem.charges(recipe.assemble(grid, server.registryAccess())) == 1,
+                        "one fog item should give one charge");
+                for (int slot : new int[]{1, 2, 3, 5, 6, 7, 8}) {
+                    grid.setItem(slot, (slot % 2 == 0 ? day : night).copy());
                 }
-                check(recipe.matches(grid, h.getLevel()), "4 day + 4 night should recharge an empty sword");
                 ItemStack out = recipe.assemble(grid, server.registryAccess());
-                check(com.foglurker.item.ProtectorOfTheFogItem.charges(out) == 8, "8 fog items should give 8 charges, got "
+                check(com.foglurker.item.ProtectorOfTheFogItem.charges(out) == 8, "8 fog items (day and night mixed) should give 8 charges, got "
                         + com.foglurker.item.ProtectorOfTheFogItem.charges(out));
-                grid.setItem(8, ItemStack.EMPTY);
-                check(!recipe.matches(grid, h.getLevel()), "unequal day and night must not recharge");
-                grid.setItem(0, out);
-                grid.setItem(8, new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get()));
+                var offCentre = new net.minecraft.world.inventory.TransientCraftingContainer(
+                        net.minecraft.world.inventory.ChestMenu.threeRows(0, p.getInventory()), 3, 3);
+                offCentre.setItem(0, stack.copy());
+                offCentre.setItem(1, day.copy());
+                check(!recipe.matches(offCentre, h.getLevel()), "the sword has to be in the middle");
+                ItemStack nearlyFull = stack.copy();
+                nearlyFull.setDamageValue(1);
+                grid.setItem(4, nearlyFull);
                 check(!recipe.matches(grid, h.getLevel()), "more fog than it is missing must not be wasted");
+                // It cannot be enchanted at all.
+                check(!stack.isEnchantable() && sword.getEnchantmentValue() == 0
+                        && !sword.canApplyAtEnchantingTable(stack, net.minecraft.world.item.enchantment.Enchantments.SHARPNESS)
+                        && !sword.isBookEnchantable(stack, net.minecraft.world.item.EnchantedBookItem.createForEnchantment(
+                        new net.minecraft.world.item.enchantment.EnchantmentInstance(net.minecraft.world.item.enchantment.Enchantments.MENDING, 1))),
+                        "the Protector must not be enchantable");
+                // The sword recipe: teeth / ingot / teeth, teeth / ingot / teeth, teeth / foggy stick / teeth.
+                var swordRecipe = server.getRecipeManager().byKey(new net.minecraft.resources.ResourceLocation("foglurker", "protector_of_the_fog"));
+                check(swordRecipe.isPresent() && swordRecipe.get() instanceof net.minecraft.world.item.crafting.ShapedRecipe,
+                        "the sword recipe should be a shaped recipe");
+                var shaped = (net.minecraft.world.item.crafting.ShapedRecipe) swordRecipe.get();
+                var ing = shaped.getIngredients();
+                var T = com.foglurker.registry.ModItems.TEETH_OF_THE_LURKER.get();
+                var I = com.foglurker.registry.ModItems.INGOT_OF_THE_FOG.get();
+                var S = com.foglurker.registry.ModItems.FOGGY_STICK.get();
+                net.minecraft.world.item.Item[] want = {T, I, T, T, I, T, T, S, T};
+                check(shaped.getWidth() == 3 && shaped.getHeight() == 3, "the sword recipe should fill the 3x3 grid");
+                for (int k = 0; k < 9; k++) {
+                    check(ing.get(k).test(new ItemStack(want[k])), "sword recipe slot " + k + " should be " + want[k]);
+                }
                 var recipes = server.getRecipeManager();
                 check(recipes.byKey(new net.minecraft.resources.ResourceLocation("foglurker", "protector_of_the_fog")).isPresent()
                         && recipes.byKey(new net.minecraft.resources.ResourceLocation("foglurker", "protector_recharge")).isPresent(),

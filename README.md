@@ -86,14 +86,22 @@ It drops **The Fog of the Day** if it died in daylight and **The Fog of the Nigh
 
 ### The Protector of the Fog
 
-Crafted in a column: **Ingot of the Fog** on top, **Teeth of the Lurker** in the middle, **Foggy Stick** at the bottom.
+Crafted in a crafting table:
+
+| | | |
+|---|---|---|
+| Teeth of the Lurker | Ingot of the Fog | Teeth of the Lurker |
+| Teeth of the Lurker | Ingot of the Fog | Teeth of the Lurker |
+| Teeth of the Lurker | Foggy Stick | Teeth of the Lurker |
+
+A spiky black, grey and white blade wrapped in a slowly drifting mist. **It cannot be enchanted** (not at a table, not with books).
 
 - Against anything else it is just a wooden sword.
 - Against the Fog Lurker a fully charged hit does **10 damage**, a critical hit **15**, straight through its armour.
 - **Right-click: a scare burst.** A blue sonic boom like the Warden's. It reaches every creature that is hunting you or is within 96 blocks, **wherever you aim**. 3 times in 4 it shrieks and flees. Otherwise it holds on but is weakened for 15 seconds: slower, its bites do 40% less and come 50% less often, and it glows so you can see it.
 - After a scare burst it **fears you for 20 minutes**: it is half as likely to attack you, and if you are with a friend (within 16 blocks) it almost never attacks (a tenth as likely). Friends standing with you when you use it are feared too.
-- It holds **10 scare bursts** (the durability bar). Hitting things never wears it out, and it cannot be repaired with planks or Mending.
-- **Recharging:** craft it together with The Fog of the Day and The Fog of the Night in equal numbers. Each fog item gives back one burst, so **5 of each refill it** (the grid holds 4 of each at a time, so that is two crafts).
+- It holds **10 scare bursts** (the durability bar). Hitting things never wears it out, and it cannot be repaired with planks.
+- **Recharging:** put the sword in the **middle** of a crafting table and The Fog of the Day or The Fog of the Night in the slots around it. **Each fog item gives back one burst**, so you can put them in one at a time; day and night both work. It never takes more fog than it is missing.
 
 ## How to survive it
 
