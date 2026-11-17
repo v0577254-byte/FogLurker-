@@ -1,4 +1,7 @@
 {
   "replace": false,
-  "values": ["foglurker:lurker_oneshot"]
+  "values": [
+    "foglurker:lurker_oneshot",
+    "foglurker:lurker"
+  ]
 }

@@ -107,7 +107,22 @@ A spiky black, grey and white blade wrapped in a slowly drifting mist. **It cann
 
 ## How to survive it
 
-Its hits ignore armour. You can kill it (see above), but mostly you survive by knowing its rules.
+Ordinary armour maths does not apply to its bite. Only good armour helps, by its own table (below). You can kill it (see above), but mostly you survive by knowing its rules.
+
+**Armour against its bite** (a full set; a mixed set gives the average of its four pieces):
+
+| Armour | Bite blocked |
+|---|---|
+| none, leather, chainmail | 0% |
+| copper (from mods / newer versions) | 10% |
+| iron (and a turtle helmet) | 25% |
+| gold | 30% |
+| diamond | 45% |
+| diamond, Protection IV | 50% |
+| netherite | 65% |
+| netherite, Protection IV | 70% |
+
+Protection IV adds 5% only on diamond and netherite; lower Protection levels, and Protection on any other armour, do nothing against it. Resistance potions still help as normal.
 
 **Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out (a boat that is afloat is left alone: water is still your way out). Run *before* it reaches you; once it has your leg, the water trick and pillar-jumping are off the table until Mauled wears off. Milk clears both.
 
@@ -198,11 +213,11 @@ It is a coin flip whether it means it. If it does, it sinks flat into the ground
 | **Easy** | rarely (1 in 5) | 3 hearts | 2.5 s | 30 minutes | |
 | **Medium** *(default)* | 1 in 3 | 5 hearts | 2 s | 20 minutes (one Minecraft day) | |
 | **Hard** | 1 in 2 | 6 hearts | 1.75 s | 10 minutes | |
-| **Deathwish** | 3 in 4 | **one shot** | 1.5 s | 5 minutes | **50% faster** than every other mode; it screams and gives you 1.5 s before its first bite |
+| **Deathwish** | 3 in 4 | **a full health bar** (kills you unless your armour blocks some of it) | 1.5 s | 5 minutes | **50% faster** than every other mode; it screams and gives you 1.5 s before its first bite |
 
 - It can never spam attacks: the time between hits is enforced on the creature itself.
 - After a set number of hits in one appearance it leaves: 1 on Very Easy, 2 on Easy, 3 on Medium, 4 on Hard, no limit on Deathwish. So on Hard, an appearance can deal up to 24 hearts, enough to kill you from full health if you stand and take it.
-- Hits ignore armour, so "5 hearts" really is 5 hearts. A Totem of Undying still saves you, even on Deathwish.
+- Without armour "5 hearts" really is 5 hearts; good armour blocks part of it (see the armour table). On Deathwish a bite deals a whole health bar: unarmoured you die, in iron you are left with 2.5 hearts. A Totem of Undying still saves you.
 - Every bite gives Slowness I for 10 s. On Hard and Deathwish it also gives Mauled for 10 s: no jumping, no boats.
 - Deathwish kills in one bite, so it always announces itself: a deep scream when it starts hunting, then 1.5 seconds before it can bite.
 - The grace period counts real play time from the very first time a world starts with the mod. Nothing appears during it, but it is already learning how everyone plays.
@@ -366,7 +381,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - every disguise spawns and its AI runs
 - a mimic copies the far-away friend's skin and name, walks up, greets and starts luring
 - a zombie disguise stalks, transforms, chases and lands exactly 5 hearts on Medium
-- each mode's damage is exact through diamond armour, and Deathwish one-shots
+- each mode's damage is exact without armour, every armour type blocks exactly its share (leather/chainmail 0, iron 25, gold 30, diamond 45, netherite 65, Protection IV only on diamond/netherite), and a Deathwish bite kills unarmoured but not in iron
 - grace times, commands, encryption, tamper detection, consent and opt-out deletion
 - typing-style copying
 - hits are spaced exactly by the mode's cooldown (Very Easy: blocked at 1.5 s, allowed at 3 s)

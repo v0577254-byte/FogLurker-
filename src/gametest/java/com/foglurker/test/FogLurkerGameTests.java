@@ -331,9 +331,7 @@ public final class FogLurkerGameTests {
         List<ServerPlayer> players = new ArrayList<>();
         for (int i = 0; i < LurkerDifficulty.values().length; i++) {
             ServerPlayer p = player(h, 1.5 + i, 1.5);
-            // Armour must not matter: "5 hearts" means 5 hearts.
-            p.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.DIAMOND_CHESTPLATE));
-            p.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
+            // No armour: "5 hearts" means 5 hearts (armour is tested in armourStopsPartOfTheBite).
             players.add(p);
         }
         kickOtherPlayers(server, players.toArray(new ServerPlayer[0]));
@@ -362,6 +360,92 @@ public final class FogLurkerGameTests {
             data.setDifficulty(before);
             h.succeed();
         }));
+    }
+
+    private static void wear(ServerPlayer p, net.minecraft.world.item.Item head, net.minecraft.world.item.Item chest,
+                             net.minecraft.world.item.Item legs, net.minecraft.world.item.Item feet, int protection) {
+        net.minecraft.world.item.Item[] items = {head, chest, legs, feet};
+        EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
+        for (int i = 0; i < 4; i++) {
+            ItemStack piece = new ItemStack(items[i]);
+            if (protection > 0) {
+                piece.enchant(net.minecraft.world.item.enchantment.Enchantments.ALL_DAMAGE_PROTECTION, protection);
+            }
+            p.setItemSlot(slots[i], piece);
+        }
+    }
+
+    @GameTest(template = "empty", batch = "armour", timeoutTicks = 300)
+    public static void armourStopsPartOfTheBite(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                // {helmet, chestplate, leggings, boots, protection level, expected reduction}
+                Object[][] sets = {
+                        {Items.LEATHER_HELMET, Items.LEATHER_CHESTPLATE, Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS, 0, 0.0F},
+                        {Items.CHAINMAIL_HELMET, Items.CHAINMAIL_CHESTPLATE, Items.CHAINMAIL_LEGGINGS, Items.CHAINMAIL_BOOTS, 0, 0.0F},
+                        {Items.LEATHER_HELMET, Items.LEATHER_CHESTPLATE, Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS, 4, 0.0F},
+                        {Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS, 0, 0.25F},
+                        {Items.GOLDEN_HELMET, Items.GOLDEN_CHESTPLATE, Items.GOLDEN_LEGGINGS, Items.GOLDEN_BOOTS, 0, 0.30F},
+                        {Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS, 0, 0.45F},
+                        {Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE, Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS, 0, 0.65F},
+                        {Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE, Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS, 4, 0.70F},
+                        {Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS, 4, 0.50F},
+                        {Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS, 3, 0.45F},
+                        {Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS, 4, 0.25F},
+                        {Items.GOLDEN_HELMET, Items.GOLDEN_CHESTPLATE, Items.GOLDEN_LEGGINGS, Items.GOLDEN_BOOTS, 4, 0.30F},
+                        // mixed: two iron, two netherite = the average
+                        {Items.IRON_HELMET, Items.NETHERITE_CHESTPLATE, Items.NETHERITE_LEGGINGS, Items.IRON_BOOTS, 0, 0.45F},
+                };
+                FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                LurkerDifficulty before = data.difficulty();
+                try {
+                    for (Object[] set : sets) {
+                        wear(p, (net.minecraft.world.item.Item) set[0], (net.minecraft.world.item.Item) set[1],
+                                (net.minecraft.world.item.Item) set[2], (net.minecraft.world.item.Item) set[3], (int) set[4]);
+                        float want = (float) set[5];
+                        float got = com.foglurker.entity.LurkerArmor.reduction(p);
+                        String what = set[1] + (((int) set[4]) > 0 ? " with Protection " + set[4] : "");
+                        check(Math.abs(got - want) < 1e-4, what + ": expected " + Math.round(want * 100) + "% reduction, got " + got);
+                        // A real Medium bite (5 hearts) through that armour.
+                        data.setDifficulty(LurkerDifficulty.MEDIUM);
+                        p.setHealth(20F);
+                        p.invulnerableTime = 0;
+                        FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.COW, Boolean.TRUE);
+                        check(l != null, "no spawn");
+                        l.doHurtTarget(p);
+                        float expected = 20F - 10F * (1F - want);
+                        check(Math.abs(p.getHealth() - expected) < 0.01F, what + ": a 5-heart bite should leave " + expected
+                                + " health, left " + p.getHealth());
+                        l.brain().vanish(true);
+                    }
+                    // Deathwish: a whole health bar. Unarmoured you die; in iron you live.
+                    data.setDifficulty(LurkerDifficulty.DEATHWISH);
+                    wear(p, Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS, 0);
+                    p.setHealth(20F);
+                    p.invulnerableTime = 0;
+                    FogLurkerEntity dw = LurkerDirector.spawn(p, Disguise.COW, Boolean.TRUE);
+                    dw.doHurtTarget(p);
+                    check(p.isAlive() && Math.abs(p.getHealth() - 5F) < 0.01F,
+                            "iron armour should survive a Deathwish bite with 2.5 hearts, health " + p.getHealth());
+                    dw.brain().vanish(true);
+                    wear(p, Items.AIR, Items.AIR, Items.AIR, Items.AIR, 0);
+                    p.setHealth(20F);
+                    p.invulnerableTime = 0;
+                    FogLurkerEntity dw2 = LurkerDirector.spawn(p, Disguise.COW, Boolean.TRUE);
+                    dw2.doHurtTarget(p);
+                    check(p.isDeadOrDying(), "unarmoured, a Deathwish bite still kills (health " + p.getHealth() + ")");
+                    dw2.brain().vanish(true);
+                } finally {
+                    data.setDifficulty(before);
+                }
+                h.succeed();
+            }));
+        });
     }
 
     @GameTest(template = "empty", batch = "attack", timeoutTicks = 1200)

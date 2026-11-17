@@ -611,7 +611,8 @@ public class FogLurkerEntity extends PathfinderMob {
         DamageSource src = ModDamageTypes.source(this, oneShot ? ModDamageTypes.LURKER_ONESHOT : ModDamageTypes.LURKER);
         float damage;
         if (target instanceof LivingEntity living && oneShot) {
-            damage = living.getMaxHealth() + living.getAbsorptionAmount() + 1000.0F;
+            // A whole health bar: it kills you outright unless your armour (or absorption hearts) saves you.
+            damage = living.getMaxHealth();
         } else {
             damage = diff.damagePerHit();
             if (!(target instanceof Player)) {
@@ -620,6 +621,9 @@ public class FogLurkerEntity extends PathfinderMob {
             if (this.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS)) {
                 damage *= 0.6F; // weakened by a scare burst
             }
+        }
+        if (target instanceof LivingEntity living) {
+            damage *= 1F - LurkerArmor.reduction(living); // only good armour stops it (see LurkerArmor)
         }
         this.swing(InteractionHand.MAIN_HAND);
         boolean hit = target.hurt(src, damage);
