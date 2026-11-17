@@ -294,7 +294,7 @@ public final class FogLurkerCommands {
             profile.chatLearningOff = true;
             profile.chatSamples.clear();
             com.foglurker.learning.RecentChat.forget(p.getGameProfile().getName());
-            p.sendSystemMessage(PREFIX.copy().append(Component.literal("It will no longer learn from your chat. Forgot "
+            p.sendSystemMessage(PREFIX.copy().append(Component.literal("It will no longer learn from your chat on this world/server. Forgot "
                     + forgotten + " message" + (forgotten == 1 ? "" : "s") + " it had kept.").withStyle(ChatFormatting.GRAY)));
         }
         data.setDirty();
@@ -432,7 +432,8 @@ public final class FogLurkerCommands {
         CommandSourceStack src = ctx.getSource();
         if (LurkerDirector.isResting(src.getServer())) {
             reply(src, Component.literal("It was killed. It comes back in " + time(LurkerDirector.restTicksLeft(src.getServer()))
-                    + "; until then nothing appears and nothing haunts.").withStyle(ChatFormatting.DARK_AQUA));
+                    + "; until then nothing appears on its own and nothing haunts (admin spawn commands still work).")
+                    .withStyle(ChatFormatting.DARK_AQUA));
             return 0;
         }
         if (!data.naturalSpawning()) {

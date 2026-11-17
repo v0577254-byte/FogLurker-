@@ -112,7 +112,8 @@ public final class Hauntings {
             }
             due.forEach(Runnable::run);
         }
-        if (!FogLurkerConfig.COMMON.hauntings.get() || data.inGrace() || data.restingAt(now)) {
+        // Natural spawning off means nothing comes on its own: no hauntings either.
+        if (!FogLurkerConfig.COMMON.hauntings.get() || !data.naturalSpawning() || data.inGrace() || data.restingAt(now)) {
             nextAt = -1; // when they come back on (or it stops resting after being killed), the wait starts fresh
             return;
         }
@@ -158,13 +159,7 @@ public final class Hauntings {
     }
 
     private static boolean isBeingHunted(ServerPlayer p) {
-        for (FogLurkerEntity l : LurkerDirector.active()) {
-            LurkerBrain b = l.brain();
-            if (b != null && b.targetId().equals(p.getUUID())) {
-                return true;
-            }
-        }
-        return false;
+        return LurkerDirector.isHunted(p.getUUID()); // the same rule spawns use
     }
 
     private static void later(MinecraftServer server, int ticks, Runnable run) {
@@ -338,7 +333,8 @@ public final class Hauntings {
                 .whenComplete((text, err) -> server.execute(() -> {
                     // (It may have been killed while the line was being written: then nothing haunts.)
                     if (err == null && text != null && !text.isBlank() && !p.hasDisconnected()
-                            && !LurkerDirector.isResting(server) && FogLurkerConfig.COMMON.impersonateInChat.get()) {
+                            && !LurkerDirector.isResting(server) && FogLurkerConfig.COMMON.impersonateInChat.get()
+                            && !LurkerDirector.isHunted(p.getUUID()) && !com.foglurker.world.AfkTracker.isAfk(p)) {
                         p.sendSystemMessage(Component.translatable("chat.type.text", name, text));
                     }
                 })));

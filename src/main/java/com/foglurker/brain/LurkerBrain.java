@@ -147,11 +147,6 @@ public final class LurkerBrain {
     private int attackCooldown;
 
     // counterplay: soul-fire wards, and whether you are looking at it
-    private boolean wardedCache;
-    private int wardCheckedAt = -100;
-    /** Whose ward the cache is for: asking about another player must never get this one's answer. */
-    @Nullable
-    private UUID wardCheckedFor;
     private boolean wasWatched;
 
     // water: its weakness in the attacking form
@@ -809,6 +804,7 @@ public final class LurkerBrain {
     private void attack(ServerPlayer t, double dist) {
         ServerPlayer easier = easierPrey(t, dist);
         if (easier != null) {
+            LurkerDirector.noteLeft(t.getUUID()); // it left this one: no new creature straight back to them
             huntId = easier.getUUID();
             lastSwitch = age;
             windupUntil = age + DEATHWISH_WINDUP; // a new victim gets the same warning before a Deathwish bite
@@ -1079,11 +1075,11 @@ public final class LurkerBrain {
             meetingSay("just kidding");
         } else if (due(MEETING_RUN)) {
             meetingSay("RUN!");
+            meetingChase = true; // from here on, getting away (outrunning it, a bell, a scare burst) earns the peace
             t.displayClientMessage(Component.literal("RUN!").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), true);
             mob.playSound(ModSounds.SCREAM.get(), 2.0F, 0.6F);
             ModNetwork.send(t, new ScarePacket(60));
         } else if (phaseAge >= MEETING_CHASE) {
-            meetingChase = true;
             huntNow(); // 5 seconds are up
         }
     }
@@ -1304,13 +1300,16 @@ public final class LurkerBrain {
     }
 
     /** Is the target standing by soul fire? Checked once a second. */
+    /** Per player: [age checked, 1 if warded]. Checking a bystander does not throw away the target's answer. */
+    private final java.util.Map<UUID, int[]> wardCache = new java.util.HashMap<>();
+
     private boolean isWarded(ServerPlayer t) {
-        if (age - wardCheckedAt >= 20 || !t.getUUID().equals(wardCheckedFor)) {
-            wardCheckedAt = age;
-            wardCheckedFor = t.getUUID();
-            wardedCache = Wards.isWarded(t);
+        int[] c = wardCache.get(t.getUUID());
+        if (c == null || age - c[0] >= 20) {
+            c = new int[]{age, Wards.isWarded(t) ? 1 : 0};
+            wardCache.put(t.getUUID(), c);
         }
-        return wardedCache;
+        return c[1] == 1;
     }
 
     /** Wider than "staring straight at it": anywhere in the middle third of your screen counts. */
@@ -1448,7 +1447,9 @@ public final class LurkerBrain {
         double bestScore = Double.MAX_VALUE;
         for (ServerPlayer p : level().players()) {
             if (p == t || !canAttack(p) || p.isCreative() || p.distanceTo(t) > 16
-                    || SpotFinder.isInOrOnWater(p) || isWarded(p)) {
+                    || SpotFinder.isInOrOnWater(p) || isWarded(p)
+                    || LurkerDirector.isHunted(p.getUUID()) // another one already has them: never two at once
+                    || LurkerDirector.leftAloneTicks(p) > 0) { // they earned 15 minutes of peace
                 continue;
             }
             double d = mob.distanceTo(p);
@@ -1519,7 +1520,9 @@ public final class LurkerBrain {
                 return;
             }
         }
-        if (age - lastRepath < 10 && mob.getNavigation().isInProgress()) {
+        // Re-plan at most every 10 ticks while a path runs, and every 5 when none does (a target it cannot
+        // reach would otherwise cost a full path search every tick).
+        if (age - lastRepath < (mob.getNavigation().isInProgress() ? 10 : 5)) {
             mob.getNavigation().setSpeedModifier(speed);
             return;
         }
@@ -1532,7 +1535,9 @@ public final class LurkerBrain {
     }
 
     private void goTo(Vec3 pos, double speed) {
-        if (age - lastRepath < 10 && mob.getNavigation().isInProgress()) {
+        // Re-plan at most every 10 ticks while a path runs, and every 5 when none does (a target it cannot
+        // reach would otherwise cost a full path search every tick).
+        if (age - lastRepath < (mob.getNavigation().isInProgress() ? 10 : 5)) {
             mob.getNavigation().setSpeedModifier(speed);
             return;
         }
@@ -1660,7 +1665,9 @@ public final class LurkerBrain {
             if (t % 5 == 0) {
                 mob.swing(InteractionHand.MAIN_HAND);
             }
-            level().destroyBlockProgress(mob.getId() + 1_000_000, fakeMine, Math.min(5, t / 8));
+            if (t % 8 == 0) {
+                level().destroyBlockProgress(mob.getId() + 1_000_000, fakeMine, Math.min(5, t / 8)); // only when the stage changes
+            }
             return true;
         }
         // ...then it just stops, and looks at you.

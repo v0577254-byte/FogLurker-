@@ -189,7 +189,7 @@ public final class AfkTracker {
      */
     public static void check(ServerPlayer p, long now) {
         if (p instanceof FakePlayer || !enabled() || !p.isAlive()) {
-            return; // on the death screen nothing is checked; clicking Respawn counts as being back
+            return; // on the death screen nothing is checked (no "went afk" while dead)
         }
         State s = state(p, now);
         // Looking around is always the player: nothing else turns your head.
@@ -260,10 +260,7 @@ public final class AfkTracker {
     @SubscribeEvent
     public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer p) {
-            rebase(p);
-            if (!event.isEndConquered()) {
-                markActive(p); // clicking Respawn is the player (a manual /afk stays until they move)
-            }
+            rebase(p); // respawning happens to you: it does not end AFK (README)
         }
     }
 

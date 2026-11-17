@@ -37,6 +37,12 @@ import java.util.UUID;
 public final class BehaviorTracker {
     private static final int WINDOW_TICKS = 1200;
     private static final Map<UUID, Window> WINDOWS = new HashMap<>();
+
+    @SubscribeEvent
+    public static void onServerStopped(net.minecraftforge.event.server.ServerStoppedEvent event) {
+        WINDOWS.clear();
+        WATCHED.clear(); // mob ids and positions from this world mean nothing in the next one
+    }
     private static final Map<UUID, Watch> WATCHED = new HashMap<>();
 
     private BehaviorTracker() {

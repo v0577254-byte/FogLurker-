@@ -36,7 +36,7 @@ The Fog Lurker's real shape is **the pale crawler**. When it stops pretending, i
 
 ## Hauntings
 
-Between appearances (after the grace period) one player gets a small scare every minute and a half to four minutes. They get rarer the longer a session goes on (up to 2.5 times further apart after a dozen), so they stay unsettling instead of routine. None of these can hurt you.
+Between appearances (after the grace period) one player gets a small scare every minute and a half to four minutes. They get rarer the longer a session goes on (up to 2.5 times further apart after about a dozen), so they stay unsettling instead of routine. None of these can hurt you.
 
 - **Sounds only you can hear.** Footsteps coming up behind you. Footsteps crossing your roof. A chest in your base opening and closing. Something mining in the wall beside you underground.
 - **The edge of your vision.** It crouches at the edge of your screen. The moment you turn to look straight at it, it is gone without a sound. (It only ever exists on your own screen.)
@@ -49,7 +49,7 @@ Between appearances (after the grace period) one player gets a small scare every
 ## It knows where you are
 
 - **Out in the open** it uses the woods, as before.
-- **In a cave or mine** it waits in the darkest spots it can find, just past the reach of your torches, and a watcher stands at the end of the tunnel rather than far away.
+- **In a cave or mine** it waits in the darkest spots it can find, away from your torchlight, and a watcher stands at the end of the tunnel rather than far away.
 - **At home** it learns where you live (your bed, or wherever you open chests the most). When you are indoors, a watcher appears right outside, 5 to 16 blocks away, where you can see it through a window or an open door.
 - **It hides in tall grass and bushes.** When it watches you as itself it slinks to the thickest tall grass, ferns or leafy bush nearby and lies down in it like a dog, legs tucked under, with only its eyes showing. Its hitbox lies down too.
 - **Spotted in its real shape, it does not run.** It flops flat on the ground like a pancake, lies there a moment, and is gone.
@@ -70,7 +70,7 @@ It can be killed. Its health depends on the mode:
 | Hard | 125 hearts |
 | Deathwish | 175 hearts |
 
-It has 4 armour points (2 armour icons), and it does not take fall, suffocation or drowning damage. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
+It has 4 armour points (2 armour icons), and it does not take fall, suffocation or drowning damage. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears on its own and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long; admin spawn commands still work). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
 
 ### What it drops (only when a player lands the killing blow)
 
@@ -100,10 +100,10 @@ A spiky black, grey and white blade wrapped in a slowly drifting mist. **It cann
 
 - Against anything else it is just a wooden sword.
 - Against the Fog Lurker a fully charged hit does **10 damage**, a critical hit **15**, straight through its armour (even a copy of your own enchanted armour it is wearing while it pretends to be you).
-- **Right-click: a scare burst.** A blue sonic boom like the Warden's. It reaches every creature that is hunting you or is within 96 blocks, **wherever you aim**. 3 times in 4 it shrieks and flees. Otherwise it holds on but is weakened for 15 seconds: slower, its bites do 40% less and the gaps between them are 50% longer, and it glows so you can see it.
+- **Right-click: a scare burst** (once every 2 seconds; it uses a charge and makes it fear you even if nothing is in reach). A blue sonic boom like the Warden's. It reaches every creature that is hunting you or is within 96 blocks, **wherever you aim**. 3 times in 4 it shrieks and flees. Otherwise it holds on but is weakened for 15 seconds: slower, its bites do 40% less and the gaps between them are 50% longer, and it glows so you can see it.
 - After a scare burst it **fears you for 20 minutes**: it is half as likely to attack you, and if you are with a friend (within 16 blocks) it almost never attacks (a tenth as likely). Friends standing with you when you use it are feared too.
 - It holds **10 scare bursts** (the durability bar). Hitting things never wears it out, and it cannot be repaired with planks or merged with another Protector on an anvil (renaming is fine).
-- **Recharging:** put the sword in the **middle** of a crafting table and The Fog of the Day or The Fog of the Night in the slots around it. **Each fog item gives back one burst**, so you can put them in one at a time; day and night both work. One item per slot is used per craft (a stack in one slot gives one burst and the rest stays in the grid). It never takes more fog than it is missing, and Mending (only possible with commands) does not refill it.
+- **Recharging:** put the sword in the **middle** of a crafting table and The Fog of the Day or The Fog of the Night in the slots around it. **Each fog item gives back one burst**, so you can put them in one at a time; day and night both work. One item per slot is used per craft (a stack in one slot gives one burst and the rest stays in the grid). If you put in more fog than it is missing, nothing is crafted until you take the extra out, and Mending (only possible with commands) does not refill it.
 
 ## How to survive it
 
@@ -122,7 +122,7 @@ Ordinary armour maths does not apply to its bite. Only good armour helps, by its
 | netherite | 65% |
 | netherite, Protection IV | 70% |
 
-Protection IV adds 5% only on diamond and netherite; lower Protection levels, and Protection on any other armour, do nothing against it. Resistance potions still help as normal.
+Protection IV adds 5% only on diamond and netherite; lower Protection levels, and Protection on any other armour, do nothing against it. Resistance potions still help as normal, except against the Deathwish bite, which no potion stops (a Totem of Undying still does).
 
 **Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out (a boat that is afloat is left alone: water is still your way out). Run *before* it reaches you; once it has your leg, the water trick and pillar-jumping are off the table until Mauled wears off. Milk clears both.
 
@@ -131,7 +131,7 @@ Protection IV adds 5% only on diamond and netherite; lower Protection levels, an
 | **Water** | It cannot swim. Get in water or a boat and it can only pace the shore; after 20 seconds it gives up. |
 | **Soul fire** | A soul torch, soul lantern or lit soul campfire protects everyone within 6 blocks. It will not shed its disguise there, will not come inside the circle, and cannot hit you. It circles outside and gives up after 20 seconds. (Soul sand comes from the Nether, so this is something you earn.) |
 | **Bells** | Ring a bell and anything within 32 blocks flees. **It learns:** for 15 minutes after a bell drives it away from you, bells do nothing against it ("The bell rings out... nothing runs this time."). |
-| **Do not look at it** | While it hunts you, looking at it makes it charge 25% faster. Looking away slows it to walking pace, so you can outrun it, if you can stand running blind and listening to it behind you. |
+| **Do not look at it** | While it hunts you, looking at it makes it charge 25% faster. Looking away slows it to walking pace (a fast walk on Deathwish), so you can outrun it, if you can stand running blind and listening to it behind you. |
 | **Deepslate and obsidian** | It cannot break them. |
 | **Totem of Undying** | Still works, even on Deathwish. |
 
@@ -181,12 +181,12 @@ The fog rolls in whenever it is near you and lifts a few seconds after it leaves
 
 | What it is doing | How far you can see |
 |---|---|
-| watching from far off | about 120 blocks, or 80% of your view if that is shorter |
+| a copy walking up from far off | about 120 blocks, or 80% of your view if that is shorter |
 | stalking you | about 80 blocks, or 63% of your view |
 | luring you deep | about 30 blocks, or a third of your view |
 | attacking | about 11 blocks (7 at a 2-chunk render distance) |
 
-So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in within about 1.5 seconds. The same fog is also drawn as a soft veil over the screen (under your hotbar and chat), so it still shows if a shader pack or rendering mod replaces Minecraft's own fog.
+So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in over about 2 seconds. The same fog is also drawn as a soft veil over the screen (under your hotbar and chat), so it still shows if a shader pack or rendering mod replaces Minecraft's own fog.
 
 ## Night
 
@@ -228,7 +228,7 @@ It is a coin flip whether it means it. If it does, it sinks flat into the ground
 
   On a multiplayer server it can be after up to two players at once (`maxConcurrent`), but never two at once for the same player, and never straight back to someone it just left. With one player online the timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
 - On vanilla Peaceful difficulty it never attacks, it only watches.
-- `/foglurker naturalspawning off` stops it appearing on its own in that world; it then only comes when summoned.
+- `/foglurker naturalspawning off` stops it appearing on its own in that world, and stops the hauntings too; it then only comes when summoned.
 
 ## Commands
 
@@ -270,11 +270,11 @@ The pale crawler rears up on its hind legs and does the full 16-count dance with
 
 ![debugeverything output](docs/images/debug_chat.jpg)
 
-It runs about 50 checks and lists each one in chat with ✔ or ✘. It also plays a three-second fog and heartbeat test so you can see and hear the effects. The server results are also written to the server log.
+It runs dozens of checks and lists each one in chat with ✔ or ✘. It also plays a two-second fog and heartbeat test so you can see and hear the effects. The server results are also written to the server log.
 - **Server side:** registration, damage types and tags, mod files, every mode's numbers (damage, time between hits, grace), a dry-run spawn of every shape near you (nothing actually spawns), refusal of nearby water, the hit cooldown, water rules, what it has learned about you, chat-style copying, voice chat status, the secure folder and its encryption, snippet storage, voice effects, and Gemini (with a live test if a key is set).
 - **Your game:** renderer, crawler model, textures, sounds, language file, every disguise puppet and the swim animation.
 
-**Removing it before release:** delete `src/main/java/com/foglurker/debug/`, `network/DebugPacket.java` and `client/ClientDebug.java`, the single `d.register(...)` line marked `TEMPORARY` in `command/FogLurkerCommands.java`, and the five-line `CHANNEL.messageBuilder(DebugPacket...)` block marked `TEMPORARY` in `network/ModNetwork.java`.
+**Removing it before release:** delete `src/main/java/com/foglurker/debug/`, `network/DebugPacket.java` and `client/ClientDebug.java`, the single `d.register(...)` line marked `TEMPORARY` in `command/FogLurkerCommands.java`, and the five-line `CHANNEL.messageBuilder(DebugPacket...)` block marked `TEMPORARY` in `network/ModNetwork.java`. The fog-event counters in `client/ClientEffects.java` only feed this command and can go too.
 
 ## Voice snippets (opt-in)
 
@@ -287,7 +287,7 @@ Nobody is ever recorded without opting in. `/flurk voicesnippets terms` shows ex
 
 How it works:
 - Only while Simple Voice Chat is running. Each player sees a one-time notice on their first join pointing them to the terms.
-- About a third of what an opted-in player says (configurable) is kept as a 0.6–6 second clip. Up to 40 clips per player are kept, and the oldest are replaced first.
+- About a third of what an opted-in player says (configurable) is kept as a 0.6–6 second clip. Up to 40 clips per player are kept; new ones mostly replace the oldest.
 - **Snippets expire.** If an opted-in player has not been online for 30 days (for example, they removed the mod and so can no longer join the server), their snippets are deleted automatically. If the whole mod goes unused for 30 days and is then started again, it deletes every snippet before doing anything else. A mod that has been removed cannot run any code, so the secure folder also contains a `READ_ME.txt` saying it is safe to delete by hand.
 - **Opting out deletes right away.** If a clip cannot be deleted at that moment (for example, a virus scanner has the file open), the mod keeps trying: it is gone at the next check, within 10 minutes while anyone is playing, or at the next start.
 - Clips play back through Simple Voice Chat from the creature's position, under their own **"Fog Lurker"** volume slider. They sound natural while it pretends, uncanny when it slips, and deep and distorted when it reveals itself.
@@ -322,6 +322,8 @@ foglurker_secure/
   gemini_api_key.enc       your Gemini key, AES-GCM encrypted
   voice_consent.json       who opted in (encrypted)
   voice_snippets/<uuid>/   each clip AES-GCM encrypted
+  last_active.txt          when the mod last ran (for the 30-day cleanup)
+  READ_ME.txt              says the folder is safe to delete by hand
 ```
 
 On Linux and macOS the folder is restricted to the account running Minecraft (`chmod 700/600`). This protects against snooping, world downloads and accidental sharing. It does not protect against someone who already controls the machine.
@@ -331,7 +333,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `foglurker-1.0.4.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.2.1.jar` (built as `foglurker-1.2.1.jar`) in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -374,7 +376,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/foglurker-1.0.4.jar
+./gradlew build               # -> build/libs/foglurker-1.2.1.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
@@ -410,7 +412,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - `/foglurker-macarena` is cheats-only, spawns one harmless dancer that turns on count 16 and leaves after its loops
 - `/foglurker debugeverything` runs end to end
 
-`./gradlew runClient -PfoglurkerShowcase` (with a world named `FogShowcase`) lines up every shape and saves the screenshots in this README. Add `-PfoglurkerScene=snow` to find a snowy mountain and photograph it hiding as a wolf next to its real form (`docs/images/snow_*.jpg`). The textures and the split-head logo are generated by the scripts in `tools/`.
+`./gradlew runClient -PfoglurkerShowcase` (with a world named `FogShowcase`) lines up every shape and saves screenshots (the ones in this README) to the game's `screenshots` folder. Add `-PfoglurkerScene=snow` to find a snowy mountain and photograph it hiding as a wolf next to its real form (`foglurker_snow_*.png`). The textures and the split-head logo are generated by the scripts in `tools/`.
 
 ![A stolen face and a stolen dog](docs/images/mimic_closeup.jpg)
 

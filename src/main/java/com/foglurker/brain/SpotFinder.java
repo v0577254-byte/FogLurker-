@@ -257,7 +257,7 @@ public final class SpotFinder {
         }
         // The ray must not pass through chunks nobody has loaded (looking would load them): treat those as blocked.
         double len = eye.distanceTo(point);
-        for (double d = 0; d <= len; d += 8) {
+        for (double d = 0; d <= len; d += 0.5) { // fine enough not to skip the corner of a chunk
             Vec3 at = len < 1e-6 ? point : eye.add(point.subtract(eye).scale(d / len));
             if (!viewer.level().hasChunkAt(net.minecraft.core.BlockPos.containing(at))) {
                 return false;

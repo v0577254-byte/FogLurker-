@@ -122,6 +122,15 @@ public final class LurkerDirector {
         Hauntings.reset();
     }
 
+    /** Counts as the end of a visit to this player (a creature switched away from them). */
+    public static void noteLeft(java.util.UUID player) {
+        MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        if (server != null) {
+            LAST_VISIT.put(player, server.overworld().getGameTime());
+            FogLurkerSavedData.get(server).setDirty();
+        }
+    }
+
     public static void onRemoved(FogLurkerEntity lurker) {
         boolean was = ACTIVE.remove(lurker);
         if (was && lurker.brain() != null && lurker.getServer() != null) {
@@ -248,6 +257,7 @@ public final class LurkerDirector {
         t.put("leftAlone", writeTimes(LEFT_ALONE_UNTIL));
         t.put("fear", writeTimes(FEAR_UNTIL));
         t.put("bell", writeTimes(BELL_IMMUNE_UNTIL));
+        t.put("lastVisit", writeTimes(LAST_VISIT));
         return t;
     }
 
@@ -255,6 +265,7 @@ public final class LurkerDirector {
         readTimes(t.getList("leftAlone", net.minecraft.nbt.Tag.TAG_COMPOUND), LEFT_ALONE_UNTIL);
         readTimes(t.getList("fear", net.minecraft.nbt.Tag.TAG_COMPOUND), FEAR_UNTIL);
         readTimes(t.getList("bell", net.minecraft.nbt.Tag.TAG_COMPOUND), BELL_IMMUNE_UNTIL);
+        readTimes(t.getList("lastVisit", net.minecraft.nbt.Tag.TAG_COMPOUND), LAST_VISIT);
     }
 
     private static net.minecraft.nbt.ListTag writeTimes(java.util.Map<java.util.UUID, Long> m) {
@@ -283,19 +294,21 @@ public final class LurkerDirector {
 
     /** Attack chance for this player right now: escalation, then halved if it fears them, a tenth if they are with friends. */
     public static double attackChance(LurkerDifficulty diff, PlayerBehaviorProfile profile, ServerPlayer target) {
-        double chance = attackChance(diff, profile);
-        if (isFeared(target)) {
-            boolean withFriends = false;
-            for (ServerPlayer o : target.server.getPlayerList().getPlayers()) {
-                if (o != target && !o.isSpectator() && !com.foglurker.world.AfkTracker.isAfk(o)
-                        && o.level() == target.level() && o.distanceTo(target) <= 16) {
-                    withFriends = true;
-                    break;
-                }
-            }
-            chance *= withFriends ? 0.1 : 0.5;
+        return attackChance(diff, profile) * fearFactor(target);
+    }
+
+    /** 1 normally; 0.5 while it fears this player; 0.1 if they also have a friend within 16 blocks. */
+    public static double fearFactor(ServerPlayer target) {
+        if (!isFeared(target)) {
+            return 1.0;
         }
-        return chance;
+        for (ServerPlayer o : target.server.getPlayerList().getPlayers()) {
+            if (o != target && !o.isSpectator() && !com.foglurker.world.AfkTracker.isAfk(o)
+                    && o.level() == target.level() && o.distanceTo(target) <= 16) {
+                return 0.1;
+            }
+        }
+        return 0.5;
     }
 
     public static void onPlayerChat(ServerPlayer player, String text) {
@@ -571,7 +584,8 @@ public final class LurkerDirector {
         // Deathwish, at night, out in the open: sometimes you simply walk into it.
         if (forced == null && forcedAttack == null && diff == LurkerDifficulty.DEATHWISH && level.isNight()
                 && SpotFinder.placeOf(level, target, null) == SpotFinder.Place.SURFACE && r.nextFloat() < NIGHT_MEETING_CHANCE) {
-            return nightMeeting(target, diff, !peaceful && r.nextBoolean());
+            // A 50/50 whether it means it, made less likely by a scare burst's fear like any other attack.
+            return nightMeeting(target, diff, !peaceful && r.nextDouble() < 0.5 * fearFactor(target));
         }
         boolean willAttack = forcedAttack != null ? forcedAttack : !peaceful && r.nextDouble() < attackChance(diff, targetProfile, target);
 

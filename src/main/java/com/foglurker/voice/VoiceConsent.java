@@ -150,7 +150,7 @@ public final class VoiceConsent {
      */
     public static int deleteOrphanSnippets() {
         ensureLoaded();
-        return SnippetStore.deleteExcept(Set.copyOf(OPTED_IN));
+        return SnippetStore.deleteExcept(java.util.Collections.unmodifiableSet(OPTED_IN)); // live: someone opting in mid-sweep is kept
     }
 
     /** True while a consent change is only in memory because the disk write failed. */

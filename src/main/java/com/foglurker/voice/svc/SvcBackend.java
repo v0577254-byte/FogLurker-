@@ -39,6 +39,8 @@ final class SvcBackend implements VoiceBridge.Backend {
     private final Map<AudioPlayer, UUID> playingOwner = new ConcurrentHashMap<>();
     /** Creatures whose clip is still loading, so two calls in a row cannot start two clips. */
     private final java.util.Set<Integer> loading = ConcurrentHashMap.newKeySet();
+    /** Creatures told to stop while their clip was still loading: that clip must not start. */
+    private final java.util.Set<Integer> cancelled = ConcurrentHashMap.newKeySet();
 
     SvcBackend(VoicechatServerApi api) {
         this.api = api;
@@ -60,6 +62,9 @@ final class SvcBackend implements VoiceBridge.Backend {
         VoicechatConnection sender = event.getSenderConnection();
         if (sender == null) {
             return;
+        }
+        if (!sender.isConnected()) {
+            return; // a late packet from someone who already left must not open a new recorder
         }
         UUID id = sender.getPlayer().getUuid();
         if (!VoiceConsent.isOptedIn(id)) {
@@ -270,7 +275,7 @@ final class SvcBackend implements VoiceBridge.Backend {
                     playing.remove(entityId, player);
                     playingOwner.remove(player);
                 });
-                if (!VoiceConsent.isOptedIn(voiceOwner) || stopped) {
+                if (!VoiceConsent.isOptedIn(voiceOwner) || stopped || cancelled.contains(entityId)) {
                     encoder.close();
                     return; // opted out while the clip was loading, or voice chat is shutting down
                 }
@@ -290,6 +295,7 @@ final class SvcBackend implements VoiceBridge.Backend {
             } catch (Throwable t) {
                 FogLurkerMod.LOGGER.warn("Fog Lurker could not play a voice snippet", t);
             } finally {
+                cancelled.remove(entityId);
                 loading.remove(entityId);
             }
         });
@@ -298,6 +304,9 @@ final class SvcBackend implements VoiceBridge.Backend {
 
     @Override
     public void stop(Entity source) {
+        if (loading.contains(source.getId())) {
+            cancelled.add(source.getId()); // its clip is still loading: it will not start
+        }
         AudioPlayer p = playing.remove(source.getId());
         if (p != null) {
             p.stopPlaying();

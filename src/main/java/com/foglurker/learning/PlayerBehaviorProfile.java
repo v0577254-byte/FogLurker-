@@ -69,7 +69,7 @@ public final class PlayerBehaviorProfile {
     private int homeHits;
     private int awayHits;
     /** Game time of the last book it left for them (not saved). */
-    public transient long lastBookAt = Long.MIN_VALUE / 2;
+    public long lastBookAt = Long.MIN_VALUE / 2;
 
     public net.minecraft.core.BlockPos home() {
         return new net.minecraft.core.BlockPos(homeX, homeY, homeZ);
@@ -197,6 +197,7 @@ public final class PlayerBehaviorProfile {
         t.putInt("dogCollar", dogCollar);
         t.putFloat("dogSit", dogSitRatio);
         t.putInt("escapes", escapes);
+        t.putLong("lastBook", lastBookAt);
         t.putBoolean("noChatLearn", chatLearningOff);
         if (homeKnown) {
             t.putIntArray("home", new int[]{homeX, homeY, homeZ, homeHits, awayHits});
@@ -235,6 +236,9 @@ public final class PlayerBehaviorProfile {
         p.dogCollar = t.contains("dogCollar") ? t.getInt("dogCollar") : -1;
         p.dogSitRatio = t.contains("dogSit") ? t.getFloat("dogSit") : 0.3F;
         p.escapes = t.getInt("escapes");
+        if (t.contains("lastBook")) {
+            p.lastBookAt = t.getLong("lastBook");
+        }
         p.chatLearningOff = t.getBoolean("noChatLearn");
         int[] home = t.getIntArray("home");
         if (home.length == 5) {
