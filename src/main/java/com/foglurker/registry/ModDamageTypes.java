@@ -9,10 +9,10 @@ import net.minecraft.world.entity.Entity;
 
 /** Damage types are data driven (see data/foglurker/damage_type); these are just the keys. */
 public final class ModDamageTypes {
-    /** Normal hits: bypass armour so "5 hearts" really means 5 hearts. */
+    /** Normal hits: skip vanilla armour and Protection; only its own table (LurkerArmor) reduces them. */
     public static final ResourceKey<DamageType> LURKER =
             ResourceKey.create(Registries.DAMAGE_TYPE, FogLurkerMod.id("lurker"));
-    /** Deathwish hits: bypass armour, enchantments, effects, resistance and shields. Totems still work. */
+    /** Deathwish hits: skip vanilla armour, enchantments, effects, resistance and shields; LurkerArmor still applies. Totems work. */
     public static final ResourceKey<DamageType> LURKER_ONESHOT =
             ResourceKey.create(Registries.DAMAGE_TYPE, FogLurkerMod.id("lurker_oneshot"));
 

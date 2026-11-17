@@ -17,8 +17,9 @@ import java.util.List;
  * Easy                 40%             25%        7%            2%
  * Medium               60%             40%       10%            3%
  * Hard                 75%             60%       14%            4%
- * Deathwish            75%             75%       18%            6%  (1.5x Hard)
+ * Deathwish            75%             75%       18%            6%
  * </pre>
+ * The Ingot is 1.5x as likely on Deathwish as on Hard; the other columns stop at the 75% cap or grow less.
  * The fog is The Fog of the Day if it died in daylight, The Fog of the Night otherwise.
  * The Foggy Stick is never rarer than the Ingot.
  */

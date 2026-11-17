@@ -2,6 +2,7 @@
   "replace": false,
   "values": [
     "foglurker:lurker_oneshot",
-    "foglurker:lurker"
+    "foglurker:lurker",
+    "foglurker:protector"
   ]
 }

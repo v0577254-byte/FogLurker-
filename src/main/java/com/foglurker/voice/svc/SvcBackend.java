@@ -63,7 +63,16 @@ final class SvcBackend implements VoiceBridge.Backend {
         if (!VoiceConsent.isOptedIn(id)) {
             return; // never record anyone who has not opted in
         }
+        if (stopped) {
+            return;
+        }
         Recorder recorder = recorders.computeIfAbsent(id, Recorder::new);
+        if (stopped) {
+            if (recorders.remove(id, recorder)) {
+                recorder.close(); // shutdown ran in between
+            }
+            return;
+        }
         if (!VoiceConsent.isOptedIn(id)) {
             // They opted out between the check above and here: nothing of theirs may be kept, not even in memory.
             if (recorders.remove(id, recorder)) {
@@ -105,7 +114,11 @@ final class SvcBackend implements VoiceBridge.Backend {
         }
     }
 
+    /** Stopped for good: a late microphone packet must not open a new recorder (its decoder would leak). */
+    private volatile boolean stopped;
+
     void shutdown() {
+        stopped = true;
         recorders.values().forEach(Recorder::close);
         recorders.clear();
         playing.values().forEach(AudioPlayer::stopPlaying);

@@ -29,6 +29,14 @@ public class MimicDummyPlayer extends RemotePlayer {
         this.setSilent(true);
     }
 
+    /** Like the inherited lookup, but safe while disconnecting (the connection can already be gone). */
+    @Override
+    @Nullable
+    protected PlayerInfo getPlayerInfo() {
+        var conn = Minecraft.getInstance().getConnection();
+        return conn == null ? null : conn.getPlayerInfo(this.getUUID());
+    }
+
     /** The real player this copies, if it is you. */
     @Nullable
     private AbstractClientPlayer copiedSelf() {

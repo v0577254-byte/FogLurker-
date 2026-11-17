@@ -208,8 +208,9 @@ public final class DebugCommand {
                         missing.add(t.location().getPath());
                     }
                 }
-                rep.check(w, missing.isEmpty(), missing.isEmpty() ? (oneShot ? "ignores armour, effects, enchants, resistance, shields"
-                        : "ignores armour") : "not tagged: " + missing);
+                rep.check(w, missing.isEmpty(), missing.isEmpty() ? (oneShot
+                        ? "vanilla armour, effects, enchants, resistance and shields skipped; its own armour table applies"
+                        : "vanilla armour and enchants skipped; its own armour table applies") : "not tagged: " + missing);
             });
         }
         r.run("Mod files", (rep, w) -> {
@@ -259,7 +260,7 @@ public final class DebugCommand {
                     && Math.abs(m.attackCooldownSeconds() - (float) row[3]) < 1e-4
                     && m.lurkerHearts() == (int) row[4]
                     && Math.abs(m.nightFogMultiplier() - (float) row[5]) < 1e-4;
-            r.check(m.displayName(), ok, "it has " + m.lurkerHearts() + " hearts; " + (m.isOneShot() ? "one shot" : m.heartsPerHit() + " hearts") + ", "
+            r.check(m.displayName(), ok, "it has " + m.lurkerHearts() + " hearts; " + (m.isOneShot() ? "a whole health bar" : m.heartsPerHit() + " hearts") + ", "
                     + m.attackCooldownSeconds() + "s between hits, " + m.graceMinutes() + " min grace, attacks "
                     + Math.round(m.attackChance() * 100) + "% of spawns" + (m.speedMultiplier() != 1 ? ", 50% faster" : ""));
         }
@@ -328,7 +329,7 @@ public final class DebugCommand {
             FogLurkerEntity a = ModEntities.FOG_LURKER.get().create(level);
             var src = ModDamageTypes.source(a, ModDamageTypes.LURKER);
             a.discard();
-            rep.check(w, src.is(DamageTypeTags.BYPASSES_ARMOR), "builds and ignores armour");
+            rep.check(w, src.is(DamageTypeTags.BYPASSES_ARMOR), "builds, and skips vanilla armour (its own armour table applies)");
         });
         r.run("Water rules", (rep, w) -> {
             FogLurkerEntity e = ModEntities.FOG_LURKER.get().create(level);

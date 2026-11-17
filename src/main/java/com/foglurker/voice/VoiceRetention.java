@@ -57,6 +57,7 @@ public final class VoiceRetention {
             VoiceConsent.touch(id, nowMillis);
         }
         int expired = VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
+        VoiceConsent.deleteOrphanSnippets(); // retries anything an opt-out could not delete at the time
         if (expired > 0) {
             FogLurkerMod.LOGGER.info("Deleted the voice snippets of {} player(s) not seen for 30 days", expired);
         }

@@ -301,6 +301,16 @@ public final class LurkerBrain {
         lureStuck = 0;
         detour = null; // a side-step planned for the old phase must not steer the new one
         clearFakeMine();
+        clearBreaking();
+    }
+
+    /** Takes down the crack marks of a block it was digging through, and forgets the progress. */
+    private void clearBreaking() {
+        if (breaking != null) {
+            level().destroyBlockProgress(mob.getId(), breaking, -1);
+            breaking = null;
+            breakProgress = 0;
+        }
     }
 
     /** Takes down the crack marks of its pretend mining. */
@@ -815,6 +825,9 @@ public final class LurkerBrain {
         double chase = speedFor(7.2 * difficulty().speedMultiplier() * eye);
         boolean targetInWater = SpotFinder.isInOrOnWater(t);
         boolean warded = !targetInWater && isWarded(t);
+        if (warded || targetInWater) {
+            clearBreaking(); // it stopped digging toward you: no cracks left on the wall
+        }
         if (warded) {
             // Soul fire: it circles just outside the light and cannot touch you.
             targetWaterTicks++;
@@ -859,8 +872,9 @@ public final class LurkerBrain {
             mob.playSound(ModSounds.HEARTBEAT.get(), 1.0F, 1.2F);
         }
         // Deathwish bites kill in one hit, so it always announces itself first: a screech, then 1.5 s.
-        // (The night meeting already gave a "RUN!" and a 5 second head start instead.)
-        boolean warned = enc.mode() == Mode.NIGHT_MEETING;
+        // (A night-meeting chase already gave a "RUN!" and a 5 second head start instead; but if you hit it
+        // during the greeting and it lunges, that warning never came, so it still screeches and winds up.)
+        boolean warned = meetingChase;
         boolean windingUp = !warned && difficulty() == LurkerDifficulty.DEATHWISH
                 && (phaseAge < DEATHWISH_WINDUP || age < windupUntil);
         if (!warned && difficulty() == LurkerDifficulty.DEATHWISH && (phaseAge == 1 || age == windupUntil - DEATHWISH_WINDUP + 1)) {
@@ -1299,12 +1313,6 @@ public final class LurkerBrain {
         return p.getViewVector(1F).dot(to.scale(1 / len)) > 0.85 && p.hasLineOfSight(mob);
     }
 
-    /**
-     * Hit by a scare burst from The Protector of the Fog.
-     *
-     * @param flee true: it shrieks and runs; false: it holds on, weakened (slower, weaker bites, bites less
-     *             often, and it glows so you can see where it is) for 15 seconds
-     */
     /** True once it has left (vanishing, flopping away or dead): nothing reaches it any more. */
     public boolean isEnded() {
         return ended;
@@ -1316,6 +1324,12 @@ public final class LurkerBrain {
         vanish(true);
     }
 
+    /**
+     * Hit by a scare burst from The Protector of the Fog.
+     *
+     * @param flee true: it shrieks and runs; false: it holds on, weakened (slower, weaker bites, bites less
+     *             often, and it glows so you can see where it is) for 15 seconds
+     */
     public void onScareBurst(boolean flee) {
         if (ended) {
             return;

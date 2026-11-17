@@ -17,7 +17,8 @@ import de.maxhenkel.voicechat.api.events.VoicechatServerStoppedEvent;
  */
 @ForgeVoicechatPlugin
 public final class FogLurkerVoicechatPlugin implements VoicechatPlugin {
-    private SvcBackend backend;
+    /** Set and cleared on the server thread, read on the voice thread. */
+    private volatile SvcBackend backend;
 
     @Override
     public String getPluginId() {

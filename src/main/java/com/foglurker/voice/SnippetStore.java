@@ -147,24 +147,42 @@ public final class SnippetStore {
         return deleted;
     }
 
+    /**
+     * Deletes every snippet of this player. One file that cannot be deleted right now (for example held open
+     * by a virus scanner on Windows) does not stop the rest; whatever is left is deleted by the sweep that
+     * runs at start-up and every 10 minutes while someone is playing (VoiceConsent.deleteOrphanSnippets).
+     */
     public static int deleteAll(UUID player) {
         Path d = dir(player);
         int deleted = 0;
-        try {
-            for (Path p : list(d)) {
-                Files.deleteIfExists(p);
-                deleted++;
-            }
-            if (Files.isDirectory(d)) {
-                try (Stream<Path> rest = Files.list(d)) {
-                    for (Path p : rest.toList()) {
-                        Files.deleteIfExists(p);
-                    }
-                }
-                Files.deleteIfExists(d);
-            }
+        int failed = 0;
+        if (!Files.isDirectory(d)) {
+            return 0;
+        }
+        List<Path> everything;
+        try (Stream<Path> all = Files.list(d)) {
+            everything = all.toList();
         } catch (IOException e) {
-            FogLurkerMod.LOGGER.error("Could not delete all voice snippets for {}", player, e);
+            FogLurkerMod.LOGGER.error("Could not list the voice snippets of {}; they will be deleted on the next sweep", player, e);
+            return 0;
+        }
+        for (Path p : everything) {
+            try {
+                Files.deleteIfExists(p);
+                if (p.getFileName().toString().endsWith(".snip")) {
+                    deleted++;
+                }
+            } catch (IOException | RuntimeException e) {
+                failed++;
+            }
+        }
+        try {
+            Files.deleteIfExists(d);
+        } catch (IOException | RuntimeException e) {
+            failed++;
+        }
+        if (failed > 0) {
+            FogLurkerMod.LOGGER.warn("{} voice snippet file(s) of {} could not be deleted yet; the sweep will retry", failed, player);
         }
         return deleted;
     }

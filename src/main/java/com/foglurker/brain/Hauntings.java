@@ -142,6 +142,9 @@ public final class Hauntings {
             if (isBeingHunted(p)) {
                 continue; // it is busy with them already
             }
+            if (LurkerDirector.leftAloneTicks(p) > 0) {
+                continue; // they outran it: nothing comes for them, not even a scare, for 15 minutes
+            }
             candidates.add(p);
         }
         if (!candidates.isEmpty() && haunt(candidates.get(r.nextInt(candidates.size())), data, r) != null) {
@@ -333,7 +336,9 @@ public final class Hauntings {
         MimicChat.Intent intent = r.nextBoolean() ? MimicChat.Intent.GREET : MimicChat.Intent.LURE;
         later(server, 60 + r.nextInt(60), () -> MimicChat.compose(ctx, intent, null, r)
                 .whenComplete((text, err) -> server.execute(() -> {
-                    if (err == null && text != null && !text.isBlank() && !p.hasDisconnected()) {
+                    // (It may have been killed while the line was being written: then nothing haunts.)
+                    if (err == null && text != null && !text.isBlank() && !p.hasDisconnected()
+                            && !LurkerDirector.isResting(server)) {
                         p.sendSystemMessage(Component.translatable("chat.type.text", name, text));
                     }
                 })));
@@ -429,8 +434,9 @@ public final class Hauntings {
                         String text = err == null && res != null ? res.text().map(Hauntings::clip).filter(t -> !t.isEmpty())
                                 .orElse(last) : last;
                         pages.add(text);
-                        if (!placeBook(level, chest, name, pages)) {
+                        if (LurkerDirector.isResting(p.server) || !placeBook(level, chest, name, pages)) {
                             prof.lastBookAt = previousBook;
+                            count = Math.max(0, count - 1); // it was counted as a haunting, but nothing happened
                         }
                     }));
         } else {

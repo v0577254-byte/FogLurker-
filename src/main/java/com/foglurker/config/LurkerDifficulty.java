@@ -10,8 +10,11 @@ import java.util.Locale;
  *   <li><b>easy</b>: attacks rarely (more than very easy). 3 hearts per hit, 30 min grace.</li>
  *   <li><b>medium</b> (default): attacks on 1 of every 3 spawns. 5 hearts per hit, 20 min (one Minecraft day) grace.</li>
  *   <li><b>hard</b>: attacks more than medium. 6 hearts per hit, 10 min grace.</li>
- *   <li><b>deathwish</b>: attacks on 3 of every 4 spawns, one-shots, and is 50% faster than every other mode.</li>
+ *   <li><b>deathwish</b>: attacks on 3 of every 4 spawns, a bite takes a whole health bar, and it is 50% faster
+ *       than every other mode.</li>
  * </ul>
+ * Good armour blocks part of every bite (see {@link com.foglurker.entity.LurkerArmor}), so a Deathwish bite kills
+ * you unarmoured but not in iron or better.
  * Minimum time between hits: 3 s, 2.5 s, 2 s, 1.75 s and 1.5 s respectively.
  */
 public enum LurkerDifficulty {

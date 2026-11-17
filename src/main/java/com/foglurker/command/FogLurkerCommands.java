@@ -534,7 +534,8 @@ public final class FogLurkerCommands {
     }
 
     private static Component describe(LurkerDifficulty d) {
-        String damage = d.isOneShot() ? "one-shots" : (fmtHearts(d.heartsPerHit()) + " per hit");
+        String damage = d.isOneShot() ? "a bite takes a whole health bar (good armour blocks part of it)"
+                : (fmtHearts(d.heartsPerHit()) + " per hit (good armour blocks part of it)");
         String attacks = switch (d) {
             case VERY_EASY -> "rarely attacks, mostly only watches";
             case EASY -> "attacks rarely";

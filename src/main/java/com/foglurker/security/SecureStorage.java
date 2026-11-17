@@ -75,19 +75,7 @@ public final class SecureStorage {
                 Set<PosixFilePermission> perms = PosixFilePermissions.fromString(directory ? "rwx------" : "rw-------");
                 Files.setPosixFilePermissions(path, perms);
             } else if (Files.getFileAttributeView(path, java.nio.file.attribute.AclFileAttributeView.class) != null) {
-                // Windows: replace the access list with a single entry, the owner (the account running Minecraft).
-                var acl = Files.getFileAttributeView(path, java.nio.file.attribute.AclFileAttributeView.class);
-                var owner = Files.getOwner(path);
-                var entry = java.nio.file.attribute.AclEntry.newBuilder()
-                        .setType(java.nio.file.attribute.AclEntryType.ALLOW)
-                        .setPrincipal(owner)
-                        .setPermissions(java.util.EnumSet.allOf(java.nio.file.attribute.AclEntryPermission.class))
-                        .setFlags(directory
-                                ? java.util.EnumSet.of(java.nio.file.attribute.AclEntryFlag.FILE_INHERIT,
-                                java.nio.file.attribute.AclEntryFlag.DIRECTORY_INHERIT)
-                                : java.util.EnumSet.noneOf(java.nio.file.attribute.AclEntryFlag.class))
-                        .build();
-                acl.setAcl(java.util.List.of(entry));
+                restrictWindows(path, directory);
             } else {
                 java.io.File f = path.toFile();
                 // Last resort on other systems: the best java.io.File can do (owner-only where supported).
@@ -102,6 +90,46 @@ public final class SecureStorage {
             }
         } catch (Exception ignored) {
             // Permissions are defence in depth; the contents are encrypted anyway.
+        }
+    }
+
+    /**
+     * Windows: only the account running Minecraft (and the file's owner, if that is someone else, such as the
+     * Administrators group for files made while running as administrator) may open the file. If anything goes
+     * wrong, or this process could no longer read and write the file afterwards, the old access list is put
+     * back: locking the server out of its own folder would make the consent list unreadable.
+     */
+    private static void restrictWindows(Path path, boolean directory) throws IOException {
+        var view = Files.getFileAttributeView(path, java.nio.file.attribute.AclFileAttributeView.class);
+        java.nio.file.attribute.UserPrincipal me;
+        try {
+            me = path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(System.getProperty("user.name"));
+        } catch (IOException | RuntimeException e) {
+            return; // cannot tell who we are: leave the access list alone rather than risk locking ourselves out
+        }
+        var owner = Files.getOwner(path);
+        var flags = directory
+                ? java.util.EnumSet.of(java.nio.file.attribute.AclEntryFlag.FILE_INHERIT, java.nio.file.attribute.AclEntryFlag.DIRECTORY_INHERIT)
+                : java.util.EnumSet.noneOf(java.nio.file.attribute.AclEntryFlag.class);
+        java.util.List<java.nio.file.attribute.AclEntry> entries = new java.util.ArrayList<>();
+        for (var who : new java.util.LinkedHashSet<>(java.util.List.of(me, owner))) {
+            entries.add(java.nio.file.attribute.AclEntry.newBuilder()
+                    .setType(java.nio.file.attribute.AclEntryType.ALLOW)
+                    .setPrincipal(who)
+                    .setPermissions(java.util.EnumSet.allOf(java.nio.file.attribute.AclEntryPermission.class))
+                    .setFlags(flags)
+                    .build());
+        }
+        var before = view.getAcl();
+        view.setAcl(entries);
+        boolean stillOurs;
+        try {
+            stillOurs = Files.isReadable(path) && Files.isWritable(path);
+        } catch (RuntimeException e) {
+            stillOurs = false;
+        }
+        if (!stillOurs) {
+            view.setAcl(before); // we would have locked ourselves out: undo
         }
     }
 

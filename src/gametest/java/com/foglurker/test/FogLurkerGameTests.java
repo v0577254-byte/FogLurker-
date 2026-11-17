@@ -662,6 +662,16 @@ public final class FogLurkerGameTests {
                     hp = l.getHealth();
                     l.hurt(p.damageSources().playerAttack(p), 6F);
                     check(Math.abs(hp - l.getHealth() - 15F) < 0.01F, "a critical Protector hit should do 15, did " + (hp - l.getHealth()));
+                    // ...even while it wears a copy of someone's Protection IV armour (a mimic copies yours).
+                    ItemStack plate = new ItemStack(net.minecraft.world.item.Items.DIAMOND_CHESTPLATE);
+                    plate.enchant(net.minecraft.world.item.enchantment.Enchantments.ALL_DAMAGE_PROTECTION, 4);
+                    l.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, plate);
+                    l.invulnerableTime = 0;
+                    hp = l.getHealth();
+                    l.hurt(p.damageSources().playerAttack(p), 4F);
+                    check(Math.abs(hp - l.getHealth() - 10F) < 0.01F,
+                            "Protection on copied armour must not soften the Protector, it did " + (hp - l.getHealth()));
+                    l.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, ItemStack.EMPTY);
                     check(!l.isDeadOrDying(), "it should still be standing");
                     // It can be killed now. Every other creature leaves, and it rests for 30 minutes.
                     FogLurkerEntity other = hunter(h, p, 1.5, 12.5);
