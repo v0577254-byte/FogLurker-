@@ -74,8 +74,8 @@ public final class DebugCommand {
 
     public static LiteralArgumentBuilder<CommandSourceStack> node() {
         return Commands.literal("debugeverything")
-                .requires(s -> s.hasPermission(2) || s.getEntity() instanceof ServerPlayer p
-                        && s.getServer().isSingleplayerOwner(p.getGameProfile()))
+                .requires(s -> s.getEntity() instanceof ServerPlayer p
+                        && (s.hasPermission(2) || s.getServer().isSingleplayerOwner(p.getGameProfile())))
                 .executes(DebugCommand::run);
     }
 

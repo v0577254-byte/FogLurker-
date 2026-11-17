@@ -62,7 +62,7 @@ Between appearances (after the grace period) one player gets a small scare every
 
 Its hits ignore armour, so you survive by knowing its rules, not by fighting.
 
-**Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out. Run *before* it reaches you; once it has your leg, the water trick and pillar-jumping are off the table until Mauled wears off. Milk clears both.
+**Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out (a boat that is afloat is left alone: water is still your way out). Run *before* it reaches you; once it has your leg, the water trick and pillar-jumping are off the table until Mauled wears off. Milk clears both.
 
 | What | Effect |
 |---|---|
@@ -101,6 +101,19 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 When players are together (within 24 blocks of each other) it picks its victim inside the group: usually the one with the **least health** (about half the time), otherwise usually the one on the **edge of the group**, furthest from the others and closest to the dark it comes from (about 40%), and now and then anyone.
 
 Once it is attacking, most of the time it switches to whoever is easiest: someone **much closer** to it than its target, or someone **3+ hearts weaker** who is not much further away. It only switches to players it could actually reach (not in water, not inside a soul-fire ward). A few are fixated and never switch.
+
+## The fog
+
+The fog rolls in whenever it is near you and lifts a few seconds after it leaves. It works the same at **every render distance from 2 to 32 chunks**:
+
+| What it is doing | How far you can see |
+|---|---|
+| watching from far off | about 120 blocks, or 80% of your view if that is shorter |
+| stalking you | about 80 blocks, or 63% of your view |
+| luring you deep | about 30 blocks, or a third of your view |
+| attacking | about 11 blocks (7 at a 2-chunk render distance) |
+
+So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in within about 1.5 seconds. The same fog is also drawn as a soft veil over the screen (under your hotbar and chat), so it still shows if a shader pack or rendering mod replaces Minecraft's own fog.
 
 ## Night
 
@@ -300,6 +313,8 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50; a 0% chance never spawns; `/foglurker naturalspawning off|on` is op-only, survives a save and restarts the countdown
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
+- the fog at every render distance from 2 to 32 chunks: always visibly closer than your normal view, never further for thicker fog, attack fog within about 12 blocks, and it eases in without popping
+- a summoned creature stays the pale crawler, a flopped one has a flat hitbox, looking for dry ground never loads a chunk, a grace period that has run out stays over, and voice snippets with no opt-in on record are deleted at start-up
 - the bite: Slowness I for 10 s on Easy; on Hard also Mauled, which cancels jumps, refuses boats and drags you out of the one you sit in, and both work again once it wears off
 - Deathwish cannot bite during its 1.5 s wind-up, then kills
 - a second bell within the cooldown does nothing, escaping with a bell adds +10% (capped at +30%), and a bite resets it

@@ -270,7 +270,7 @@ public final class BehaviorTracker {
         p.server.execute(() -> {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
             boolean optedOut = data.profile(p.getUUID()).chatLearningOff;
-            if (!optedOut) {
+            if (!optedOut && FogLurkerConfig.COMMON.learnChat.get()) {
                 RecentChat.add(p.getGameProfile().getName(), text); // what it shows Gemini as "recent chat"
             }
             Window w = WINDOWS.get(p.getUUID());

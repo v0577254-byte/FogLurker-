@@ -63,7 +63,16 @@ final class SvcBackend implements VoiceBridge.Backend {
         if (!VoiceConsent.isOptedIn(id)) {
             return; // never record anyone who has not opted in
         }
-        recorders.computeIfAbsent(id, Recorder::new).accept(event.getPacket().getOpusEncodedData());
+        Recorder recorder = recorders.computeIfAbsent(id, Recorder::new);
+        if (!VoiceConsent.isOptedIn(id)) {
+            // They opted out between the check above and here: nothing of theirs may be kept, not even in memory.
+            if (recorders.remove(id, recorder)) {
+                recorder.discard();
+                recorder.close();
+            }
+            return;
+        }
+        recorder.accept(event.getPacket().getOpusEncodedData());
     }
 
     void onDisconnect(UUID id) {
@@ -233,6 +242,9 @@ final class SvcBackend implements VoiceBridge.Backend {
                 playingOwner.put(player, voiceOwner);
                 playing.put(entityId, player);
                 player.startPlaying();
+                if (!VoiceConsent.isOptedIn(voiceOwner)) {
+                    player.stopPlaying(); // they opted out in the instant before it started
+                }
             } catch (Throwable t) {
                 FogLurkerMod.LOGGER.warn("Fog Lurker could not play a voice snippet", t);
             }

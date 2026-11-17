@@ -473,6 +473,22 @@ public final class FogLurkerGameTests {
             check(d.rollSpawn(0.1, 0.5), "a 0.1 roll on a 50/50 spawns");
             check(!d.rollSpawn(0.7, 0.5), "and the one after that is a normal 50/50 again");
             check(d.rollSpawn(0.7, 0.5), "...which, having missed, guarantees the next");
+            // Once the grace period has run out it stays over, even after switching to a mode with a longer one...
+            FogLurkerSavedData g = new FogLurkerSavedData();
+            g.setDifficulty(LurkerDifficulty.DEATHWISH);
+            for (int i = 0; i <= LurkerDifficulty.DEATHWISH.graceTicks(); i++) {
+                g.tickGrace();
+            }
+            check(!g.inGrace(), "5 minutes of Deathwish grace should be over");
+            g.setDifficulty(LurkerDifficulty.VERY_EASY);
+            check(!g.inGrace(), "once it has run out, a longer mode must not bring the grace period back");
+            // ...but while it is still running, a longer mode does give you its longer grace.
+            FogLurkerSavedData early = new FogLurkerSavedData();
+            early.setDifficulty(LurkerDifficulty.DEATHWISH);
+            early.tickGrace();
+            early.setDifficulty(LurkerDifficulty.VERY_EASY);
+            check(early.inGrace() && early.graceRemainingTicks() == LurkerDifficulty.VERY_EASY.graceTicks() - 1,
+                    "a longer mode chosen during the grace period should extend it");
             // A chance of 0 really is never: misses must not turn into guaranteed appearances.
             FogLurkerSavedData never = new FogLurkerSavedData();
             for (int i = 0; i < 10; i++) {
@@ -524,6 +540,67 @@ public final class FogLurkerGameTests {
             for (int i = 0; i < modes.length; i++) {
                 check(Math.abs(modes[i].nightFogMultiplier() - want[i]) < 1e-6, modes[i] + " night fog should be x" + want[i]);
             }
+            h.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", batch = "night", timeoutTicks = 100)
+    public static void summonedShapeFlatFlopAndUnloadedGround(GameTestHelper h) {
+        logged(h, () -> {
+            ServerLevel level = h.getLevel();
+            // /summon gives no shape: it must stay the pale crawler, not turn into a blank player.
+            FogLurkerEntity summoned = com.foglurker.registry.ModEntities.FOG_LURKER.get().create(level);
+            summoned.readAdditionalSaveData(new net.minecraft.nbt.CompoundTag());
+            check(summoned.getDisguise() == Disguise.CRAWLER, "a summoned creature became " + summoned.getDisguise());
+            net.minecraft.nbt.CompoundTag cow = new net.minecraft.nbt.CompoundTag();
+            cow.putInt("Disguise", Disguise.COW.ordinal());
+            summoned.readAdditionalSaveData(cow);
+            check(summoned.getDisguise() == Disguise.COW, "a saved shape must still be read");
+            // Flopped flat, its hitbox is flat too.
+            summoned.setDisguise(Disguise.CRAWLER);
+            float standing = summoned.getBbHeight();
+            summoned.beginFlop();
+            check(summoned.getBbHeight() < 0.3F && standing > 1F, "flopped, it should have a flat hitbox, got " + summoned.getBbHeight());
+            summoned.discard();
+            // Looking for dry ground never loads a chunk: far, unloaded ground is simply "not a spot".
+            net.minecraft.core.BlockPos far = new net.minecraft.core.BlockPos(1_000_000, 64, 1_000_000);
+            check(!level.hasChunk(far.getX() >> 4, far.getZ() >> 4), "test setup: that chunk should not be loaded");
+            check(!com.foglurker.brain.SpotFinder.isDry(level, far), "unloaded ground must not count as a dry spot");
+            check(!level.hasChunk(far.getX() >> 4, far.getZ() >> 4), "checking for water loaded a chunk");
+            h.succeed();
+        });
+    }
+
+    /** The fog must do its job at every render distance a player can pick: 2 to 32 chunks. */
+    @GameTest(template = "empty", batch = "night", timeoutTicks = 100)
+    public static void fogWorksFromTwoToThirtyTwoChunks(GameTestHelper h) {
+        logged(h, () -> {
+            float[] stages = {0.15F, 0.3F, 0.6F, 0.85F, 1.0F}; // watching, stalking, luring, attacking, thickest
+            for (int chunks = 2; chunks <= 32; chunks++) {
+                float view = chunks * 16F;
+                String rd = chunks + " chunks: ";
+                check(com.foglurker.util.FogCurve.far(0F, view) == view, rd + "no fog must leave the view alone");
+                check(com.foglurker.util.FogCurve.far(0.01F, view) > view * 0.9F, rd + "the fog must ease in, not pop");
+                float last = view;
+                for (float f : stages) {
+                    float far = com.foglurker.util.FogCurve.far(f, view);
+                    float near = com.foglurker.util.FogCurve.near(f, far, view - 4F);
+                    check(far < view * 0.85F, rd + "fog " + f + " should be clearly visible, but you still see " + far + " of " + view);
+                    check(far <= last + 1e-4F, rd + "thicker fog must never let you see further (" + far + " after " + last + ")");
+                    check(far >= Math.min(view, com.foglurker.util.FogCurve.MIN_VIEW) - 1e-4F, rd + "fog " + f + " leaves only " + far + " blocks");
+                    check(near >= 0F && near < far, rd + "the fog must start in front of where it ends (" + near + " / " + far + ")");
+                    last = far;
+                }
+                float stalk = com.foglurker.util.FogCurve.far(0.3F, view);
+                float attack = com.foglurker.util.FogCurve.far(0.85F, view);
+                check(stalk <= 85F, rd + "stalking fog must not be pushed out of sight by a long render distance (" + stalk + ")");
+                check(attack <= 12F, rd + "attack fog should close in to about 12 blocks or less, got " + attack);
+            }
+            // Odd inputs never produce nonsense.
+            check(com.foglurker.util.FogCurve.far(Float.NaN, 192F) == 192F, "NaN fog must be ignored");
+            check(com.foglurker.util.FogCurve.far(0.5F, 0F) == 0F, "a zero view must stay zero");
+            check(com.foglurker.util.FogCurve.far(5F, 192F) == com.foglurker.util.FogCurve.far(1F, 192F), "fog above 1 is treated as 1");
+            check(com.foglurker.util.FogCurve.far(1F, 1024F) <= 12F, "64 chunks works too");
             h.succeed();
         });
     }
@@ -1582,6 +1659,21 @@ public final class FogLurkerGameTests {
                 com.foglurker.voice.VoiceRetention.onStart(now + day);
                 check(VoiceConsent.isOptedIn(active), "a normal restart must not wipe anything");
                 VoiceConsent.optOut(active);
+                // A voice with no opt-in on record is never kept: a start-up sweep deletes it, and leaves opted-in players alone.
+                UUID orphan = UUID.randomUUID();
+                UUID keeper = UUID.randomUUID();
+                VoiceConsent.optIn(keeper);
+                java.nio.file.Path orphanFile = SecureStorage.voiceRoot().resolve(orphan.toString()).resolve("1-a.snip");
+                java.nio.file.Path keeperFile = SecureStorage.voiceRoot().resolve(keeper.toString()).resolve("1-a.snip");
+                SecureStorage.writeEncrypted(orphanFile, new byte[]{1, 2, 3, 4});
+                SecureStorage.writeEncrypted(keeperFile, new byte[]{1, 2, 3, 4});
+                com.foglurker.voice.VoiceRetention.onStart(now + day);
+                check(!java.nio.file.Files.exists(orphanFile) && !java.nio.file.Files.exists(orphanFile.getParent()),
+                        "a snippet with no opt-in on record must be deleted at start-up");
+                check(java.nio.file.Files.exists(keeperFile), "the sweep must not touch an opted-in player's snippets");
+                check(!VoiceConsent.hasUnsavedChanges(), "consent changes should be on disk");
+                VoiceConsent.optOut(keeper);
+                check(!java.nio.file.Files.exists(keeperFile), "opting out deletes the snippets");
                 String note = new String(java.nio.file.Files.readAllBytes(SecureStorage.root().resolve("READ_ME.txt")),
                         StandardCharsets.UTF_8);
                 check(note.contains("safe") || note.contains("delete it"), "the folder note is missing");

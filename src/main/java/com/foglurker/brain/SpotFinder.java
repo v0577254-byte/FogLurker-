@@ -112,6 +112,9 @@ public final class SpotFinder {
     public static boolean isDry(ServerLevel level, BlockPos feet) {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
+                if (!level.hasChunk((feet.getX() + dx) >> 4, (feet.getZ() + dz) >> 4)) {
+                    return false; // at the edge of the loaded world: unknown ground, and never load a chunk to find out
+                }
                 for (int dy = -1; dy <= 1; dy++) {
                     if (level.getFluidState(feet.offset(dx, dy, dz)).is(FluidTags.WATER)) {
                         return false;
@@ -191,7 +194,7 @@ public final class SpotFinder {
                     }
                     for (int ox = -1; ox <= 1; ox++) {
                         for (int oz = -1; oz <= 1; oz++) {
-                            if (ox != 0 || oz != 0) {
+                            if ((ox != 0 || oz != 0) && level.hasChunk((p.getX() + ox) >> 4, (p.getZ() + oz) >> 4)) {
                                 score += coverValue(level.getBlockState(p.offset(ox, 0, oz)));
                                 score += coverValue(level.getBlockState(p.offset(ox, 1, oz))) / 2;
                             }

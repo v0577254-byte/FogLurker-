@@ -152,8 +152,9 @@ public final class ClientEffects {
             return;
         }
         fogApplied++;
-        float far = fogFar(f, event.getFarPlaneDistance());
-        float near = fogNear(f, far, event.getNearPlaneDistance());
+        // Works the same from 2 to 32 chunks of render distance: see FogCurve.
+        float far = com.foglurker.util.FogCurve.far(f, event.getFarPlaneDistance());
+        float near = com.foglurker.util.FogCurve.near(f, far, event.getNearPlaneDistance());
         lastFar = far;
         event.setFarPlaneDistance(far);
         event.setNearPlaneDistance(near);
@@ -167,29 +168,9 @@ public final class ClientEffects {
         return lastFar;
     }
 
-    /**
-     * How far you can see in the fog, in blocks, whatever your render distance: about 120 blocks while it
-     * watches from far off, ~80 while it stalks, ~30 while it lures you deep, ~11 when it attacks, 8 at most.
-     * (It used to be a share of the render distance, so at 32 chunks the lighter fog was over 230 blocks
-     * away and could not be seen.) It eases in from your normal view so it never pops.
-     */
-    public static float fogFar(float f, float vanillaFar) {
-        float wanted = 8.0F + 152.0F * (1.0F - f) * (1.0F - f);
-        float ease = Mth.clamp(f / 0.12F, 0F, 1F);
-        return Math.min(vanillaFar, Mth.lerp(ease, vanillaFar, Math.min(vanillaFar, wanted)));
-    }
-
-    /** Where the fog starts: closer the thicker it is, so thick fog is a wall rather than a far haze. */
-    public static float fogNear(float f, float far, float vanillaNear) {
-        return Math.max(0F, Math.min(vanillaNear, far * (0.6F - 0.55F * f)));
-    }
-
     @SubscribeEvent
     public static void onFogColor(ViewportEvent.ComputeFogColor event) {
-        if (!FogLurkerConfig.CLIENT.fogEffects.get()) {
-            return;
-        }
-        float f = fogNow(event.getPartialTick()) * 0.8F;
+        float f = FogLurkerConfig.CLIENT.fogEffects.get() ? fogNow(event.getPartialTick()) * 0.8F : 0F;
         if (f >= 0.01F) {
             float avg = (event.getRed() + event.getGreen() + event.getBlue()) / 3F;
             event.setRed(Mth.lerp(f, event.getRed(), avg * 0.95F));

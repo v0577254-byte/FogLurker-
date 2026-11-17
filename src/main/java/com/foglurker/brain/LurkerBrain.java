@@ -149,6 +149,9 @@ public final class LurkerBrain {
     // counterplay: soul-fire wards, and whether you are looking at it
     private boolean wardedCache;
     private int wardCheckedAt = -100;
+    /** Whose ward the cache is for: asking about another player must never get this one's answer. */
+    @Nullable
+    private UUID wardCheckedFor;
     private boolean wasWatched;
 
     // water: its weakness in the attacking form
@@ -296,6 +299,7 @@ public final class LurkerBrain {
         mob.setLying(false);
         bestToWoods = Double.MAX_VALUE;
         lureStuck = 0;
+        detour = null; // a side-step planned for the old phase must not steer the new one
     }
 
     // =================================================================== main loop
@@ -1149,6 +1153,10 @@ public final class LurkerBrain {
             if (breaking != null) {
                 level.destroyBlockProgress(mob.getId(), breaking, -1);
             }
+            if (fakeMine != null) {
+                level.destroyBlockProgress(mob.getId() + 1_000_000, fakeMine, -1); // no cracks left behind
+                fakeMine = null;
+            }
             ServerPlayer seen = target();
             if (seen != null) {
                 ModNetwork.send(seen, new FogPacket(0F));
@@ -1229,8 +1237,9 @@ public final class LurkerBrain {
 
     /** Is the target standing by soul fire? Checked once a second. */
     private boolean isWarded(ServerPlayer t) {
-        if (age - wardCheckedAt >= 20) {
+        if (age - wardCheckedAt >= 20 || !t.getUUID().equals(wardCheckedFor)) {
             wardCheckedAt = age;
+            wardCheckedFor = t.getUUID();
             wardedCache = Wards.isWarded(t);
         }
         return wardedCache;

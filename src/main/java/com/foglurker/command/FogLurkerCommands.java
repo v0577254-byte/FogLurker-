@@ -240,7 +240,10 @@ public final class FogLurkerCommands {
         }
         if (on) {
             profile.chatLearningOff = false;
-            p.sendSystemMessage(PREFIX.copy().append(Component.literal("It will learn how you type again.").withStyle(ChatFormatting.GRAY)));
+            p.sendSystemMessage(PREFIX.copy().append(Component.literal(FogLurkerConfig.COMMON.learnChat.get()
+                    ? "It will learn how you type again."
+                    : "Turned on for you, but this server has chat learning switched off, so nothing is learned.")
+                    .withStyle(ChatFormatting.GRAY)));
         } else {
             int forgotten = profile.chatSamples.size();
             profile.chatLearningOff = true;
@@ -615,6 +618,10 @@ public final class FogLurkerCommands {
         p.sendSystemMessage(PREFIX.copy().append(Component.literal("You have opted out. " + deleted
                 + " voice snippet(s) were deleted and nothing more will be recorded. Opt back in any time with ")
                 .withStyle(ChatFormatting.GRAY)).append(suggest("/fglurk optin")));
+        if (VoiceConsent.hasUnsavedChanges()) {
+            p.sendSystemMessage(Component.literal("Note: the server could not write this to its disk yet. You are opted out now and it "
+                    + "keeps trying; if you see this again, tell the server owner.").withStyle(ChatFormatting.GOLD));
+        }
         return 1;
     }
 

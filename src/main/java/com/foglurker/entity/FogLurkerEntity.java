@@ -486,6 +486,9 @@ public class FogLurkerEntity extends PathfinderMob {
         if (d == Disguise.PLAYER && pose == Pose.CROUCHING) {
             return EntityDimensions.scalable(0.6F, 1.5F);
         }
+        if (isFlopped()) {
+            return EntityDimensions.scalable(d.dimensions().width, 0.2F); // a pancake has no tall invisible box
+        }
         if (d == Disguise.CRAWLER && isLying()) {
             return EntityDimensions.scalable(0.9F, 0.6F); // flat in the grass: no hitbox poking out
         }
@@ -589,8 +592,8 @@ public class FogLurkerEntity extends PathfinderMob {
         if (mauls) {
             victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(com.foglurker.registry.ModEffects.MAULED.get(),
                     200, 0, false, true, true), this);
-            if (victim.getVehicle() instanceof net.minecraft.world.entity.vehicle.Boat) {
-                victim.stopRiding();
+            if (victim.getVehicle() instanceof net.minecraft.world.entity.vehicle.Boat boat && !boat.isInWater()) {
+                victim.stopRiding(); // on land only: a boat that is afloat is your way out
             }
         }
         if (victim instanceof net.minecraft.server.level.ServerPlayer sp) {
@@ -728,7 +731,9 @@ public class FogLurkerEntity extends PathfinderMob {
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
-        setDisguise(Disguise.byId(tag.getInt("Disguise")));
+        if (tag.contains("Disguise")) { // /summon passes no shape: keep the pale crawler, not ordinal 0 (a player)
+            setDisguise(Disguise.byId(tag.getInt("Disguise")));
+        }
     }
 
     /** Name shown in death messages: whoever it was pretending to be. */

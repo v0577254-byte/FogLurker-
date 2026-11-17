@@ -82,12 +82,20 @@ public final class Hauntings {
         count = 0;
         QUEUE.clear();
         nextAt = -1;
+        lastTickAt = -1;
     }
 
     // =================================================================== scheduling
 
+    /** Game time of the previous tick here, to notice gaps (nobody online, hauntings off, grace). */
+    private static long lastTickAt = -1;
+
     public static void tick(MinecraftServer server, FogLurkerSavedData data) {
         long now = server.overworld().getGameTime();
+        if (lastTickAt >= 0 && now - lastTickAt > 100) {
+            nextAt = -1; // the clock ran on while nobody was here: start a fresh wait instead of firing at once
+        }
+        lastTickAt = now;
         if (!QUEUE.isEmpty()) {
             List<Runnable> due = new ArrayList<>();
             for (Iterator<Timed> it = QUEUE.iterator(); it.hasNext(); ) {
@@ -100,6 +108,7 @@ public final class Hauntings {
             due.forEach(Runnable::run);
         }
         if (!FogLurkerConfig.COMMON.hauntings.get() || data.inGrace()) {
+            nextAt = -1; // when they come back on, the wait starts fresh
             return;
         }
         RandomSource r = server.overworld().getRandom();
@@ -421,8 +430,8 @@ public final class Hauntings {
     }
 
     private static void placeBook(ServerLevel level, BlockPos chest, String author, List<String> pages) {
-        if (!(level.getBlockEntity(chest) instanceof Container c)) {
-            return;
+        if (!level.isLoaded(chest) || !(level.getBlockEntity(chest) instanceof Container c)) {
+            return; // the player left while the note was being written: never load the chunk for it
         }
         int slot = freeSlot(c);
         if (slot < 0) {

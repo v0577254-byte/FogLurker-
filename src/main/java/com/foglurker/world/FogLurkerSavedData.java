@@ -63,23 +63,33 @@ public final class FogLurkerSavedData extends SavedData {
         return graceRemainingTicks() > 0;
     }
 
-    /** Ends the grace period now, whatever the mode (even if it is later switched to a longer one). */
-    public void endGrace() {
+    private static long longestGrace() {
         long longest = 0;
         for (LurkerDifficulty d : LurkerDifficulty.values()) {
             longest = Math.max(longest, d.graceTicks());
         }
-        graceElapsedTicks = Math.max(graceElapsedTicks, longest);
+        return longest;
+    }
+
+    /** Ends the grace period now, whatever the mode (even if it is later switched to a longer one). */
+    public void endGrace() {
+        graceElapsedTicks = Math.max(graceElapsedTicks, longestGrace());
         nextSpawnTicks = -1; // the 5 minute roll timer starts on the next tick
         setDirty();
     }
 
     public void tickGrace() {
-        if (inGrace()) {
-            graceElapsedTicks++;
-            if (graceElapsedTicks % 200 == 0) {
+        if (!inGrace()) {
+            // It ran out: it is out there now. Switching to a mode with a longer grace must not call it back.
+            if (graceElapsedTicks < longestGrace()) {
+                graceElapsedTicks = longestGrace();
                 setDirty();
             }
+            return;
+        }
+        graceElapsedTicks++;
+        if (graceElapsedTicks % 200 == 0) {
+            setDirty();
         }
     }
 

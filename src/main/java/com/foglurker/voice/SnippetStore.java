@@ -108,6 +108,27 @@ public final class SnippetStore {
         }
     }
 
+    /** Deletes the snippets of every player who is not in {@code keep}. @return number of snippet files deleted */
+    public static int deleteExcept(java.util.Set<UUID> keep) {
+        int deleted = 0;
+        Path root = SecureStorage.voiceRoot();
+        try (Stream<Path> dirs = Files.list(root)) {
+            for (Path d : dirs.filter(Files::isDirectory).toList()) {
+                try {
+                    UUID owner = UUID.fromString(d.getFileName().toString());
+                    if (!keep.contains(owner)) {
+                        deleted += deleteAll(owner);
+                    }
+                } catch (IllegalArgumentException notAPlayer) {
+                    // leave anything that is not a player folder alone
+                }
+            }
+        } catch (IOException e) {
+            FogLurkerMod.LOGGER.error("Could not list voice snippet folders", e);
+        }
+        return deleted;
+    }
+
     /** Deletes the snippets of every player. @return number of snippet files deleted */
     public static int deleteEveryone() {
         int deleted = 0;

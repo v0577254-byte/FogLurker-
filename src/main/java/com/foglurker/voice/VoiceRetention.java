@@ -41,12 +41,18 @@ public final class VoiceRetention {
             FogLurkerMod.LOGGER.info("Fog Lurker was not used for over 30 days: deleted all {} stored voice snippets", deleted);
         }
         deleted += VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
+        int orphans = VoiceConsent.deleteOrphanSnippets();
+        if (orphans > 0) {
+            FogLurkerMod.LOGGER.warn("Deleted {} voice snippet(s) that had no opt-in on record", orphans);
+        }
+        deleted += orphans;
         stamp(nowMillis);
         return deleted;
     }
 
     /** Runs every so often while playing, and when players join or leave. */
     public static void heartbeat(long nowMillis, Iterable<UUID> onlinePlayers) {
+        VoiceConsent.flushIfUnsaved();
         for (UUID id : onlinePlayers) {
             VoiceConsent.touch(id, nowMillis);
         }

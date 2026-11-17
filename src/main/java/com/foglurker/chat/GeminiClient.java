@@ -134,10 +134,11 @@ public final class GeminiClient {
         }
         long soonest = Long.MAX_VALUE;
         for (String m : models) {
-            if (!isLimited(m, now)) {
+            Long until = MODEL_LIMITED_UNTIL.get(m); // read once: the map can be cleared from another thread
+            if (until == null || now >= until) {
                 return null;
             }
-            soonest = Math.min(soonest, MODEL_LIMITED_UNTIL.get(m));
+            soonest = Math.min(soonest, until);
         }
         return models.isEmpty() ? null : "rate limited by Google; retrying in " + ((soonest - now) / 1000 + 1) + "s";
     }

@@ -58,7 +58,11 @@ public final class ClientShowcase {
             scaresScene(mc, server);
             return;
         }
-        if ("fogattack".equals(System.getProperty("foglurker.scene"))) {
+        String scene = System.getProperty("foglurker.scene", "");
+        if (scene.startsWith("fogattack")) {
+            // "fogattack2" ... "fogattack32": the render distance to test at (default 32).
+            String digits = scene.substring("fogattack".length());
+            fogRenderDistance = digits.isEmpty() ? 32 : Integer.parseInt(digits);
             fogAttackScene(mc, server);
             return;
         }
@@ -122,7 +126,7 @@ public final class ClientShowcase {
     private static void fogAttackScene(Minecraft mc, MinecraftServer server) {
         switch (ticks) {
             case 40 -> {
-                mc.options.renderDistance().set(32);
+                mc.options.renderDistance().set(fogRenderDistance);
                 server.execute(() -> {
                     ServerPlayer p = sp(server);
                     p.serverLevel().setDayTime(6000);
@@ -133,19 +137,21 @@ public final class ClientShowcase {
             case 70 -> server.execute(() -> server.getCommands().performPrefixedCommand(
                     sp(server).createCommandSourceStack().withPermission(2), "foglurker force stalk"));
             case 120, 160 -> logFog(mc, "stalking");
-            case 165 -> shot(mc, "foglurker_fog_stalk.png");
+            case 165 -> shot(mc, "foglurker_fog_stalk_rd" + fogRenderDistance + ".png");
             case 170 -> server.execute(() -> {
                 var ops = sp(server).createCommandSourceStack().withPermission(2);
                 server.getCommands().performPrefixedCommand(ops, "foglurker despawn");
                 server.getCommands().performPrefixedCommand(ops, "foglurker force attack");
             });
             case 180, 200, 220, 260 -> logFog(mc, "attacking");
-            case 262 -> shot(mc, "foglurker_fog_attack.png");
+            case 262 -> shot(mc, "foglurker_fog_attack_rd" + fogRenderDistance + ".png");
             case 300 -> mc.stop();
             default -> {
             }
         }
     }
+
+    private static int fogRenderDistance = 32;
 
     private static void logFog(Minecraft mc, String what) {
         FogLurkerMod.LOGGER.info("Showcase: {} t{}: fog {} -> {}, you can see {} blocks (render distance {} chunks), creatures out: {}",
