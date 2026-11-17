@@ -371,6 +371,15 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 `config/foglurker-client.toml`: `fogEffects` (the fog), `screenEffects` (shake and vignette), `fogOverlay` (also draw the fog as a see-through layer over the screen, so it shows even when a shader pack or rendering mod replaces Minecraft's fog; on by default). `/foglurker debugeverything` checks whether the world fog is working on your game.
 
+## Versioning
+
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.1.jar`:
+- **version** (the first number) is 1;
+- **features** goes up by one whenever something new is added (and patch starts again at 0);
+- **patch** goes up by one for every release that only fixes bugs.
+
+The number lives in `mod_version` in `gradle.properties`.
+
 ## Building from source
 
 Requires Java 17.
