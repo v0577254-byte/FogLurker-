@@ -148,7 +148,9 @@ public final class ClientEffects {
 
     @SubscribeEvent
     public static void onRenderFog(ViewportEvent.RenderFog event) {
-        fogEvents++;
+        if (event.getMode() == net.minecraft.client.renderer.FogRenderer.FogMode.FOG_TERRAIN) {
+            fogEvents++; // once per frame (the sky pass fires this event too)
+        }
         if (!FogLurkerConfig.CLIENT.fogEffects.get() || event.getType() != FogType.NONE) {
             return;
         }
