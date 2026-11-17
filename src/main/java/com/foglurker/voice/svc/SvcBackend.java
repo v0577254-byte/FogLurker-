@@ -224,11 +224,11 @@ final class SvcBackend implements VoiceBridge.Backend {
             return false; // already talking
         }
         int entityId = source.getId();
-        if (!loading.add(entityId)) {
-            return false; // a clip for it is already on its way
-        }
         // Wrapped here on the server thread; the loading thread only checks a flag on it.
         var where = api.fromEntity(source);
+        if (stopped || !loading.add(entityId)) {
+            return false; // shutting down, or a clip for it is already on its way
+        }
         SnippetStore.io().execute(() -> {
             try {
                 short[] pcm;
@@ -270,9 +270,9 @@ final class SvcBackend implements VoiceBridge.Backend {
                     playing.remove(entityId, player);
                     playingOwner.remove(player);
                 });
-                if (!VoiceConsent.isOptedIn(voiceOwner)) {
+                if (!VoiceConsent.isOptedIn(voiceOwner) || stopped) {
                     encoder.close();
-                    return; // opted out while the clip was loading
+                    return; // opted out while the clip was loading, or voice chat is shutting down
                 }
                 playingOwner.put(player, voiceOwner);
                 playing.put(entityId, player);

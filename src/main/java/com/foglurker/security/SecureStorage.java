@@ -101,13 +101,13 @@ public final class SecureStorage {
      */
     private static void restrictWindows(Path path, boolean directory) throws IOException {
         var view = Files.getFileAttributeView(path, java.nio.file.attribute.AclFileAttributeView.class);
+        var owner = Files.getOwner(path);
         java.nio.file.attribute.UserPrincipal me;
         try {
             me = path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(System.getProperty("user.name"));
         } catch (IOException | RuntimeException e) {
-            return; // cannot tell who we are: leave the access list alone rather than risk locking ourselves out
+            me = owner; // cannot look ourselves up: owner only (the check below undoes it if that locks us out)
         }
-        var owner = Files.getOwner(path);
         var flags = directory
                 ? java.util.EnumSet.of(java.nio.file.attribute.AclEntryFlag.FILE_INHERIT, java.nio.file.attribute.AclEntryFlag.DIRECTORY_INHERIT)
                 : java.util.EnumSet.noneOf(java.nio.file.attribute.AclEntryFlag.class);
@@ -138,7 +138,7 @@ public final class SecureStorage {
         try (java.util.stream.Stream<Path> all = Files.walk(root(), 3)) {
             return all.anyMatch(p -> {
                 String n = p.getFileName().toString();
-                return n.endsWith(".snip") || n.endsWith(".enc") || n.startsWith("gemini");
+                return n.endsWith(".snip") || n.endsWith(".enc") || n.startsWith("gemini") || n.startsWith("voice_consent");
             });
         } catch (IOException | RuntimeException e) {
             return false;
@@ -159,7 +159,8 @@ public final class SecureStorage {
             if (Files.isRegularFile(keyFile) && Files.size(keyFile) == 32) {
                 raw = Files.readAllBytes(keyFile);
             } else {
-                if (Files.exists(keyFile)) {
+                boolean wasThere = Files.exists(keyFile);
+                if (wasThere) {
                     // Damaged key: keep it (it may be recoverable) and say so loudly instead of silently
                     // replacing it, which would make everything encrypted with it unreadable without warning.
                     Path aside = keyFile.resolveSibling(".master.key.damaged-" + System.currentTimeMillis());
@@ -167,7 +168,7 @@ public final class SecureStorage {
                     FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key was damaged and was moved to {}. A new key was "
                             + "created: existing voice snippets and the Gemini API key cannot be read and must be set again.", aside);
                 }
-                if (!Files.exists(keyFile) && hasEncryptedData()) {
+                if (!wasThere && hasEncryptedData()) {
                     FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key is missing but encrypted files are still there "
                             + "(was the folder copied without its .master.key?). A new key was created: existing voice "
                             + "snippets and the Gemini API key cannot be read and must be set again.");
