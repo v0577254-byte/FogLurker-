@@ -333,7 +333,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.2.1.jar` (built as `foglurker-1.2.1.jar`) in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.2.2.jar` (built as `foglurker-1.2.2.jar`) in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -385,7 +385,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/foglurker-1.2.1.jar
+./gradlew build               # -> build/libs/foglurker-1.2.2.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

@@ -202,6 +202,18 @@ public final class FogLurkerCommands {
         if (refuseAfk(ctx.getSource(), target)) {
             return 0;
         }
+        if (what == LurkerDirector.Forced.ATTACK) {
+            // It would appear and leave at once: say why instead of claiming it is hunting them.
+            String why = target.serverLevel().getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL
+                    ? "the world is on Peaceful (set the difficulty to Easy or higher)"
+                    : target.isCreative() ? target.getGameProfile().getName() + " is in Creative mode"
+                    : target.isSpectator() ? target.getGameProfile().getName() + " is a spectator"
+                    : null;
+            if (why != null) {
+                ctx.getSource().sendFailure(Component.literal("It cannot attack: " + why + "."));
+                return 0;
+            }
+        }
         FogLurkerEntity lurker = LurkerDirector.spawnPale(target, what);
         if (lurker == null) {
             ctx.getSource().sendFailure(Component.literal("Nowhere dry for it to appear near " + target.getGameProfile().getName() + "."));
