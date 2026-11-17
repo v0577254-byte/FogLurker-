@@ -300,6 +300,15 @@ public final class LurkerBrain {
         bestToWoods = Double.MAX_VALUE;
         lureStuck = 0;
         detour = null; // a side-step planned for the old phase must not steer the new one
+        clearFakeMine();
+    }
+
+    /** Takes down the crack marks of its pretend mining. */
+    private void clearFakeMine() {
+        if (fakeMine != null) {
+            level().destroyBlockProgress(mob.getId() + 1_000_000, fakeMine, -1);
+            fakeMine = null;
+        }
     }
 
     // =================================================================== main loop
@@ -311,7 +320,8 @@ public final class LurkerBrain {
         age++;
         phaseAge++;
         ServerPlayer t = target();
-        if (huntId != null && (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator())) {
+        if (huntId != null && (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator()
+                || t.isCreative() || com.foglurker.world.AfkTracker.isAfk(t))) {
             huntId = null; // the one it switched to is gone: back to the first target
             t = target();
         }
@@ -391,7 +401,9 @@ public final class LurkerBrain {
         if (enc.mode() == Mode.ZOMBIE) {
             mob.setAggressive(true);
             stare(t);
-            if (revealDistance(t, dist) < 3.0) {
+            if (phaseAge > 20 * 90) {
+                vanish(false); // even standing right next to someone in soul fire or water, it gives up eventually
+            } else if (revealDistance(t, dist) < 3.0) {
                 if (canAttack(t) && enc.willAttack()) {
                     if (canRevealNow(t)) {
                         setPhase(Phase.TRANSFORM);
@@ -399,8 +411,6 @@ public final class LurkerBrain {
                 } else {
                     vanish(false); // gone right before it touches you
                 }
-            } else if (phaseAge > 20 * 90) {
-                vanish(false);
             }
             return;
         }
@@ -482,8 +492,8 @@ public final class LurkerBrain {
         if (toWoods < bestToWoods - 0.5) {
             bestToWoods = toWoods;
             lureStuck = 0;
-        } else if (dist < 12) {
-            lureStuck++;
+        } else if (dist <= (enc.mode() == Mode.DOG ? 7.0 : 9.0) + 5) {
+            lureStuck++; // they are following but it cannot get closer to the woods
         }
         if (toWoods < 4.0 || lureStuck > 20 * 30) {
             setPhase(Phase.CLIMAX);
@@ -491,6 +501,9 @@ public final class LurkerBrain {
         }
         boolean dog = enc.mode() == Mode.DOG;
         double lead = dog ? 7.0 : 9.0;
+        if (dist <= lead + 5) {
+            clearFakeMine(); // they came closer: it stopped "mining"
+        }
         if (dist <= lead) {
             stall = 0;
             double speed = dog ? speedFor(5.0) : speedFor(dist < 5 && sprintPref ? 5.6 : 4.3);
@@ -777,6 +790,7 @@ public final class LurkerBrain {
         if (easier != null) {
             huntId = easier.getUUID();
             lastSwitch = age;
+            windupUntil = age + DEATHWISH_WINDUP; // a new victim gets the same warning before a Deathwish bite
             bestAttackDist = Double.MAX_VALUE;
             attackStall = 0;
             mob.playSound(ModSounds.ATTACK.get(), 1.4F, 0.6F);
@@ -847,8 +861,9 @@ public final class LurkerBrain {
         // Deathwish bites kill in one hit, so it always announces itself first: a screech, then 1.5 s.
         // (The night meeting already gave a "RUN!" and a 5 second head start instead.)
         boolean warned = enc.mode() == Mode.NIGHT_MEETING;
-        boolean windingUp = !warned && difficulty() == LurkerDifficulty.DEATHWISH && phaseAge < DEATHWISH_WINDUP;
-        if (!warned && difficulty() == LurkerDifficulty.DEATHWISH && phaseAge == 1) {
+        boolean windingUp = !warned && difficulty() == LurkerDifficulty.DEATHWISH
+                && (phaseAge < DEATHWISH_WINDUP || age < windupUntil);
+        if (!warned && difficulty() == LurkerDifficulty.DEATHWISH && (phaseAge == 1 || age == windupUntil - DEATHWISH_WINDUP + 1)) {
             mob.playSound(ModSounds.SCREAM.get(), 2.0F, 0.55F);
         }
         // Claws still reach you from the shore if you only waded in.
@@ -1041,6 +1056,9 @@ public final class LurkerBrain {
         }
         mob.playSound(ModSounds.WHISPER.get(), 1.2F, 0.7F);
     }
+
+    /** Until this age it cannot bite (a Deathwish wind-up after switching to someone new). */
+    private int windupUntil = -1;
 
     /** Ticks at the start of a Deathwish attack in which it cannot bite yet. */
     public static final int DEATHWISH_WINDUP = 30;

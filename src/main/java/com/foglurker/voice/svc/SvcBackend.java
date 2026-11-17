@@ -120,12 +120,17 @@ final class SvcBackend implements VoiceBridge.Backend {
         private long lastPacket;
         private boolean active;
         private boolean capturing;
+        /** Closed for good (opt-out, disconnect, shutdown): a late microphone packet must not reopen it. */
+        private boolean closed;
 
         Recorder(UUID owner) {
             this.owner = owner;
         }
 
         synchronized void accept(byte[] opus) {
+            if (closed) {
+                return;
+            }
             long now = System.currentTimeMillis();
             if (opus == null || opus.length == 0) {
                 finish(); // end of transmission
@@ -185,6 +190,10 @@ final class SvcBackend implements VoiceBridge.Backend {
         }
 
         synchronized void close() {
+            closed = true;
+            size = 0;
+            active = false;
+            capturing = false;
             if (decoder != null && !decoder.isClosed()) {
                 decoder.close();
             }

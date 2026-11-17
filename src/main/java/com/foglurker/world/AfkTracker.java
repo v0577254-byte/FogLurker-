@@ -51,6 +51,7 @@ public final class AfkTracker {
         float yaw;
         float pitch;
         double x;
+        double y;
         double z;
         boolean sneaking;
     }
@@ -88,10 +89,23 @@ public final class AfkTracker {
             s.yaw = p.getYRot();
             s.pitch = p.getXRot();
             s.x = p.getX();
+            s.y = p.getY();
             s.z = p.getZ();
             s.sneaking = p.isShiftKeyDown();
             return s;
         });
+    }
+
+    /** Respawned, teleported or changed dimension: where they are now is the new starting point, not "they walked". */
+    public static void rebase(ServerPlayer p) {
+        State s = STATES.get(p.getUUID());
+        if (s != null) {
+            s.yaw = p.getYRot();
+            s.pitch = p.getXRot();
+            s.x = p.getX();
+            s.y = p.getY();
+            s.z = p.getZ();
+        }
     }
 
     private static long now(ServerPlayer p) {
@@ -181,15 +195,25 @@ public final class AfkTracker {
         // Looking around is always the player: nothing else turns your head.
         boolean looked = Math.abs(net.minecraft.util.Mth.wrapDegrees(p.getYRot() - s.yaw)) > 0.5F
                 || Math.abs(p.getXRot() - s.pitch) > 0.5F;
-        // Walking counts, being pushed does not: on the ground, not hurt just now, not in water, not riding.
+        // Moving yourself counts; being moved does not. A jump of more than 12 blocks in a second is a respawn
+        // or a teleport, never walking. Knockback (hurtTime) and water currents do not count.
         double moved = Math.hypot(p.getX() - s.x, p.getZ() - s.z);
-        boolean walked = moved > 0.3 && p.onGround() && p.hurtTime == 0 && !p.isInWater() && !p.isPassenger();
+        double climbedUp = Math.abs(p.getY() - s.y);
+        boolean ownPace = moved <= 12.0 && climbedUp <= 12.0 && p.hurtTime == 0;
+        net.minecraft.world.entity.Entity vehicle = p.getVehicle();
+        boolean walked = ownPace && moved > 0.3 && !p.isPassenger()
+                && (p.onGround() || p.isFallFlying() || p.isSwimming()) && (!p.isInWater() || p.isSwimming());
+        boolean climbed = ownPace && climbedUp > 0.5 && p.onClimbable() && !p.isPassenger();
+        // Steering a horse, boat or pig counts (a minecart, which nobody steers, does not).
+        boolean steered = ownPace && moved > 1.0 && vehicle != null && vehicle.getControllingPassenger() == p;
         boolean sneaked = p.isShiftKeyDown() != s.sneaking;
         s.yaw = p.getYRot();
         s.pitch = p.getXRot();
         s.x = p.getX();
+        s.y = p.getY();
         s.z = p.getZ();
         s.sneaking = p.isShiftKeyDown();
+        walked = walked || climbed || steered;
         if (looked || walked || sneaked) {
             markActive(p, now);
         } else if (!s.afk && now - s.lastActive >= afkTicks()) {
@@ -212,8 +236,35 @@ public final class AfkTracker {
         if (now % CHECK_EVERY != 0) {
             return;
         }
+        if (!enabled()) {
+            // Switched off while someone was AFK: take the [AFK] tag down.
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                State s = STATES.get(p.getUUID());
+                if (s != null && s.afk) {
+                    s.afk = false;
+                    s.manual = false;
+                    p.refreshTabListName();
+                    p.displayClientMessage(Component.empty(), true);
+                }
+            }
+            return;
+        }
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             check(p, now);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            rebase(p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            rebase(p);
         }
     }
 

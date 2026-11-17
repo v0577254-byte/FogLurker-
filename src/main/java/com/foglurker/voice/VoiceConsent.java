@@ -39,6 +39,14 @@ public final class VoiceConsent {
         return SecureStorage.root().resolve("voice_consent.json");
     }
 
+    /**
+     * A newer copy, written when the main file could not be (for example locked by another program on
+     * Windows). It wins on the next start, so an opt-out is never undone by a stale main file.
+     */
+    private static Path newerFile() {
+        return SecureStorage.root().resolve("voice_consent.next");
+    }
+
     private static void ensureLoaded() {
         if (loaded) {
             return;
@@ -47,8 +55,7 @@ public final class VoiceConsent {
             if (loaded) {
                 return;
             }
-            Path f = file();
-            boolean unreadable = false;
+            Path f = Files.isRegularFile(newerFile()) ? newerFile() : file();
             if (Files.isRegularFile(f)) {
                 try {
                     String json = new String(SecureStorage.readEncrypted(f), StandardCharsets.UTF_8);
@@ -64,21 +71,27 @@ public final class VoiceConsent {
                     // Half a list is worse than none: nobody is opted in unless we can read that they are.
                     OPTED_IN.clear();
                     LAST_SEEN.clear();
-                    unreadable = true;
                     Path aside = f.resolveSibling(f.getFileName() + ".unreadable-" + System.currentTimeMillis());
+                    String kept;
                     try {
-                        Files.move(f, aside); // kept for the server owner; a later save must not silently replace it
+                        Files.move(f, aside); // kept for the server owner; a later save must not replace it
+                        kept = "kept as " + aside;
                     } catch (IOException | RuntimeException moveFailed) {
-                        aside = f;
+                        try {
+                            Files.copy(f, aside);
+                            kept = "a copy kept as " + aside;
+                        } catch (IOException | RuntimeException copyFailed) {
+                            kept = "no copy could be kept";
+                        }
                     }
-                    FogLurkerMod.LOGGER.error("Could not read the voice consent list (kept as {}). Everyone is treated as opted out, "
-                            + "the voice snippets stored for them are deleted, and players can opt in again.", aside, e);
+                    FogLurkerMod.LOGGER.error("Could not read the voice consent list ({}). Everyone is treated as opted out, "
+                            + "the voice snippets stored for them are deleted, and players can opt in again.", kept, e);
+                    // No readable consent, so no voice may be kept. Done before anyone else can opt in,
+                    // so the sweep can never take a fresh opt-in's snippets with it.
+                    SnippetStore.deleteExcept(Set.of());
                 }
             }
             loaded = true;
-            if (unreadable) {
-                deleteOrphanSnippets(); // no readable consent, so no voice may be kept
-            }
         }
     }
 
@@ -184,17 +197,31 @@ public final class VoiceConsent {
         JsonObject seen = new JsonObject();
         LAST_SEEN.forEach((id, t) -> seen.addProperty(id.toString(), t));
         root.add("lastSeen", seen);
+        byte[] bytes = root.toString().getBytes(StandardCharsets.UTF_8);
         try {
-            SecureStorage.writeEncrypted(file(), root.toString().getBytes(StandardCharsets.UTF_8));
+            SecureStorage.writeEncrypted(file(), bytes);
             unsaved = false;
             unsavedRemoval = false;
+            try {
+                Files.deleteIfExists(newerFile()); // the main file is current again
+            } catch (IOException | RuntimeException ignored) {
+                // harmless: it holds the same list, and the next save tries again
+            }
             return true;
         } catch (IOException e) {
             unsaved = true;
             unsavedRemoval |= removal;
             FogLurkerMod.LOGGER.error("Could not save the voice consent list; it will be tried again", e);
-            if (unsavedRemoval) {
-                // Fail safe: the old list on disk still names someone who has opted out, and would opt them
+            // Keep the change somewhere that wins on the next start, even if the main file is locked.
+            boolean kept;
+            try {
+                SecureStorage.writeEncrypted(newerFile(), bytes);
+                kept = true;
+            } catch (IOException | RuntimeException e2) {
+                kept = false;
+            }
+            if (!kept && unsavedRemoval) {
+                // Last resort: the old list on disk still names someone who has opted out, and would opt them
                 // back in after a restart. With no list at all, everyone is opted out.
                 try {
                     Files.deleteIfExists(file());

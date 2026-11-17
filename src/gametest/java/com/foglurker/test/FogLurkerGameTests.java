@@ -559,6 +559,10 @@ public final class FogLurkerGameTests {
                 com.foglurker.world.AfkTracker.check(p, now + wait + 40);
                 check(com.foglurker.world.AfkTracker.isAfk(p), "being knocked back must not end AFK");
                 p.hurtTime = 0;
+                // Respawning or being teleported far away is not walking either.
+                p.teleportTo(p.getX() + 40, p.getY(), p.getZ());
+                com.foglurker.world.AfkTracker.check(p, now + wait + 50);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "a 40 block jump (respawn, /tp) must not end AFK");
                 // Looking around is.
                 p.setYRot(p.getYRot() + 40F);
                 com.foglurker.world.AfkTracker.check(p, now + wait + 60);
@@ -678,6 +682,8 @@ public final class FogLurkerGameTests {
                 String rd = chunks + " chunks: ";
                 check(com.foglurker.util.FogCurve.far(0F, view) == view, rd + "no fog must leave the view alone");
                 check(com.foglurker.util.FogCurve.far(0.01F, view) > view * 0.9F, rd + "the fog must ease in, not pop");
+                float startNear = com.foglurker.util.FogCurve.near(0.01F, com.foglurker.util.FogCurve.far(0.01F, view), view - 4F);
+                check(startNear > (view - 4F) * 0.9F, rd + "where the fog starts must ease in too, not jump (" + startNear + ")");
                 float last = view;
                 for (float f : stages) {
                     float far = com.foglurker.util.FogCurve.far(f, view);

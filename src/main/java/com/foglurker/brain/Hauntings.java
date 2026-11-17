@@ -121,7 +121,6 @@ public final class Hauntings {
         if (now < nextAt) {
             return;
         }
-        count++;
         nextAt = now + (long) ((min + r.nextInt(max - min + 1)) * fatigue());
 
         List<ServerPlayer> candidates = new ArrayList<>();
@@ -140,8 +139,8 @@ public final class Hauntings {
             }
             candidates.add(p);
         }
-        if (!candidates.isEmpty()) {
-            haunt(candidates.get(r.nextInt(candidates.size())), data, r);
+        if (!candidates.isEmpty() && haunt(candidates.get(r.nextInt(candidates.size())), data, r) != null) {
+            count++; // only real hauntings make them rarer (not rounds with nobody to haunt)
         }
     }
 
@@ -395,6 +394,8 @@ public final class Hauntings {
         if (chest == null) {
             return false;
         }
+        // Claimed now so two hauntings cannot both start a book; given back if no book ends up in the chest.
+        long previousBook = prof.lastBookAt;
         prof.lastBookAt = now;
         String name = p.getGameProfile().getName();
         List<String> pages = new ArrayList<>();
@@ -423,22 +424,28 @@ public final class Hauntings {
                         String text = err == null && res != null ? res.text().map(Hauntings::clip).filter(t -> !t.isEmpty())
                                 .orElse(last) : last;
                         pages.add(text);
-                        placeBook(level, chest, name, pages);
+                        if (!placeBook(level, chest, name, pages)) {
+                            prof.lastBookAt = previousBook;
+                        }
                     }));
         } else {
             pages.add(last);
-            placeBook(level, chest, name, pages);
+            if (!placeBook(level, chest, name, pages)) {
+                prof.lastBookAt = previousBook;
+                return false; // no book: let another kind of haunting happen instead
+            }
         }
         return true;
     }
 
-    private static void placeBook(ServerLevel level, BlockPos chest, String author, List<String> pages) {
+    /** @return true if the book is in the chest now */
+    private static boolean placeBook(ServerLevel level, BlockPos chest, String author, List<String> pages) {
         if (!level.isLoaded(chest) || !(level.getBlockEntity(chest) instanceof Container c)) {
-            return; // the player left while the note was being written: never load the chunk for it
+            return false; // the player left while the note was being written: never load the chunk for it
         }
         int slot = freeSlot(c);
         if (slot < 0) {
-            return;
+            return false; // filled up while the note was being written
         }
         ItemStack book = new ItemStack(Items.WRITTEN_BOOK);
         CompoundTag tag = book.getOrCreateTag();
@@ -452,6 +459,7 @@ public final class Hauntings {
         tag.put("pages", list);
         c.setItem(slot, book);
         c.setChanged();
+        return true;
     }
 
     @Nullable

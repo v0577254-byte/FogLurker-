@@ -265,6 +265,9 @@ public final class BehaviorTracker {
             return;
         }
         ServerPlayer p = event.getPlayer();
+        if (p instanceof FakePlayer) {
+            return; // automation, not a person: nothing to learn and no profile to make
+        }
         String text = event.getRawText();
         // Chat can be decorated off-thread; do all bookkeeping on the server thread.
         p.server.execute(() -> {

@@ -45,6 +45,10 @@ public final class FogCurve {
      */
     public static float near(float fog, float far, float vanillaNear) {
         float f = Float.isNaN(fog) ? 0F : Math.max(0F, Math.min(1F, fog));
-        return Math.min(vanillaNear, far * (0.6F - 0.55F * f));
+        float target = Math.min(vanillaNear, far * (0.6F - 0.55F * f));
+        // Eases in like far does, so the haze never jumps in (or out) in one frame at the very start or end.
+        float ease = Math.min(1F, f / EASE_UNTIL);
+        float near = vanillaNear + (target - vanillaNear) * ease;
+        return Math.max(0F, Math.min(near, far * 0.95F)); // always in front of where it ends
     }
 }

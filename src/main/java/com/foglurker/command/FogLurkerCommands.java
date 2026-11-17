@@ -235,10 +235,13 @@ public final class FogLurkerCommands {
     }
 
     private static int endGrace(CommandContext<CommandSourceStack> ctx) {
-        FogLurkerSavedData.get(ctx.getSource().getServer()).endGrace();
+        FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
+        data.endGrace();
+        String next = data.naturalSpawning()
+                ? "First spawn roll in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes."
+                : "Natural spawning is off, so nothing rolls until /foglurker naturalspawning on.";
         ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal(
-                "The grace period is over. It is out there. First spawn roll in "
-                        + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes.").withStyle(ChatFormatting.DARK_RED)), true);
+                "The grace period is over. It is out there. " + next).withStyle(ChatFormatting.DARK_RED)), true);
         return 1;
     }
 
@@ -266,6 +269,12 @@ public final class FogLurkerCommands {
         ServerPlayer p = ctx.getSource().getPlayerOrException();
         FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
         var profile = data.profile(p.getUUID());
+        if (on == null && !profile.chatLearningOff && !FogLurkerConfig.COMMON.learnChat.get()) {
+            p.sendSystemMessage(PREFIX.copy().append(Component.literal(
+                    "This server has chat learning switched off, so nothing is learned from anyone's chat.")
+                    .withStyle(ChatFormatting.GRAY)));
+            return 0;
+        }
         if (on == null) {
             p.sendSystemMessage(PREFIX.copy().append(Component.literal(profile.chatLearningOff
                     ? "It is not learning from your chat. Turn it back on with "

@@ -175,6 +175,9 @@ public final class SecureStorage {
         Files.deleteIfExists(tmp);
         if (POSIX) {
             Files.createFile(tmp, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        } else {
+            Files.createFile(tmp);
+            restrict(tmp, false); // narrowed while still empty, before the secret goes in
         }
         Files.write(tmp, bytes);
         restrict(tmp, false);
