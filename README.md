@@ -79,8 +79,10 @@ It has 2 armour points, and it does not take fall, suffocation or drowning damag
 | Very Easy | 25% | 15% | 4% | 1% |
 | Easy | 40% | 25% | 7% | 2% |
 | Medium | 60% | 40% | 10% | 3% |
-| Hard | 80% | 60% | 14% | 4% |
-| Deathwish | 98% | 95% | 18% | 6% (1.5x Hard) |
+| Hard | 75% | 60% | 14% | 4% |
+| Deathwish | 75% | 75% | 18% | 6% (1.5x Hard) |
+
+No drop is ever more than 75% likely.
 
 It drops **The Fog of the Day** if it died in daylight and **The Fog of the Night** if it died at night (1-2 of them, 2-3 on Deathwish).
 

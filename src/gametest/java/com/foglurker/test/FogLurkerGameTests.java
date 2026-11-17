@@ -667,7 +667,12 @@ public final class FogLurkerGameTests {
             float[] hard = com.foglurker.entity.LurkerLoot.chances(LurkerDifficulty.HARD);
             float[] dw = com.foglurker.entity.LurkerLoot.chances(LurkerDifficulty.DEATHWISH);
             check(Math.abs(dw[3] - hard[3] * 1.5F) < 1e-6, "Deathwish ingot should be 1.5x Hard");
-            check(dw[0] >= 0.95F && dw[1] >= 0.95F, "Deathwish drops should be almost guaranteed");
+            for (LurkerDifficulty d : LurkerDifficulty.values()) {
+                for (float c : com.foglurker.entity.LurkerLoot.chances(d)) {
+                    check(c <= com.foglurker.entity.LurkerLoot.MAX_CHANCE, d + ": no drop may be more than 75% likely, got " + c);
+                }
+            }
+            check(dw[0] == 0.75F && dw[1] == 0.75F, "Deathwish fog and teeth should be at the 75% maximum");
             h.succeed();
         });
     }
