@@ -1111,6 +1111,15 @@ public final class FogLurkerGameTests {
         });
     }
 
+    /** Runs {@code then} as soon as {@code done} is true, or after {@code maxTicks} ticks, whichever is first. */
+    private static void waitUntil(GameTestHelper h, int maxTicks, java.util.function.BooleanSupplier done, Runnable then) {
+        if (maxTicks <= 0 || done.getAsBoolean()) {
+            then.run();
+        } else {
+            h.runAfterDelay(1, () -> waitUntil(h, maxTicks - 1, done, then));
+        }
+    }
+
     private static FogLurkerEntity hunter(GameTestHelper h, ServerPlayer p, double rx, double rz) {
         FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.CRAWLER, Boolean.TRUE);
         check(l != null, "no spawn");
@@ -1514,7 +1523,8 @@ public final class FogLurkerGameTests {
                     float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90F;
                     p.teleportTo(level, p.getX(), p.getY(), p.getZ(), yaw, 0F);
                     p.setYHeadRot(yaw); // a real client keeps the head turned too; "looking" is judged by the head
-                    h.runAfterDelay(10, () -> logged(h, () -> {
+                    // Give it up to 2 s to notice (it checks every tick; the test server runs far faster than 20/s).
+                    waitUntil(h, 40, () -> stalker.isRemoved() || stalker.isLying(), () -> logged(h, () -> {
                         check(stalker.isRemoved() || stalker.isLying(), "stalk: looked at, it should drop flat ("
                                 + stalker.brain().describe() + ", player at " + p.blockPosition().toShortString()
                                 + " yaw " + p.getYRot() + ", dist " + stalker.distanceTo(p) + ", LOS " + p.hasLineOfSight(stalker)
