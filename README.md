@@ -100,7 +100,7 @@ A spiky black, grey and white blade wrapped in a slowly drifting mist. **It cann
 
 - Against anything else it is just a wooden sword.
 - Against the Fog Lurker a fully charged hit does **10 damage**, a critical hit **15**, straight through its armour (even a copy of your own enchanted armour it is wearing while it pretends to be you).
-- **Right-click: a scare burst.** A blue sonic boom like the Warden's. It reaches every creature that is hunting you or is within 96 blocks, **wherever you aim**. 3 times in 4 it shrieks and flees. Otherwise it holds on but is weakened for 15 seconds: slower, its bites do 40% less and come 50% less often, and it glows so you can see it.
+- **Right-click: a scare burst.** A blue sonic boom like the Warden's. It reaches every creature that is hunting you or is within 96 blocks, **wherever you aim**. 3 times in 4 it shrieks and flees. Otherwise it holds on but is weakened for 15 seconds: slower, its bites do 40% less and the gaps between them are 50% longer, and it glows so you can see it.
 - After a scare burst it **fears you for 20 minutes**: it is half as likely to attack you, and if you are with a friend (within 16 blocks) it almost never attacks (a tenth as likely). Friends standing with you when you use it are feared too.
 - It holds **10 scare bursts** (the durability bar). Hitting things never wears it out, and it cannot be repaired with planks or merged with another Protector on an anvil (renaming is fine).
 - **Recharging:** put the sword in the **middle** of a crafting table and The Fog of the Day or The Fog of the Night in the slots around it. **Each fog item gives back one burst**, so you can put them in one at a time; day and night both work. It never takes more fog than it is missing.

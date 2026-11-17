@@ -149,7 +149,7 @@ public final class LurkerDirector {
         long cooldown = FogLurkerConfig.COMMON.bellCooldownMinutes.get() * 60L * 20L;
         for (FogLurkerEntity lurker : active()) {
             LurkerBrain brain = lurker.brain();
-            if (brain == null || lurker.level() != level || !lurker.blockPosition().closerThan(bell, 32)
+            if (brain == null || brain.isEnded() || lurker.level() != level || !lurker.blockPosition().closerThan(bell, 32)
                     || brain.phase() == LurkerBrain.Phase.FLEE) {
                 continue;
             }
@@ -304,7 +304,7 @@ public final class LurkerDirector {
     public static boolean isHunted(java.util.UUID player) {
         for (FogLurkerEntity l : ACTIVE) {
             LurkerBrain b = l.brain();
-            if (!l.isRemoved() && b != null && b.targetId().equals(player)) {
+            if (!l.isRemoved() && b != null && !b.isEnded() && b.targetId().equals(player)) {
                 return true;
             }
         }
