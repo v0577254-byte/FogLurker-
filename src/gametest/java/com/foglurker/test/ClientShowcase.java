@@ -115,32 +115,43 @@ public final class ClientShowcase {
         }
     }
 
-    /** Exactly what a player does: survival, /foglurker force attack, and the fog has to come from the server. */
+    /**
+     * Exactly what a player does: survival, render distance 32, the creature stalks and then attacks, and the
+     * fog has to come from the server. Logs how far you can see at each stage.
+     */
     private static void fogAttackScene(Minecraft mc, MinecraftServer server) {
         switch (ticks) {
-            case 40 -> server.execute(() -> {
-                ServerPlayer p = sp(server);
-                p.serverLevel().setDayTime(6000);
-                p.setGameMode(GameType.SURVIVAL);
-                p.setInvulnerable(true);
+            case 40 -> {
+                mc.options.renderDistance().set(32);
+                server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    p.serverLevel().setDayTime(6000);
+                    p.setGameMode(GameType.SURVIVAL);
+                    p.setInvulnerable(true);
+                });
+            }
+            case 70 -> server.execute(() -> server.getCommands().performPrefixedCommand(
+                    sp(server).createCommandSourceStack().withPermission(2), "foglurker force stalk"));
+            case 120, 160 -> logFog(mc, "stalking");
+            case 165 -> shot(mc, "foglurker_fog_stalk.png");
+            case 170 -> server.execute(() -> {
+                var ops = sp(server).createCommandSourceStack().withPermission(2);
+                server.getCommands().performPrefixedCommand(ops, "foglurker despawn");
+                server.getCommands().performPrefixedCommand(ops, "foglurker force attack");
             });
-            case 70 -> FogLurkerMod.LOGGER.info("Showcase: cheats allowed {}, player op level 2: {}",
-                    server.getWorldData().getAllowCommands(), sp(server).hasPermissions(2));
-            case 80 -> mc.player.connection.sendCommand("foglurker force attack");
-            case 90 -> server.execute(() -> {
-                if (FogLurkerEntityCount.none(server)) {
-                    FogLurkerMod.LOGGER.info("Showcase: the command did nothing; running it as an operator instead");
-                    server.getCommands().performPrefixedCommand(sp(server).createCommandSourceStack().withPermission(2), "foglurker force attack");
-                }
-            });
-            case 100, 140, 180, 220, 260 -> FogLurkerMod.LOGGER.info("Showcase: fog {} heading for {} (tick {}), creatures out: {}",
-                    ClientEffects.currentFog(), ClientEffects.fogTargetNow(), ticks,
-                    mc.level.getEntitiesOfClass(FogLurkerEntity.class, mc.player.getBoundingBox().inflate(64)).size());
-            case 230 -> shot(mc, "foglurker_fog_attack.png");
+            case 180, 200, 220, 260 -> logFog(mc, "attacking");
+            case 262 -> shot(mc, "foglurker_fog_attack.png");
             case 300 -> mc.stop();
             default -> {
             }
         }
+    }
+
+    private static void logFog(Minecraft mc, String what) {
+        FogLurkerMod.LOGGER.info("Showcase: {} t{}: fog {} -> {}, you can see {} blocks (render distance {} chunks), creatures out: {}",
+                what, ticks, String.format("%.2f", ClientEffects.currentFog()), ClientEffects.fogTargetNow(),
+                String.format("%.0f", ClientEffects.lastFogFar()), mc.options.getEffectiveRenderDistance(),
+                mc.level.getEntitiesOfClass(FogLurkerEntity.class, mc.player.getBoundingBox().inflate(96)).size());
     }
 
     private static void scaresScene(Minecraft mc, MinecraftServer server) {

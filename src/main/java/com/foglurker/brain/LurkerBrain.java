@@ -323,6 +323,7 @@ public final class LurkerBrain {
         if (attackCooldown > 0) {
             attackCooldown--;
         }
+        keepFogAlive(t);
         if (suffersWater()) {
             return;
         }
@@ -1428,13 +1429,40 @@ public final class LurkerBrain {
         mob.getLookControl().setLookAt(e, 30.0F, 30.0F);
     }
 
+    /** How thick the fog should be for its target right now (set by whatever it is doing). */
+    private float fogLevel;
+    /** What was last sent, and to whom. */
+    private float fogSent = -1F;
+    @Nullable
+    private UUID fogSentTo;
+
+    /**
+     * Sets the fog for what it is doing now. A big change (it attacks) goes out at once; otherwise
+     * {@link #keepFogAlive} repeats it every second, whatever it is doing.
+     */
     private void fog(ServerPlayer t, float intensity) {
-        if (age % 20 == 1) {
-            if (mob.level().isNight()) {
-                intensity = Math.min(1F, intensity * difficulty().nightFogMultiplier()); // thicker at night
-            }
-            ModNetwork.send(t, new FogPacket(intensity));
-            fogged.add(t.getUUID());
+        fogLevel = intensity;
+        if (Math.abs(nightFog(intensity) - fogSent) >= 0.2F || !t.getUUID().equals(fogSentTo)) {
+            sendFog(t);
+        }
+    }
+
+    private float nightFog(float intensity) {
+        return mob.level().isNight() ? Math.min(1F, intensity * difficulty().nightFogMultiplier()) : intensity; // thicker at night
+    }
+
+    private void sendFog(ServerPlayer t) {
+        float f = nightFog(fogLevel);
+        ModNetwork.send(t, new FogPacket(f));
+        fogSent = f;
+        fogSentTo = t.getUUID();
+        fogged.add(t.getUUID());
+    }
+
+    /** Every second, even while it thrashes in water or does something without its own fog. */
+    private void keepFogAlive(ServerPlayer t) {
+        if (age % 20 == 1 && fogLevel > 0F) {
+            sendFog(t);
         }
     }
 

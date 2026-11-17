@@ -87,7 +87,8 @@ public final class ClientEffects {
             fogTarget = 0; // the server stopped telling us it is near
         }
         fogPrev = fog;
-        fog += (fogTarget - fog) * 0.03F;
+        // Rolls in faster than it lifts: thick within ~2 s when it attacks, a slow clear when it leaves.
+        fog += (fogTarget - fog) * (fogTarget > fog ? 0.06F : 0.03F);
         if (Math.abs(fog - fogTarget) < 0.001F) {
             fog = fogTarget;
         }
@@ -151,13 +152,36 @@ public final class ClientEffects {
             return;
         }
         fogApplied++;
-        // Falls off fast: ~60 blocks of view while it stalks, ~14 while it lures you deep, ~9 when it attacks.
-        float vanillaFar = event.getFarPlaneDistance();
-        float far = Math.min(vanillaFar, 8.0F + (vanillaFar - 8.0F) * (float) Math.pow(1.0F - f, 2.2F));
-        float near = Math.min(far * 0.5F, Mth.lerp(f, event.getNearPlaneDistance(), 0.0F));
+        float far = fogFar(f, event.getFarPlaneDistance());
+        float near = fogNear(f, far, event.getNearPlaneDistance());
+        lastFar = far;
         event.setFarPlaneDistance(far);
         event.setNearPlaneDistance(near);
         event.setCanceled(true); // required for the new distances to apply
+    }
+
+    private static float lastFar = -1F;
+
+    /** The fog distance drawn most recently (debug). */
+    public static float lastFogFar() {
+        return lastFar;
+    }
+
+    /**
+     * How far you can see in the fog, in blocks, whatever your render distance: about 120 blocks while it
+     * watches from far off, ~80 while it stalks, ~30 while it lures you deep, ~11 when it attacks, 8 at most.
+     * (It used to be a share of the render distance, so at 32 chunks the lighter fog was over 230 blocks
+     * away and could not be seen.) It eases in from your normal view so it never pops.
+     */
+    public static float fogFar(float f, float vanillaFar) {
+        float wanted = 8.0F + 152.0F * (1.0F - f) * (1.0F - f);
+        float ease = Mth.clamp(f / 0.12F, 0F, 1F);
+        return Math.min(vanillaFar, Mth.lerp(ease, vanillaFar, Math.min(vanillaFar, wanted)));
+    }
+
+    /** Where the fog starts: closer the thicker it is, so thick fog is a wall rather than a far haze. */
+    public static float fogNear(float f, float far, float vanillaNear) {
+        return Math.max(0F, Math.min(vanillaNear, far * (0.6F - 0.55F * f)));
     }
 
     @SubscribeEvent
@@ -166,14 +190,13 @@ public final class ClientEffects {
             return;
         }
         float f = fogNow(event.getPartialTick()) * 0.8F;
-        if (f < 0.01F) {
-            return;
+        if (f >= 0.01F) {
+            float avg = (event.getRed() + event.getGreen() + event.getBlue()) / 3F;
+            event.setRed(Mth.lerp(f, event.getRed(), avg * 0.95F));
+            event.setGreen(Mth.lerp(f, event.getGreen(), avg * 0.98F));
+            event.setBlue(Mth.lerp(f, event.getBlue(), avg * 1.05F));
         }
-        float avg = (event.getRed() + event.getGreen() + event.getBlue()) / 3F;
-        event.setRed(Mth.lerp(f, event.getRed(), avg * 0.95F));
-        event.setGreen(Mth.lerp(f, event.getGreen(), avg * 0.98F));
-        event.setBlue(Mth.lerp(f, event.getBlue(), avg * 1.05F));
-        // Remember the colour so the screen veil matches it (pale by day, dark at night).
+        // Always remember the colour (also before the fog starts) so the screen veil matches the sky now.
         fogColor = ((int) (Mth.clamp(event.getRed(), 0F, 1F) * 255) << 16) | ((int) (Mth.clamp(event.getGreen(), 0F, 1F) * 255) << 8)
                 | (int) (Mth.clamp(event.getBlue(), 0F, 1F) * 255);
     }
@@ -190,11 +213,12 @@ public final class ClientEffects {
     }
 
     /** Dark red pulse when it reveals itself; a faint darkening while the fog is thick. */
-    public static void renderOverlay(ForgeGui gui, GuiGraphics graphics, float partialTick, int width, int height) {
+    /** Drawn under the hotbar, chat and messages (so "RUN!" stays readable): the fog veil and the dark edges. */
+    public static void renderFogOverlay(ForgeGui gui, GuiGraphics graphics, float partialTick, int width, int height) {
         // The fog veil: a see-through layer of fog over the whole view, thicker toward the edges. It works
         // even when shaders or a rendering mod replace Minecraft's world fog.
         float veil = FogLurkerConfig.CLIENT.fogEffects.get() && FogLurkerConfig.CLIENT.fogOverlay.get() ? fogNow(partialTick) : 0F;
-        if (veil > 0.02F && !Minecraft.getInstance().options.hideGui) {
+        if (veil > 0.02F) {
             int base = (int) (Mth.clamp(veil * 0.42F, 0F, 1F) * 255);
             int edge = (int) (Mth.clamp(veil * 0.72F, 0F, 1F) * 255);
             graphics.fill(0, 0, width, height, (base << 24) | fogColor);
@@ -219,6 +243,13 @@ public final class ClientEffects {
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
             RenderSystem.defaultBlendFunc();
+        }
+    }
+
+    /** Drawn over everything: the dark red pulse when it reveals itself. */
+    public static void renderOverlay(ForgeGui gui, GuiGraphics graphics, float partialTick, int width, int height) {
+        if (!FogLurkerConfig.CLIENT.screenEffects.get()) {
+            return;
         }
         if (scareTicks > 0) {
             float alpha = 0.55F * scareTicks / scareTotal;

@@ -32,6 +32,7 @@ public final class ClientSetup {
 
     @SubscribeEvent
     public static void registerOverlays(RegisterGuiOverlaysEvent event) {
+        event.registerBelowAll("fog", ClientEffects::renderFogOverlay);
         event.registerAboveAll("scare", ClientEffects::renderOverlay);
     }
 }
