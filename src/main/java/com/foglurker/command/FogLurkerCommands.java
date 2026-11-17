@@ -126,6 +126,10 @@ public final class FogLurkerCommands {
         // The voice snippet commands answer to both spellings.
         d.register(voiceRoot("flurk"));
         d.register(voiceRoot("fglurk"));
+
+        // /afk (also /AFK): away from the keyboard right now; again to come back.
+        d.register(Commands.literal("afk").executes(FogLurkerCommands::afk));
+        d.register(Commands.literal("AFK").executes(FogLurkerCommands::afk));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> macarena(LiteralArgumentBuilder<CommandSourceStack> node) {
@@ -168,7 +172,35 @@ public final class FogLurkerCommands {
                         .executes(cheats(ctx -> force(ctx, EntityArgument.getPlayer(ctx, "target"), what))));
     }
 
+    /** /afk: AFK now (it leaves you alone), or back again if you already are. */
+    private static int afk(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer p = ctx.getSource().getPlayerOrException();
+        if (com.foglurker.world.AfkTracker.isAfk(p)) {
+            com.foglurker.world.AfkTracker.comeBack(p);
+            return 1;
+        }
+        String refused = com.foglurker.world.AfkTracker.goAfk(p);
+        if (refused != null) {
+            ctx.getSource().sendFailure(Component.literal(refused));
+            return 0;
+        }
+        return 1;
+    }
+
+    /** It never goes after someone who is AFK, not even when told to. @return true if they are AFK (and the caller was told) */
+    private static boolean refuseAfk(CommandSourceStack src, ServerPlayer target) {
+        if (!com.foglurker.world.AfkTracker.isAfk(target)) {
+            return false;
+        }
+        src.sendFailure(Component.literal(target.getGameProfile().getName() + " is AFK, so it leaves them alone. "
+                + "It works as soon as they move again (or type /afk to come back)."));
+        return true;
+    }
+
     private static int force(CommandContext<CommandSourceStack> ctx, ServerPlayer target, LurkerDirector.Forced what) {
+        if (refuseAfk(ctx.getSource(), target)) {
+            return 0;
+        }
         FogLurkerEntity lurker = LurkerDirector.spawnPale(target, what);
         if (lurker == null) {
             ctx.getSource().sendFailure(Component.literal("Nowhere dry for it to appear near " + target.getGameProfile().getName() + "."));
@@ -186,6 +218,9 @@ public final class FogLurkerCommands {
 
     /** /foglurker force meet [player]: the Deathwish night meeting, now, 50/50 whether it attacks. */
     private static int forceMeet(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
+        if (refuseAfk(ctx.getSource(), target)) {
+            return 0;
+        }
         boolean attack = target.serverLevel().getDifficulty() != net.minecraft.world.Difficulty.PEACEFUL
                 && target.getRandom().nextBoolean();
         FogLurkerEntity lurker = LurkerDirector.spawnNightMeeting(target, attack);
@@ -297,6 +332,9 @@ public final class FogLurkerCommands {
     private static int spawn(CommandContext<CommandSourceStack> ctx, ServerPlayer target, String disguiseArg,
                              String behaviorArg) {
         CommandSourceStack src = ctx.getSource();
+        if (refuseAfk(src, target)) {
+            return 0;
+        }
         Disguise disguise = null;
         if (!disguiseArg.equalsIgnoreCase("random")) {
             disguise = Disguise.byName(disguiseArg);

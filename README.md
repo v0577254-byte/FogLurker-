@@ -102,6 +102,17 @@ When players are together (within 24 blocks of each other) it picks its victim i
 
 Once it is attacking, most of the time it switches to whoever is easiest: someone **much closer** to it than its target, or someone **3+ hearts weaker** who is not much further away. It only switches to players it could actually reach (not in water, not inside a soul-fire ward). A few are fixated and never switch.
 
+## AFK
+
+It leaves players who are away from the keyboard alone: it never comes for them, never attacks them, and no hauntings happen to them. If it is already out there when its target goes AFK, it leaves.
+
+- **Automatic:** 5 minutes without doing anything (config `afkMinutes`) and you are AFK.
+- **`/afk`** (or `/AFK`): AFK right now, without waiting. Type it again to come back. It is refused while it is already hunting you, so it cannot be used to escape.
+- **Coming back:** anything you do ends it: looking around, walking, sneaking, chatting, breaking, placing, using items or attacking. Being pushed (knockback, water, riding something) does not count, so a mob nudging you will not wake you up.
+- AFK players show **[AFK]** after their name in the player list (Tab).
+- Operators cannot send it after an AFK player with `/foglurker spawn` or `force` either; the command says so.
+- Server owners can turn all of this off with `afkProtection = false`.
+
 ## The fog
 
 The fog rolls in whenever it is near you and lifts a few seconds after it leaves. It works the same at **every render distance from 2 to 32 chunks**:
@@ -182,6 +193,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/fglurk optin` | everyone | Opt in to voice snippets |
 | `/fglurk optout` | everyone | Opt out **and delete every stored snippet** |
 | `/fglurk voicesnippets status` | everyone | Whether you are opted in and how many snippets exist |
+| `/afk` (or `/AFK`) | everyone | Go AFK now: it leaves you alone until you move. Again to come back. Not while it is hunting you |
 | `/fglurk chatlearning [on\|off]` | everyone | Whether it may learn how you type. `off` forgets every message it kept from you and keeps your chat out of what it sends to Gemini |
 
 `/flurk` and `/fglurk` both work for every voice command.
@@ -284,6 +296,8 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `bellCooldownMinutes` | 15 | After a bell drives it off a player, bells do not work against it for that player for this long (0 = bells always work) |
 | `escapeEscalation` | true | Each escape makes the next appearance 10% more likely to attack (up to +30%); a bite resets it |
 | `maxConcurrent` | 2 | How many players it can hunt at the same time on a server |
+| `afkProtection` | true | Leave AFK players alone (never comes for or attacks them) |
+| `afkMinutes` | 5 | Minutes without activity before a player counts as AFK |
 | `gemini.model` | `gemini-flash-latest` | Plus `fallbackModels`, `timeoutSeconds` |
 | `voice.maxSnippetsPerPlayer` | 40 | |
 | `voice.recordChance` | 0.35 | |
@@ -313,6 +327,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50; a 0% chance never spawns; `/foglurker naturalspawning off|on` is op-only, survives a save and restarts the countdown
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
+- AFK: 5 minutes of nothing makes you AFK (4:58 does not), knockback does not end it but looking around does, /afk and /AFK work at once and survive the jiggle of closing chat, /afk is refused mid-hunt, an AFK player is never picked, a creature already attacking leaves without a hit, and force commands refuse AFK players
 - the fog at every render distance from 2 to 32 chunks: always visibly closer than your normal view, never further for thicker fog, attack fog within about 12 blocks, and it eases in without popping
 - a summoned creature stays the pale crawler, a flopped one has a flat hitbox, looking for dry ground never loads a chunk, a grace period that has run out stays over, and voice snippets with no opt-in on record are deleted at start-up
 - the bite: Slowness I for 10 s on Easy; on Hard also Mauled, which cancels jumps, refuses boats and drags you out of the one you sit in, and both work again once it wears off

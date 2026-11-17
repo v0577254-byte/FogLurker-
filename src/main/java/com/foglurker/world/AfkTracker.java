@@ -1,0 +1,287 @@
+package com.foglurker.world;
+
+import com.foglurker.FogLurkerMod;
+import com.foglurker.config.FogLurkerConfig;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.event.ServerChatEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+
+import javax.annotation.Nullable;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Who is away from the keyboard. Nothing comes for an AFK player and it never attacks one.
+ *
+ * <ul>
+ *   <li><b>Automatic:</b> no activity for {@code afkMinutes} (5 by default) and you are AFK.</li>
+ *   <li><b>/afk:</b> AFK right now, without the wait. Not while it is already hunting you.</li>
+ *   <li><b>Back:</b> any real activity ends it: looking around, walking, sneaking, chatting, breaking,
+ *       placing, using or attacking. Being pushed (knockback, water, a vehicle) does not count.</li>
+ * </ul>
+ * AFK players show "[AFK]" after their name in the player list.
+ */
+@Mod.EventBusSubscriber(modid = FogLurkerMod.MOD_ID)
+public final class AfkTracker {
+    /** After /afk, ignore this many ticks of activity (closing the chat screen jiggles the mouse). */
+    static final int MANUAL_SETTLE_TICKS = 40;
+    /** How often looking and walking are compared. */
+    private static final int CHECK_EVERY = 20;
+
+    private static final Map<UUID, State> STATES = new ConcurrentHashMap<>();
+
+    private static final class State {
+        long lastActive;
+        boolean afk;
+        boolean manual;
+        long afkSince;
+        float yaw;
+        float pitch;
+        double x;
+        double z;
+        boolean sneaking;
+    }
+
+    private AfkTracker() {
+    }
+
+    public static boolean enabled() {
+        return FogLurkerConfig.COMMON.afkProtection.get();
+    }
+
+    public static long afkTicks() {
+        return FogLurkerConfig.COMMON.afkMinutes.get() * 60L * 20L;
+    }
+
+    /** True while this player is AFK (and AFK protection is on). */
+    public static boolean isAfk(@Nullable Player p) {
+        if (p == null || !enabled()) {
+            return false;
+        }
+        State s = STATES.get(p.getUUID());
+        return s != null && s.afk;
+    }
+
+    /** True if they went AFK with /afk (rather than by standing still). */
+    public static boolean isManual(Player p) {
+        State s = STATES.get(p.getUUID());
+        return s != null && s.afk && s.manual;
+    }
+
+    private static State state(ServerPlayer p, long now) {
+        return STATES.computeIfAbsent(p.getUUID(), id -> {
+            State s = new State();
+            s.lastActive = now;
+            s.yaw = p.getYRot();
+            s.pitch = p.getXRot();
+            s.x = p.getX();
+            s.z = p.getZ();
+            s.sneaking = p.isShiftKeyDown();
+            return s;
+        });
+    }
+
+    private static long now(ServerPlayer p) {
+        return p.server.getTickCount();
+    }
+
+    /** The player did something: they are here. */
+    public static void markActive(ServerPlayer p) {
+        markActive(p, now(p));
+    }
+
+    static void markActive(ServerPlayer p, long now) {
+        if (p instanceof FakePlayer) {
+            return;
+        }
+        State s = state(p, now);
+        s.lastActive = now;
+        if (s.afk && (!s.manual || now - s.afkSince >= MANUAL_SETTLE_TICKS)) {
+            setAfk(p, s, false, false, now);
+        }
+    }
+
+    /**
+     * /afk: AFK right now.
+     *
+     * @return null if it worked, otherwise why not
+     */
+    @Nullable
+    public static String goAfk(ServerPlayer p) {
+        if (!enabled()) {
+            return "AFK protection is switched off on this server.";
+        }
+        if (com.foglurker.brain.LurkerDirector.isHunted(p.getUUID())) {
+            return "Not while it is hunting you. Get away from it first.";
+        }
+        State s = state(p, now(p));
+        if (s.afk) {
+            return null;
+        }
+        setAfk(p, s, true, true, now(p));
+        return null;
+    }
+
+    /** /afk again: back. */
+    public static void comeBack(ServerPlayer p) {
+        State s = state(p, now(p));
+        s.lastActive = now(p);
+        if (s.afk) {
+            setAfk(p, s, false, false, now(p));
+        }
+    }
+
+    private static void setAfk(ServerPlayer p, State s, boolean afk, boolean manual, long now) {
+        s.afk = afk;
+        s.manual = afk && manual;
+        s.afkSince = now;
+        p.refreshTabListName();
+        if (afk) {
+            p.sendSystemMessage(Component.literal(manual
+                    ? "You are now AFK. It will leave you alone until you move. (/afk again to come back)"
+                    : "You have been AFK for " + FogLurkerConfig.COMMON.afkMinutes.get()
+                    + " minutes. It will leave you alone until you move.").withStyle(ChatFormatting.GRAY));
+        } else {
+            p.sendSystemMessage(Component.literal("Welcome back. You are no longer AFK.").withStyle(ChatFormatting.GRAY));
+        }
+    }
+
+    /**
+     * Compares where this player looks and stands with last time, and makes them AFK after the
+     * configured time with no activity. Public for the game tests.
+     */
+    public static void check(ServerPlayer p, long now) {
+        if (p instanceof FakePlayer || !enabled()) {
+            return;
+        }
+        State s = state(p, now);
+        // Looking around is always the player: nothing else turns your head.
+        boolean looked = Math.abs(net.minecraft.util.Mth.wrapDegrees(p.getYRot() - s.yaw)) > 0.5F
+                || Math.abs(p.getXRot() - s.pitch) > 0.5F;
+        // Walking counts, being pushed does not: on the ground, not hurt just now, not in water, not riding.
+        double moved = Math.hypot(p.getX() - s.x, p.getZ() - s.z);
+        boolean walked = moved > 0.3 && p.onGround() && p.hurtTime == 0 && !p.isInWater() && !p.isPassenger();
+        boolean sneaked = p.isShiftKeyDown() != s.sneaking;
+        s.yaw = p.getYRot();
+        s.pitch = p.getXRot();
+        s.x = p.getX();
+        s.z = p.getZ();
+        s.sneaking = p.isShiftKeyDown();
+        if (looked || walked || sneaked) {
+            markActive(p, now);
+        } else if (!s.afk && now - s.lastActive >= afkTicks()) {
+            setAfk(p, s, true, false, now);
+        }
+    }
+
+    // ------------------------------------------------------------------ events
+
+    @SubscribeEvent
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
+        MinecraftServer server = event.getServer();
+        long now = server.getTickCount();
+        if (now % CHECK_EVERY != 0) {
+            return;
+        }
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            check(p, now);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            STATES.remove(p.getUUID());
+            state(p, now(p)); // a fresh start: here, not AFK
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        STATES.remove(event.getEntity().getUUID());
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        STATES.clear();
+    }
+
+    @SubscribeEvent
+    public static void onTabListName(PlayerEvent.TabListNameFormat event) {
+        if (isAfk(event.getEntity())) {
+            Component base = event.getDisplayName() != null ? event.getDisplayName() : event.getEntity().getDisplayName();
+            event.setDisplayName(base.copy().append(Component.literal(" [AFK]").withStyle(ChatFormatting.GRAY)));
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChat(ServerChatEvent event) {
+        ServerPlayer p = event.getPlayer();
+        p.server.execute(() -> markActive(p));
+    }
+
+    @SubscribeEvent
+    public static void onAttack(AttackEntityEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            markActive(p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onBreak(BlockEvent.BreakEvent event) {
+        if (event.getPlayer() instanceof ServerPlayer p) {
+            markActive(p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPlace(BlockEvent.EntityPlaceEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            markActive(p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onUseBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            markActive(p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onUseItem(PlayerInteractEvent.RightClickItem event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            markActive(p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onHitBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            markActive(p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onUseEntity(PlayerInteractEvent.EntityInteract event) {
+        if (event.getEntity() instanceof ServerPlayer p) {
+            markActive(p);
+        }
+    }
+}

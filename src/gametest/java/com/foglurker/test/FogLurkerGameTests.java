@@ -530,6 +530,103 @@ public final class FogLurkerGameTests {
         });
     }
 
+    // ------------------------------------------------------------------ AFK
+
+    @GameTest(template = "empty", batch = "afk", timeoutTicks = 400)
+    public static void afkAutomaticallyAndWithTheCommand(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            ServerPlayer other = player(h, 6.5, 1.5);
+            kickOtherPlayers(server, p, other);
+            h.runAfterDelay(30, () -> logged(h, () -> {
+                long now = server.getTickCount();
+                long wait = com.foglurker.world.AfkTracker.afkTicks();
+                check(wait == 5L * 60 * 20, "AFK should take 5 minutes by default, takes " + wait + " ticks");
+                com.foglurker.world.AfkTracker.check(p, now);
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "a player who just joined is not AFK");
+                com.foglurker.world.AfkTracker.check(p, now + wait - 40);
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "4 min 58 s of nothing is not yet AFK");
+                com.foglurker.world.AfkTracker.check(p, now + wait + 20);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "5 minutes of nothing should make them AFK");
+                check(!com.foglurker.world.AfkTracker.isManual(p), "that was automatic, not /afk");
+                check(!LurkerDirector.freeCandidates(server).contains(p), "nothing should come for an AFK player");
+                check(LurkerDirector.freeCandidates(server).contains(other), "the other player is still fair game");
+                // Being pushed is not "being back": knocked 3 blocks while hurt.
+                p.hurtTime = 10;
+                p.teleportTo(p.getX() + 3, p.getY(), p.getZ());
+                com.foglurker.world.AfkTracker.check(p, now + wait + 40);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "being knocked back must not end AFK");
+                p.hurtTime = 0;
+                // Looking around is.
+                p.setYRot(p.getYRot() + 40F);
+                com.foglurker.world.AfkTracker.check(p, now + wait + 60);
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "looking around should end AFK");
+
+                // /afk: AFK at once, and the jiggle of closing the chat does not undo it.
+                var cmds = server.getCommands().getDispatcher();
+                check(cmds.execute("afk", p.createCommandSourceStack()) == 1, "/afk should work");
+                check(com.foglurker.world.AfkTracker.isAfk(p) && com.foglurker.world.AfkTracker.isManual(p), "/afk should make them AFK now");
+                long t0 = server.getTickCount();
+                p.setYRot(p.getYRot() + 5F);
+                com.foglurker.world.AfkTracker.check(p, t0 + 5);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "a twitch right after /afk must not undo it");
+                p.setYRot(p.getYRot() + 30F);
+                com.foglurker.world.AfkTracker.check(p, t0 + 60);
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "moving after /afk should bring them back");
+                // /AFK works too, and typing it again comes back.
+                check(cmds.execute("AFK", p.createCommandSourceStack()) == 1 && com.foglurker.world.AfkTracker.isAfk(p), "/AFK should work");
+                check(cmds.execute("afk", p.createCommandSourceStack()) == 1 && !com.foglurker.world.AfkTracker.isAfk(p),
+                        "/afk again should bring them back");
+
+                // No hiding behind /afk once it is already after you.
+                FogLurkerEntity l = hunter(h, p, 14.5, 1.5);
+                check(cmds.execute("afk", p.createCommandSourceStack().withSuppressedOutput()) == 0, "/afk must be refused mid-hunt");
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "/afk mid-hunt must not make them AFK");
+                l.brain().vanish(true);
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "afk2", timeoutTicks = 400)
+    public static void itLeavesSomeoneWhoGoesAfk(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                LurkerDifficulty before = data.difficulty();
+                data.setDifficulty(LurkerDifficulty.MEDIUM);
+                FogLurkerEntity l;
+                try {
+                    l = hunter(h, p, 12.5, 1.5);
+                } finally {
+                    data.setDifficulty(before);
+                }
+                // They stood still for 5 minutes while it closed in.
+                com.foglurker.world.AfkTracker.check(p, server.getTickCount() + com.foglurker.world.AfkTracker.afkTicks() + 20);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "test setup: the player should be AFK");
+                // ...and operators cannot send it after them either.
+                int before2 = LurkerDirector.active().size();
+                check(server.getCommands().getDispatcher().execute("foglurker force attack " + p.getGameProfile().getName(),
+                        server.createCommandSourceStack().withPermission(2).withSuppressedOutput()) == 0
+                        && LurkerDirector.active().size() == before2, "force attack must refuse an AFK player");
+                h.succeedWhen(() -> {
+                    check(l.isRemoved() || l.isFlopped(), "it should leave an AFK player alone (" + l.brain().describe() + ")");
+                    check(p.getHealth() >= 20F, "it hurt an AFK player");
+                    check(LurkerDirector.leftAloneTicks(p) == 0, "going AFK is not 'getting away'");
+                    com.foglurker.world.AfkTracker.comeBack(p);
+                });
+            }));
+        });
+    }
+
     // ------------------------------------------------------------------ night
 
     @GameTest(template = "empty", batch = "night", timeoutTicks = 100)

@@ -319,6 +319,12 @@ public final class LurkerBrain {
             vanish(false);
             return;
         }
+        if (com.foglurker.world.AfkTracker.isAfk(t)) {
+            // They are away from the keyboard: it leaves them alone. (Not an escape, so no 15-minute pass.)
+            meetingChase = false;
+            vanish(false);
+            return;
+        }
         double dist = mob.distanceTo(t);
         if (dist > 128 || (age > lifetime && phase != Phase.TRANSFORM && phase != Phase.ATTACK)) {
             vanish(false);
@@ -1306,7 +1312,8 @@ public final class LurkerBrain {
 
     private boolean canAttack(ServerPlayer t) {
         return !t.isCreative() && !t.isSpectator() && t.isAlive()
-                && mob.level().getDifficulty() != Difficulty.PEACEFUL;
+                && mob.level().getDifficulty() != Difficulty.PEACEFUL
+                && !com.foglurker.world.AfkTracker.isAfk(t); // never someone who is away from the keyboard
     }
 
     /**

@@ -209,7 +209,8 @@ public final class LurkerDirector {
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (eligible(p) && (!FogLurkerConfig.COMMON.overworldOnly.get() || p.level().dimension() == Level.OVERWORLD)
                     && !isHunted(p.getUUID()) && now - LAST_VISIT.getOrDefault(p.getUUID(), Long.MIN_VALUE / 2) >= rollInterval() / 2
-                    && now >= LEFT_ALONE_UNTIL.getOrDefault(p.getUUID(), Long.MIN_VALUE)) {
+                    && now >= LEFT_ALONE_UNTIL.getOrDefault(p.getUUID(), Long.MIN_VALUE)
+                    && !com.foglurker.world.AfkTracker.isAfk(p)) { // nothing comes for someone who is not there
                 candidates.add(p);
             }
         }
@@ -225,7 +226,7 @@ public final class LurkerDirector {
         return Math.max(0, LEFT_ALONE_UNTIL.getOrDefault(p.getUUID(), 0L) - p.server.overworld().getGameTime());
     }
 
-    private static boolean isHunted(java.util.UUID player) {
+    public static boolean isHunted(java.util.UUID player) {
         for (FogLurkerEntity l : ACTIVE) {
             LurkerBrain b = l.brain();
             if (!l.isRemoved() && b != null && b.targetId().equals(player)) {

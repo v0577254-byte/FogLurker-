@@ -50,6 +50,8 @@ public final class FogLurkerConfig {
         public final ForgeConfigSpec.IntValue bellCooldownMinutes;
         public final ForgeConfigSpec.BooleanValue escapeEscalation;
         public final ForgeConfigSpec.IntValue maxConcurrent;
+        public final ForgeConfigSpec.BooleanValue afkProtection;
+        public final ForgeConfigSpec.IntValue afkMinutes;
 
         public final ForgeConfigSpec.ConfigValue<String> geminiModel;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> geminiFallbackModels;
@@ -113,6 +115,11 @@ public final class FogLurkerConfig {
             maxConcurrent = b.comment("How many players it can be after at the same time on a multiplayer server.",
                             "It never goes after the same player twice at once.")
                     .defineInRange("maxConcurrent", 2, 1, 8);
+            afkProtection = b.comment("Leave AFK players alone: it never comes for or attacks a player who is away from the keyboard.",
+                            "Players are AFK after afkMinutes without doing anything, or straight away with /afk.")
+                    .define("afkProtection", true);
+            afkMinutes = b.comment("Minutes without any activity before a player counts as AFK.")
+                    .defineInRange("afkMinutes", 5, 1, 120);
             b.pop();
 
             b.push("gemini");

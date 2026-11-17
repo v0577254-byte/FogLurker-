@@ -132,6 +132,9 @@ public final class Hauntings {
             if (FogLurkerConfig.COMMON.overworldOnly.get() && p.level().dimension() != Level.OVERWORLD) {
                 continue;
             }
+            if (com.foglurker.world.AfkTracker.isAfk(p)) {
+                continue; // nobody at the keyboard to scare
+            }
             if (isBeingHunted(p)) {
                 continue; // it is busy with them already
             }
