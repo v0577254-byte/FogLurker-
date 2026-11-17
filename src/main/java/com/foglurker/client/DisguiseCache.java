@@ -32,7 +32,8 @@ import java.util.UUID;
  * moves it in lock-step with the creature, so the real vanilla renderer can draw the disguise.
  */
 public final class DisguiseCache {
-    private record Key(Disguise disguise, @Nullable UUID mimic, int variant) {
+    /** {@code listed}: the copied player was in the player list when the copy was made (rebuilt when that changes). */
+    private record Key(Disguise disguise, @Nullable UUID mimic, int variant, boolean listed) {
     }
 
     private static final class Holder {
@@ -85,7 +86,10 @@ public final class DisguiseCache {
             CACHE.remove(lurker.getId());
             return null;
         }
-        Key key = new Key(d, d == Disguise.PLAYER ? lurker.getMimicUuid() : null, lurker.getVariant());
+        UUID mimic = d == Disguise.PLAYER ? lurker.getMimicUuid() : null;
+        ClientPacketListener listConn = Minecraft.getInstance().getConnection();
+        boolean listed = mimic != null && listConn != null && listConn.getPlayerInfo(mimic) != null;
+        Key key = new Key(d, mimic, lurker.getVariant(), listed);
         Holder h = CACHE.get(lurker.getId());
         if (h == null || !h.key.equals(key) || h.dummy.level() != level) {
             LivingEntity dummy = create(level, lurker, d);
@@ -108,9 +112,16 @@ public final class DisguiseCache {
             String name = lurker.getMimicName();
             ClientPacketListener conn = Minecraft.getInstance().getConnection();
             PlayerInfo info = id == null || conn == null ? null : conn.getPlayerInfo(id);
-            GameProfile profile = info != null ? info.getProfile()
-                    : new GameProfile(id != null ? id : UUID.randomUUID(), name.isEmpty() ? "Player" : name);
-            return new MimicDummyPlayer(level, profile);
+            if (info != null) {
+                return new MimicDummyPlayer(level, info.getProfile());
+            }
+            // Not online: fetch their skin from Mojang by name, the way a player head does.
+            GameProfile bare = new GameProfile(id != null ? id : UUID.randomUUID(), name.isEmpty() ? "Player" : name);
+            MimicDummyPlayer dummy = new MimicDummyPlayer(level, bare);
+            if (!name.isEmpty()) {
+                net.minecraft.world.level.block.entity.SkullBlockEntity.updateGameprofile(bare, dummy::setSkinProfile);
+            }
+            return dummy;
         }
         EntityType<?> type = d.renderType();
         if (type == null) {

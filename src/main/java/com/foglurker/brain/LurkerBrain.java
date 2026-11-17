@@ -288,6 +288,9 @@ public final class LurkerBrain {
     private void setPhase(Phase p) {
         phase = p;
         phaseAge = 0;
+        if (p == Phase.FLEE) {
+            mob.setFlag(FogLurkerEntity.FLAG_SITTING, false); // a dog interrupted mid-greeting runs, not sits
+        }
         bestApproach = Double.MAX_VALUE;
         noProgress = 0;
         stall = 0;
@@ -721,6 +724,9 @@ public final class LurkerBrain {
         }
     }
 
+    /** When the current wander target was picked. */
+    private int wanderSince;
+
     private void herd(ServerPlayer t, double dist) {
         fog(t, 0.22F);
         boolean lookedAtNow = isLookedAtBy(t);
@@ -730,7 +736,9 @@ public final class LurkerBrain {
             stare(t);
         }
         if (wanderTarget != null) {
-            if (mob.position().distanceToSqr(wanderTarget) < 1.5 || mob.getNavigation().isDone() && age - lastRepath > 20) {
+            // Reached it, or stuck short of it (a fence): stop trying after 3 s of no path or 20 s in all.
+            if (mob.position().distanceToSqr(wanderTarget) < 1.5 || mob.getNavigation().isDone() && age - wanderSince > 60
+                    || age - wanderSince > 400) {
                 wanderTarget = null;
                 float idle = animalStats.idleSeconds * (0.5F + random.nextFloat());
                 idleUntil = age + (int) (Mth.clamp(idle, 1.5F, 20F) * 20);
@@ -745,15 +753,18 @@ public final class LurkerBrain {
                 if (!enc.willAttack()) {
                     step = Math.min(step, Math.max(0, dist - 6));
                 }
+                wanderSince = age;
                 wanderTarget = mob.position().add(toward.scale(step))
                         .add((random.nextDouble() - 0.5) * 3, 0, (random.nextDouble() - 0.5) * 3);
             } else if (random.nextFloat() < animalStats.moveFraction + 0.2F) {
+                wanderSince = age;
                 wanderTarget = mob.position().add((random.nextDouble() - 0.5) * 10, 0, (random.nextDouble() - 0.5) * 10);
             } else {
                 idleUntil = age + 40 + random.nextInt(60);
             }
             if (wanderTarget != null) {
                 BlockPos g = SpotFinder.ground(level(), Mth.floor(wanderTarget.x), Mth.floor(wanderTarget.z), mob.getBlockY());
+                wanderSince = age;
                 wanderTarget = g == null ? null : Vec3.atBottomCenterOf(g);
             }
         }
@@ -1718,6 +1729,9 @@ public final class LurkerBrain {
         }
         String text = pendingChat;
         pendingChat = null;
+        if (!FogLurkerConfig.COMMON.impersonateInChat.get()) {
+            return; // turned off while the line was being written
+        }
         said.add(text);
         if (said.size() > 8) {
             said.remove(0);

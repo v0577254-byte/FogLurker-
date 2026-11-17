@@ -255,6 +255,17 @@ public final class SpotFinder {
         if (eye.distanceToSqr(point) > 128 * 128) {
             return false;
         }
+        // The ray must not pass through chunks nobody has loaded (looking would load them): treat those as blocked.
+        double len = eye.distanceTo(point);
+        for (double d = 0; d <= len; d += 8) {
+            Vec3 at = len < 1e-6 ? point : eye.add(point.subtract(eye).scale(d / len));
+            if (!viewer.level().hasChunkAt(net.minecraft.core.BlockPos.containing(at))) {
+                return false;
+            }
+        }
+        if (!viewer.level().hasChunkAt(net.minecraft.core.BlockPos.containing(point))) {
+            return false;
+        }
         return viewer.level().clip(new ClipContext(eye, point, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, viewer))
                 .getType() == HitResult.Type.MISS;
     }

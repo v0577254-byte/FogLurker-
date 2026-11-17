@@ -338,7 +338,7 @@ public final class Hauntings {
                 .whenComplete((text, err) -> server.execute(() -> {
                     // (It may have been killed while the line was being written: then nothing haunts.)
                     if (err == null && text != null && !text.isBlank() && !p.hasDisconnected()
-                            && !LurkerDirector.isResting(server)) {
+                            && !LurkerDirector.isResting(server) && FogLurkerConfig.COMMON.impersonateInChat.get()) {
                         p.sendSystemMessage(Component.translatable("chat.type.text", name, text));
                     }
                 })));

@@ -192,7 +192,11 @@ public final class MimicChat {
         if (prof != null && (intent == Intent.LURE || intent == Intent.WAIT || intent == Intent.IMPATIENT)
                 && random.nextFloat() < 0.3F) {
             List<String> fitting = new ArrayList<>();
-            for (String s : prof.chatSamples) {
+            for (String raw : prof.chatSamples) {
+                String s = clip(cleanText(raw), 120); // never repeat invisible or direction-flipping characters
+                if (s.isEmpty()) {
+                    continue;
+                }
                 String l = s.toLowerCase(Locale.ROOT);
                 for (String w : LURE_WORDS) {
                     if (l.contains(w) && s.length() < 60 && !ctx.alreadySaid().contains(s)) {

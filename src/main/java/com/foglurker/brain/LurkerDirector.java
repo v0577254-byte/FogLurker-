@@ -69,6 +69,9 @@ public final class LurkerDirector {
         MinecraftServer server = event.getServer();
         VoiceBridge.tick();
         if (server.getPlayerList().getPlayerCount() == 0) {
+            if (server.getTickCount() % 12000 == 0) {
+                com.foglurker.voice.VoiceRetention.stamp(System.currentTimeMillis()); // running, just empty: not "unused"
+            }
             return; // timers only run while someone is playing
         }
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
@@ -114,6 +117,7 @@ public final class LurkerDirector {
         LEFT_ALONE_UNTIL.clear();
         FEAR_UNTIL.clear();
         BELL_IMMUNE_UNTIL.clear();
+        naturalSpawnsPaused = false;
         RecentChat.clear();
         Hauntings.reset();
     }
@@ -161,6 +165,7 @@ public final class LurkerDirector {
             brain.onBell();
             if (cooldown > 0) {
                 BELL_IMMUNE_UNTIL.put(target, now + cooldown);
+                FogLurkerSavedData.get(level.getServer()).setDirty();
             }
             driven++;
         }
@@ -228,10 +233,46 @@ public final class LurkerDirector {
      */
     public static void scare(ServerPlayer user) {
         long until = user.server.overworld().getGameTime() + FEAR_TICKS;
+        FogLurkerSavedData.get(user.server).setDirty();
         FEAR_UNTIL.put(user.getUUID(), until);
         for (ServerPlayer friend : user.server.getPlayerList().getPlayers()) {
             if (friend != user && friend.level() == user.level() && friend.distanceTo(user) <= 16) {
                 FEAR_UNTIL.put(friend.getUUID(), until);
+            }
+        }
+    }
+
+    /** The 15-minute peace, the 20-minute fear and the bell cooldown, saved with the world (overworld game time). */
+    public static net.minecraft.nbt.CompoundTag saveTimers() {
+        net.minecraft.nbt.CompoundTag t = new net.minecraft.nbt.CompoundTag();
+        t.put("leftAlone", writeTimes(LEFT_ALONE_UNTIL));
+        t.put("fear", writeTimes(FEAR_UNTIL));
+        t.put("bell", writeTimes(BELL_IMMUNE_UNTIL));
+        return t;
+    }
+
+    public static void loadTimers(net.minecraft.nbt.CompoundTag t) {
+        readTimes(t.getList("leftAlone", net.minecraft.nbt.Tag.TAG_COMPOUND), LEFT_ALONE_UNTIL);
+        readTimes(t.getList("fear", net.minecraft.nbt.Tag.TAG_COMPOUND), FEAR_UNTIL);
+        readTimes(t.getList("bell", net.minecraft.nbt.Tag.TAG_COMPOUND), BELL_IMMUNE_UNTIL);
+    }
+
+    private static net.minecraft.nbt.ListTag writeTimes(java.util.Map<java.util.UUID, Long> m) {
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        m.forEach((id, until) -> {
+            net.minecraft.nbt.CompoundTag e = new net.minecraft.nbt.CompoundTag();
+            e.putUUID("id", id);
+            e.putLong("until", until);
+            list.add(e);
+        });
+        return list;
+    }
+
+    private static void readTimes(net.minecraft.nbt.ListTag list, java.util.Map<java.util.UUID, Long> into) {
+        for (int i = 0; i < list.size(); i++) {
+            net.minecraft.nbt.CompoundTag e = list.getCompound(i);
+            if (e.hasUUID("id")) {
+                into.merge(e.getUUID("id"), e.getLong("until"), Math::max);
             }
         }
     }
@@ -295,6 +336,7 @@ public final class LurkerDirector {
     /** Nothing comes for this player on its own for {@code ticks} (commands still work). */
     public static void leaveAlone(ServerPlayer p, long ticks) {
         LEFT_ALONE_UNTIL.put(p.getUUID(), p.server.overworld().getGameTime() + ticks);
+        FogLurkerSavedData.get(p.server).setDirty();
     }
 
     public static long leftAloneTicks(ServerPlayer p) {

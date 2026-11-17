@@ -22,11 +22,23 @@ import javax.annotation.Nullable;
  */
 public class MimicDummyPlayer extends RemotePlayer {
     private int lastLook = -1;
+    /** Their profile with skin data, fetched from Mojang when they are not in the player list. */
+    @Nullable
+    private volatile GameProfile skinProfile;
 
     public MimicDummyPlayer(ClientLevel level, GameProfile profile) {
         super(level, profile);
         this.noPhysics = true;
         this.setSilent(true);
+    }
+
+    void setSkinProfile(@Nullable GameProfile filled) {
+        this.skinProfile = filled;
+    }
+
+    private GameProfile profileForSkin() {
+        GameProfile p = skinProfile;
+        return p != null ? p : getGameProfile();
     }
 
     /** Like the inherited lookup, but safe while disconnecting (the connection can already be gone). */
@@ -55,7 +67,7 @@ public class MimicDummyPlayer extends RemotePlayer {
             return info.getSkinLocation();
         }
         // Not in the player list (they logged off): ask Mojang for their skin like a player head does.
-        return Minecraft.getInstance().getSkinManager().getInsecureSkinLocation(getGameProfile());
+        return Minecraft.getInstance().getSkinManager().getInsecureSkinLocation(profileForSkin());
     }
 
     @Override
@@ -68,7 +80,7 @@ public class MimicDummyPlayer extends RemotePlayer {
         if (info != null) {
             return info.getModelName();
         }
-        var tex = Minecraft.getInstance().getSkinManager().getInsecureSkinInformation(getGameProfile())
+        var tex = Minecraft.getInstance().getSkinManager().getInsecureSkinInformation(profileForSkin())
                 .get(com.mojang.authlib.minecraft.MinecraftProfileTexture.Type.SKIN);
         if (tex != null) {
             String model = tex.getMetadata("model");

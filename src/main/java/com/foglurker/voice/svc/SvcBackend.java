@@ -37,6 +37,8 @@ final class SvcBackend implements VoiceBridge.Backend {
     private final Map<Integer, AudioPlayer> playing = new ConcurrentHashMap<>();
     /** Whose voice each playing clip is, so opting out can cut it off mid-sentence. */
     private final Map<AudioPlayer, UUID> playingOwner = new ConcurrentHashMap<>();
+    /** Creatures whose clip is still loading, so two calls in a row cannot start two clips. */
+    private final java.util.Set<Integer> loading = ConcurrentHashMap.newKeySet();
 
     SvcBackend(VoicechatServerApi api) {
         this.api = api;
@@ -222,6 +224,11 @@ final class SvcBackend implements VoiceBridge.Backend {
             return false; // already talking
         }
         int entityId = source.getId();
+        if (!loading.add(entityId)) {
+            return false; // a clip for it is already on its way
+        }
+        // Wrapped here on the server thread; the loading thread only checks a flag on it.
+        var where = api.fromEntity(source);
         SnippetStore.io().execute(() -> {
             try {
                 short[] pcm;
@@ -244,14 +251,20 @@ final class SvcBackend implements VoiceBridge.Backend {
                 pcm = AudioFx.apply(pcm, style);
                 short[] framed = Arrays.copyOf(pcm, ((pcm.length + FRAME - 1) / FRAME) * FRAME);
 
-                EntityAudioChannel channel = api.createEntityAudioChannel(UUID.randomUUID(), api.fromEntity(source));
+                EntityAudioChannel channel = api.createEntityAudioChannel(UUID.randomUUID(), where);
                 if (channel == null) {
                     return;
                 }
                 channel.setCategory(CATEGORY);
                 channel.setDistance(FogLurkerConfig.COMMON.voiceDistance.get());
                 OpusEncoder encoder = api.createEncoder();
-                AudioPlayer player = api.createAudioPlayer(channel, encoder, framed);
+                AudioPlayer player;
+                try {
+                    player = api.createAudioPlayer(channel, encoder, framed);
+                } catch (RuntimeException e) {
+                    encoder.close();
+                    throw e;
+                }
                 player.setOnStopped(() -> {
                     encoder.close();
                     playing.remove(entityId, player);
@@ -263,12 +276,21 @@ final class SvcBackend implements VoiceBridge.Backend {
                 }
                 playingOwner.put(player, voiceOwner);
                 playing.put(entityId, player);
-                player.startPlaying();
+                try {
+                    player.startPlaying();
+                } catch (RuntimeException e) {
+                    playing.remove(entityId, player);
+                    playingOwner.remove(player);
+                    encoder.close();
+                    throw e;
+                }
                 if (!VoiceConsent.isOptedIn(voiceOwner)) {
                     player.stopPlaying(); // they opted out in the instant before it started
                 }
             } catch (Throwable t) {
                 FogLurkerMod.LOGGER.warn("Fog Lurker could not play a voice snippet", t);
+            } finally {
+                loading.remove(entityId);
             }
         });
         return true;

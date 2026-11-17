@@ -70,7 +70,7 @@ It can be killed. Its health depends on the mode:
 | Hard | 125 hearts |
 | Deathwish | 175 hearts |
 
-It has 2 armour points, and it does not take fall, suffocation or drowning damage. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
+It has 4 armour points (2 armour icons), and it does not take fall, suffocation or drowning damage. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
 
 ### What it drops (only when a player lands the killing blow)
 
@@ -103,7 +103,7 @@ A spiky black, grey and white blade wrapped in a slowly drifting mist. **It cann
 - **Right-click: a scare burst.** A blue sonic boom like the Warden's. It reaches every creature that is hunting you or is within 96 blocks, **wherever you aim**. 3 times in 4 it shrieks and flees. Otherwise it holds on but is weakened for 15 seconds: slower, its bites do 40% less and the gaps between them are 50% longer, and it glows so you can see it.
 - After a scare burst it **fears you for 20 minutes**: it is half as likely to attack you, and if you are with a friend (within 16 blocks) it almost never attacks (a tenth as likely). Friends standing with you when you use it are feared too.
 - It holds **10 scare bursts** (the durability bar). Hitting things never wears it out, and it cannot be repaired with planks or merged with another Protector on an anvil (renaming is fine).
-- **Recharging:** put the sword in the **middle** of a crafting table and The Fog of the Day or The Fog of the Night in the slots around it. **Each fog item gives back one burst**, so you can put them in one at a time; day and night both work. It never takes more fog than it is missing.
+- **Recharging:** put the sword in the **middle** of a crafting table and The Fog of the Day or The Fog of the Night in the slots around it. **Each fog item gives back one burst**, so you can put them in one at a time; day and night both work. One item per slot is used per craft (a stack in one slot gives one burst and the rest stays in the grid). It never takes more fog than it is missing, and Mending (only possible with commands) does not refill it.
 
 ## How to survive it
 
@@ -203,7 +203,7 @@ It is a coin flip whether it means it. If it does, it sinks flat into the ground
 > fogstalker: just kidding
 > fogstalker: **RUN!**
 
-**RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, you die instantly**. If you get away (outrun it, water, soul fire, a bell), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Try it with `/foglurker force meet [player]`.
+**RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, you die instantly**. If you get away (outrun it, water, soul fire, a bell, a scare burst from the Protector), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Like the scare-burst fear and the bell cooldown, this is saved with the world, so quitting and coming back does not reset it. Try it with `/foglurker force meet [player]`.
 
 ## The five modes
 
@@ -306,7 +306,7 @@ You can also set the `FOGLURKER_GEMINI_API_KEY` environment variable on a server
 How the key is handled:
 - It is stored AES-256-GCM encrypted in `foglurker_secure/`, never in a world save, never sent to players, and never logged. Chat only ever shows a masked preview (`AIza…k3Fq`).
 - It is sent only to Google, in the `x-goog-api-key` header (never in a URL), over HTTPS.
-- If Google rejects the key it stops asking for 10 minutes (or until you set a key again) and uses the built-in phrases, so a bad key never slows the game down or spams requests. If a model is rate limited it skips that model for as long as Google asks and uses the next one.
+- If Google rejects the key it stops asking for 10 minutes (or until you set a key again) and uses the built-in phrases, so a bad key never slows the game down or spams requests. If a model is rate limited it skips that model for as long as Google asks (up to 10 minutes) and uses the next one.
 - Every request has a time limit; if Google is slow or unreachable the creature simply uses a built-in phrase.
 - Models are configurable (default `gemini-flash-latest`, falling back to `gemini-2.5-flash` and `gemini-flash-lite-latest`). Names like `models/gemini-2.5-flash` work too; anything that is not a valid model id is ignored with a warning.
 
@@ -398,11 +398,11 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - a second bell within the cooldown does nothing, escaping with a bell adds +10% (capped at +30%), and a bite resets it
 - it never hunts one player twice at once and does not come straight back to the player it just left
 - groups: it picks the hurt player about half the time and the one at the edge about 40% of the time; mid-attack it switches to a much closer player and bites them, not the far one
-- night: the fog multipliers per mode; the night meeting waits out "RUN!" and the full 5 second head start, then kills in one bite; when it means it, it leaves without a scratch; getting away gives 15 minutes of peace
+- night: the fog multipliers per mode; the night meeting waits out "RUN!" and the full 5 second head start, then kills in one bite; when it means it, it leaves without a scratch; getting away gives 15 minutes of peace, which is saved with the world
 - killing it: 50/75/100/125/175 hearts per mode; ordinary hits are softened by its hide; the Protector does exactly 10 (15 on a critical hit), even through Protection armour it copied; a kill sends every other creature away and rests it for 30 minutes, which survives a restart; nothing drops unless a player lands the killing blow; while it flops away not even a creative player can hurt it; each mode's drop rates come out as listed (the stick never rarer than the ingot, the Deathwish ingot 1.5x Hard, the fog matching day or night) and none passes 75%
 - the Protector: hits like a wooden sword and never wears out from hitting; a scare burst uses one charge, reaches the creature hunting you, and either scares it off or weakens it; you and friends next to you are feared, a far player is not; an empty sword cannot burst; recharging works one fog item at a time, only with the sword in the middle, and never takes more fog than it is missing; it cannot be enchanted or merged on an anvil (renaming works); the 3x3 sword recipe is exact
 - `/fglurk chatlearning off` forgets your messages, drops them from the Gemini context, stops learning, and survives a restart
-- the Gemini client against a fake Gemini server: falls back past missing (404), forbidden (403), broken (502) and rate-limited (429) models; retries without the thinking budget once and remembers it; stops at once on an invalid key and pauses until a key is set again; waits as long as Google asks after a rate limit; reports safety blocks and empty replies; never sends a malformed key; times out on a hung server; the key is only ever in the header; replies are cleaned of formatting codes, invisible characters and split emoji
+- the Gemini client against a fake Gemini server: falls back past missing (404), forbidden (403), broken (502) and rate-limited (429) models; retries without the thinking budget once and remembers it; stops at once on an invalid key and pauses (10 minutes, or until a key is set again); waits as long as Google asks after a rate limit (body or Retry-After header, up to 10 minutes); reports safety blocks and empty replies; never sends a malformed key; times out on a hung server; the key is only ever in the header; replies are cleaned of formatting codes, invisible characters and split emoji
 - hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests
 - indoors at home the watcher appears outside your roof; spotted in its real shape it flops flat
 - `/foglurker endgrace` and `/foglurker force hide|stalk|attack` work and are cheats-only; it finds tall grass, lies down with a low hitbox, drops flat when looked at while stalking, and attacks on command

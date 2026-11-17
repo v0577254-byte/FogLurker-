@@ -686,6 +686,15 @@ public final class FogLurkerGameTests {
                     check(other.isRemoved() || other.isFlopped(), "the other creature should leave too");
                     check(FogLurkerSavedData.load(data.save(new net.minecraft.nbt.CompoundTag())).restUntil() == data.restUntil(),
                             "the rest must survive a restart");
+                    // The 15-minute peace is saved with the world too.
+                    LurkerDirector.leaveAlone(p, 1);
+                    net.minecraft.nbt.ListTag peace = data.save(new net.minecraft.nbt.CompoundTag()).getCompound("timers")
+                            .getList("leftAlone", net.minecraft.nbt.Tag.TAG_COMPOUND);
+                    boolean savedPeace = false;
+                    for (int k = 0; k < peace.size(); k++) {
+                        savedPeace |= peace.getCompound(k).getUUID("id").equals(p.getUUID());
+                    }
+                    check(savedPeace, "the 15 minutes of peace must be saved with the world");
                     // Drops only come from a player's killing blow: a player hit it, then a cactus finished it: no drops.
                     data.setRestUntil(0);
                     p.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
@@ -794,6 +803,7 @@ public final class FogLurkerGameTests {
                 check(stack.getMaxDamage() == 10 && com.foglurker.item.ProtectorOfTheFogItem.charges(stack) == 10, "it should hold 10 scare bursts");
                 sword.hurtEnemy(stack, friend, p);
                 check(stack.getDamageValue() == 0, "hitting things must not use up scare bursts");
+                check(stack.getXpRepairRatio() == 0F, "Mending must not refill scare bursts");
                 // A scare burst reaches the creature hunting you wherever you aim: it flees or is weakened.
                 FogLurkerSavedData data = FogLurkerSavedData.get(server);
                 LurkerDifficulty before = data.difficulty();

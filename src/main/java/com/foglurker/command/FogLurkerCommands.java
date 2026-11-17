@@ -152,6 +152,7 @@ public final class FogLurkerCommands {
         }
         FogLurkerEntity dancer = com.foglurker.registry.ModEntities.FOG_LURKER.get().create(level);
         if (dancer == null) {
+            ctx.getSource().sendFailure(Component.literal("Could not make the dancer here."));
             return 0;
         }
         float yaw = (float) Math.toDegrees(Math.atan2(p.getZ() - spot.z, p.getX() - spot.x)) - 90F; // face you
@@ -355,8 +356,15 @@ public final class FogLurkerCommands {
         Boolean attack = switch (behaviorArg.toLowerCase(Locale.ROOT)) {
             case "attack" -> Boolean.TRUE;
             case "watch", "passive" -> Boolean.FALSE;
-            default -> null;
+            case "random", "any" -> null;
+            default -> {
+                src.sendFailure(Component.literal("Unknown behaviour '" + behaviorArg + "'. Use attack, watch or random."));
+                yield Boolean.FALSE; // not used: the command stops below
+            }
         };
+        if (!List.of("attack", "watch", "passive", "random", "any").contains(behaviorArg.toLowerCase(Locale.ROOT))) {
+            return 0;
+        }
         FogLurkerEntity lurker = LurkerDirector.spawn(target, disguise, attack);
         if (lurker == null || lurker.brain() == null) {
             src.sendFailure(Component.literal("Could not find anywhere for it to appear near " + target.getGameProfile().getName()
@@ -406,9 +414,12 @@ public final class FogLurkerCommands {
                     .withStyle(ChatFormatting.GRAY));
             return data.naturalSpawning() ? 1 : 0;
         }
+        boolean wasOn = data.naturalSpawning();
         data.setNaturalSpawning(on);
         reply(src, Component.literal(on
-                ? "Natural spawning is now ON. " + (data.inGrace() ? "It starts rolling when the grace period ends."
+                ? (wasOn ? "Natural spawning is already ON. " : "Natural spawning is now ON. ")
+                + (data.inGrace() ? "It starts rolling when the grace period ends."
+                : data.nextSpawnTicks() >= 0 ? "The next roll is in " + time(data.nextSpawnTicks()) + "."
                 : "The first roll is in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes.")
                 : "Natural spawning is now OFF. It will only come when summoned with /foglurker spawn or /foglurker force. "
                 + "Anything already out there stays until it leaves (/foglurker despawn sends it away).")
@@ -492,6 +503,11 @@ public final class FogLurkerCommands {
         } catch (IOException e) {
             FogLurkerMod.LOGGER.error("Could not store Gemini API key", e);
             src.sendFailure(Component.literal("Could not save the key: " + e.getMessage()));
+            return 0;
+        } catch (RuntimeException e) {
+            // Caught here so Minecraft never logs the failed command line, which contains the key.
+            FogLurkerMod.LOGGER.error("Could not store Gemini API key ({})", e.getClass().getSimpleName());
+            src.sendFailure(Component.literal("Could not save the key (" + e.getClass().getSimpleName() + ")."));
             return 0;
         }
         reply(src, Component.literal("Gemini API key " + ApiKeyStore.masked(key)

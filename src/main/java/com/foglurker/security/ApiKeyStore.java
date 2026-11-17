@@ -104,7 +104,7 @@ public final class ApiKeyStore {
 
     /** "AIza…k3Fq" style preview that is safe to show in chat. */
     public static String masked(String key) {
-        if (key == null || key.length() < 16) {
+        if (key == null || key.length() < 24) {
             return "****"; // too short to show any of it safely
         }
         return key.substring(0, 4) + "…" + key.substring(key.length() - 4);

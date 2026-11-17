@@ -84,6 +84,12 @@ public class ProtectorOfTheFogItem extends SwordItem {
         }
     }
 
+    /** Mending (only possible through commands or NBT edits) must not refill scare bursts from XP. */
+    @Override
+    public float getXpRepairRatio(ItemStack stack) {
+        return 0F;
+    }
+
     // Unenchantable: not at a table, not with books on an anvil.
     @Override
     public boolean isEnchantable(ItemStack stack) {

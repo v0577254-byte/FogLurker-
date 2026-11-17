@@ -31,6 +31,9 @@ public final class ClientEffects {
     private static int heartbeatIn;
     private static final ResourceLocation VIGNETTE = ResourceLocation.tryParse("minecraft:textures/misc/vignette.png");
 
+    /** True while a world was loaded last tick, so leaving one always clears what it left behind. */
+    private static boolean inWorld;
+
     private ClientEffects() {
     }
 
@@ -69,11 +72,13 @@ public final class ClientEffects {
         }
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
-            if (fog != 0 || scareTicks != 0) {
-                reset();
+            if (inWorld || fog != 0 || scareTicks != 0) {
+                reset(); // also drops the disguise copies and apparitions of the world just left
+                inWorld = false;
             }
             return;
         }
+        inWorld = true;
         if (mc.isPaused()) {
             return;
         }

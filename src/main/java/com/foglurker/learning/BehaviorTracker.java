@@ -299,7 +299,11 @@ public final class BehaviorTracker {
 
     @SubscribeEvent
     public static void onContainer(net.minecraftforge.event.entity.player.PlayerContainerEvent.Open event) {
-        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)) {
+        // Only storage (chests, barrels, shulker boxes) marks a home: not crafting tables, furnaces or villagers.
+        var menu = event.getContainer();
+        boolean storage = menu instanceof net.minecraft.world.inventory.ChestMenu
+                || menu instanceof net.minecraft.world.inventory.ShulkerBoxMenu;
+        if (storage && event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)) {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
             data.profile(p.getUUID()).usedContainerAt(p.level().dimension().location().toString(), p.blockPosition());
             data.setDirty();

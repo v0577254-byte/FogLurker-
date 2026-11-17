@@ -133,6 +133,18 @@ public final class SecureStorage {
         }
     }
 
+    /** True if anything encrypted (a voice snippet or the saved API key) is already in the folder. */
+    private static boolean hasEncryptedData() {
+        try (java.util.stream.Stream<Path> all = Files.walk(root(), 3)) {
+            return all.anyMatch(p -> {
+                String n = p.getFileName().toString();
+                return n.endsWith(".snip") || n.endsWith(".enc") || n.startsWith("gemini");
+            });
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
     private static SecretKey key() throws IOException {
         SecretKey k = masterKey;
         if (k != null) {
@@ -154,6 +166,11 @@ public final class SecureStorage {
                     Files.move(keyFile, aside);
                     FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key was damaged and was moved to {}. A new key was "
                             + "created: existing voice snippets and the Gemini API key cannot be read and must be set again.", aside);
+                }
+                if (!Files.exists(keyFile) && hasEncryptedData()) {
+                    FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key is missing but encrypted files are still there "
+                            + "(was the folder copied without its .master.key?). A new key was created: existing voice "
+                            + "snippets and the Gemini API key cannot be read and must be set again.");
                 }
                 raw = new byte[32];
                 RANDOM.nextBytes(raw);
@@ -221,7 +238,15 @@ public final class SecureStorage {
             Files.createFile(tmp);
             restrict(tmp, false); // narrowed while still empty, before the secret goes in
         }
-        Files.write(tmp, bytes);
+        // Flushed to the disk before it replaces the old file, so a power cut cannot leave an empty file behind.
+        try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(tmp,
+                java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
+            java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(bytes);
+            while (buf.hasRemaining()) {
+                ch.write(buf);
+            }
+            ch.force(true);
+        }
         restrict(tmp, false);
         try {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);

@@ -313,6 +313,25 @@ public final class GeminiClient {
         return r.status() == 400 && (e.contains("api key") || e.contains("location is not supported"));
     }
 
+    /**
+     * A rate limit can also say how long to wait in the HTTP Retry-After header (whole seconds). The longer
+     * of that and the wait in the body wins.
+     */
+    static Result withRetryAfter(Result r, @Nullable String retryAfter) {
+        if (r.status() != 429 || retryAfter == null || !retryAfter.trim().matches("\\d{1,7}")) {
+            return r;
+        }
+        long header = Long.parseLong(retryAfter.trim()) * 1000L;
+        long body = -1;
+        if (r.reason() != null) {
+            Matcher m = RETRY_DELAY.matcher(r.reason());
+            if (m.matches()) {
+                body = (long) (Double.parseDouble(m.group(1)) * 1000);
+            }
+        }
+        return header > body ? Result.fail(429, r.error(), (header / 1000) + "s") : r;
+    }
+
     private static long rateLimitMillis(Result r) {
         // Google says how long to wait ("retryDelay": "37s") in the error details; parse() puts it in reason.
         if (r.reason() != null) {
@@ -360,7 +379,8 @@ public final class GeminiClient {
             return CompletableFuture.completedFuture(Result.fail(0, "Could not build the request for model " + model));
         }
         return HTTP.sendAsync(req, HttpResponse.BodyHandlers.ofString())
-                .thenApply(resp -> parse(resp.statusCode(), resp.body()))
+                .thenApply(resp -> withRetryAfter(parse(resp.statusCode(), resp.body()),
+                        resp.headers().firstValue("Retry-After").orElse(null)))
                 .exceptionally(t -> {
                     FogLurkerMod.LOGGER.debug("Gemini request to {} failed: {}", model, rootMessage(t));
                     return Result.fail(0, "Could not reach Gemini: " + rootMessage(t));

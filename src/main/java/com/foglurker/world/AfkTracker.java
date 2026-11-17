@@ -188,15 +188,16 @@ public final class AfkTracker {
      * configured time with no activity. Public for the game tests.
      */
     public static void check(ServerPlayer p, long now) {
-        if (p instanceof FakePlayer || !enabled()) {
-            return;
+        if (p instanceof FakePlayer || !enabled() || !p.isAlive()) {
+            return; // on the death screen nothing is checked; clicking Respawn counts as being back
         }
         State s = state(p, now);
         // Looking around is always the player: nothing else turns your head.
         boolean looked = Math.abs(net.minecraft.util.Mth.wrapDegrees(p.getYRot() - s.yaw)) > 0.5F
                 || Math.abs(p.getXRot() - s.pitch) > 0.5F;
-        // Moving yourself counts; being moved does not. A jump of more than 12 blocks in a second is a respawn
-        // or a teleport, never walking. Knockback (hurtTime) and water currents do not count.
+        // Moving yourself counts. A jump of more than 12 blocks in a second is a respawn or a teleport, never
+        // walking. Knockback (hurtTime) and water currents do not count. (The server cannot see keys, so a
+        // shove along the ground by a piston or a mob still wakes you.)
         double moved = Math.hypot(p.getX() - s.x, p.getZ() - s.z);
         double climbedUp = Math.abs(p.getY() - s.y);
         // Elytra flight can cover far more than 12 blocks a second; it is still the player flying.
@@ -260,6 +261,9 @@ public final class AfkTracker {
     public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer p) {
             rebase(p);
+            if (!event.isEndConquered()) {
+                markActive(p); // clicking Respawn is the player (a manual /afk stays until they move)
+            }
         }
     }
 

@@ -215,9 +215,15 @@ public final class VoiceConsent {
         ensureLoaded();
         OPTED_IN.remove(player);
         LAST_SEEN.remove(player);
-        save(true);
-        VoiceBridge.forget(player);
-        return SnippetStore.deleteAll(player);
+        int deleted = 0;
+        try {
+            save(true);
+        } finally {
+            // Even if writing the list failed unexpectedly, recording stops and the clips go now.
+            VoiceBridge.forget(player);
+            deleted = SnippetStore.deleteAll(player);
+        }
+        return deleted;
     }
 
     /**

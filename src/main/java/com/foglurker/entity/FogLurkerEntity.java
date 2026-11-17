@@ -334,6 +334,10 @@ public class FogLurkerEntity extends PathfinderMob {
             this.setSwimming(false);
         }
         applyMovementRules(disguise);
+        if (disguise.isAttackForm()) {
+            // Its real shape has no name: otherwise a death message would say a friend (or a dog) killed you.
+            this.setCustomName(null);
+        }
         this.refreshDimensions();
     }
 

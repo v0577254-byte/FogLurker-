@@ -129,7 +129,7 @@ public final class PlayerBehaviorProfile {
             String weakest = null;
             float min = Float.MAX_VALUE;
             for (Map.Entry<String, Float> e : heldItems.entrySet()) {
-                if (e.getValue() < min) {
+                if (!e.getKey().equals(itemId) && e.getValue() < min) { // never the one just used
                     min = e.getValue();
                     weakest = e.getKey();
                 }
@@ -208,15 +208,15 @@ public final class PlayerBehaviorProfile {
     public static PlayerBehaviorProfile load(CompoundTag t) {
         PlayerBehaviorProfile p = new PlayerBehaviorProfile();
         p.lastKnownName = t.getString("name");
-        p.sprintRatio = t.getFloat("sprint");
-        p.sneakRatio = t.getFloat("sneak");
-        p.jumpRate = t.getFloat("jump");
-        p.crouchSpamRate = t.getFloat("crouchSpam");
-        p.lookJitter = t.getFloat("look");
-        p.idleSwingRate = t.getFloat("swing");
+        p.sprintRatio = t.contains("sprint") ? t.getFloat("sprint") : p.sprintRatio;
+        p.sneakRatio = t.contains("sneak") ? t.getFloat("sneak") : p.sneakRatio;
+        p.jumpRate = t.contains("jump") ? t.getFloat("jump") : p.jumpRate;
+        p.crouchSpamRate = t.contains("crouchSpam") ? t.getFloat("crouchSpam") : p.crouchSpamRate;
+        p.lookJitter = t.contains("look") ? t.getFloat("look") : p.lookJitter;
+        p.idleSwingRate = t.contains("swing") ? t.getFloat("swing") : p.idleSwingRate;
         p.friendDistance = t.contains("friendDist") ? t.getFloat("friendDist") : 3.5F;
-        p.chatRate = t.getFloat("chatRate");
-        p.idleRatio = t.getFloat("idle");
+        p.chatRate = t.contains("chatRate") ? t.getFloat("chatRate") : p.chatRate;
+        p.idleRatio = t.contains("idle") ? t.getFloat("idle") : p.idleRatio;
         p.windows = t.getInt("windows");
         CompoundTag items = t.getCompound("items");
         for (String k : items.getAllKeys()) {

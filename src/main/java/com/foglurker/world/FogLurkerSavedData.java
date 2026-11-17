@@ -219,6 +219,7 @@ public final class FogLurkerSavedData extends SavedData {
             notice.add(NbtUtils.createUUID(id));
         }
         tag.put("voiceNotice", notice);
+        tag.put("timers", com.foglurker.brain.LurkerDirector.saveTimers());
         return tag;
     }
 
@@ -245,6 +246,7 @@ public final class FogLurkerSavedData extends SavedData {
         for (Tag t : notice) {
             d.voiceNoticeShown.add(NbtUtils.loadUUID(t));
         }
+        com.foglurker.brain.LurkerDirector.loadTimers(tag.getCompound("timers"));
         return d;
     }
 }
