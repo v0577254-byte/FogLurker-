@@ -126,7 +126,7 @@ public final class ClientDebug {
 
         say(Component.literal("Your game: " + passed + " passed, " + failed + " failed")
                 .withStyle(failed == 0 ? ChatFormatting.GREEN : ChatFormatting.RED, ChatFormatting.BOLD));
-        say(Component.literal("Now playing a 3 second fog + heartbeat test...").withStyle(ChatFormatting.GRAY));
+        say(Component.literal("Now playing a 2 second fog + heartbeat test...").withStyle(ChatFormatting.GRAY));
         ClientEffects.setFogTarget(0.6F);
         ClientEffects.scare(40);
         // Two seconds in, check that Minecraft is really using the creature's fog.

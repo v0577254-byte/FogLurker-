@@ -360,7 +360,7 @@ public final class FogLurkerCommands {
         FogLurkerEntity lurker = LurkerDirector.spawn(target, disguise, attack);
         if (lurker == null || lurker.brain() == null) {
             src.sendFailure(Component.literal("Could not find anywhere for it to appear near " + target.getGameProfile().getName()
-                    + " (needs loaded ground 15-55 blocks away)."));
+                    + " (it needs dry, loaded ground nearby, away from water)."));
             return 0;
         }
         var enc = lurker.brain().encounter();
@@ -544,7 +544,7 @@ public final class FogLurkerCommands {
         };
         return Component.literal(d.displayName()).withStyle(d == LurkerDifficulty.DEATHWISH ? ChatFormatting.DARK_RED : ChatFormatting.WHITE)
                 .append(Component.literal(": " + attacks + ", " + damage + ", " + d.graceMinutes()
-                        + " min grace period.").withStyle(ChatFormatting.GRAY));
+                        + " min grace period. It has " + d.lurkerHearts() + " hearts.").withStyle(ChatFormatting.GRAY));
     }
 
     private static String fmtHearts(float hearts) {

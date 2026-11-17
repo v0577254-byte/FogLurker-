@@ -199,7 +199,9 @@ public final class AfkTracker {
         // or a teleport, never walking. Knockback (hurtTime) and water currents do not count.
         double moved = Math.hypot(p.getX() - s.x, p.getZ() - s.z);
         double climbedUp = Math.abs(p.getY() - s.y);
-        boolean ownPace = moved <= 12.0 && climbedUp <= 12.0 && p.hurtTime == 0;
+        // Elytra flight can cover far more than 12 blocks a second; it is still the player flying.
+        // invulnerableTime is above 0 for a second after any hit, so knockback earlier in the window does not count.
+        boolean ownPace = (p.isFallFlying() || (moved <= 12.0 && climbedUp <= 12.0)) && p.hurtTime == 0 && p.invulnerableTime == 0;
         net.minecraft.world.entity.Entity vehicle = p.getVehicle();
         boolean walked = ownPace && moved > 0.3 && !p.isPassenger()
                 && (p.onGround() || p.isFallFlying() || p.isSwimming()) && (!p.isInWater() || p.isSwimming());

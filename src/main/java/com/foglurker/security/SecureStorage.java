@@ -74,9 +74,23 @@ public final class SecureStorage {
             if (POSIX) {
                 Set<PosixFilePermission> perms = PosixFilePermissions.fromString(directory ? "rwx------" : "rw-------");
                 Files.setPosixFilePermissions(path, perms);
+            } else if (Files.getFileAttributeView(path, java.nio.file.attribute.AclFileAttributeView.class) != null) {
+                // Windows: replace the access list with a single entry, the owner (the account running Minecraft).
+                var acl = Files.getFileAttributeView(path, java.nio.file.attribute.AclFileAttributeView.class);
+                var owner = Files.getOwner(path);
+                var entry = java.nio.file.attribute.AclEntry.newBuilder()
+                        .setType(java.nio.file.attribute.AclEntryType.ALLOW)
+                        .setPrincipal(owner)
+                        .setPermissions(java.util.EnumSet.allOf(java.nio.file.attribute.AclEntryPermission.class))
+                        .setFlags(directory
+                                ? java.util.EnumSet.of(java.nio.file.attribute.AclEntryFlag.FILE_INHERIT,
+                                java.nio.file.attribute.AclEntryFlag.DIRECTORY_INHERIT)
+                                : java.util.EnumSet.noneOf(java.nio.file.attribute.AclEntryFlag.class))
+                        .build();
+                acl.setAcl(java.util.List.of(entry));
             } else {
                 java.io.File f = path.toFile();
-                // Best effort on Windows: drop access for "everyone", keep it for the owner.
+                // Last resort on other systems: the best java.io.File can do (owner-only where supported).
                 f.setReadable(false, false);
                 f.setReadable(true, true);
                 f.setWritable(false, false);

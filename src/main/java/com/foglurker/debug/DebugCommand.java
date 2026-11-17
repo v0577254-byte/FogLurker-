@@ -243,21 +243,23 @@ public final class DebugCommand {
         r.pass("Current mode", d.displayName() + ", grace left " + (data.graceRemainingTicks() / 20) + "s, next spawn "
                 + (!data.naturalSpawning() ? "never (natural spawning off)"
                 : (data.inGrace() ? "after grace" : data.nextSpawnTicks() < 0 ? "scheduling" : (data.nextSpawnTicks() / 20) + "s")
-                + (data.nextIsGuaranteed() ? " (guaranteed)" : " (50/50)")));
-        // name, grace min, hearts (-1 = one shot), cooldown s, attack chance
+                + (data.nextIsGuaranteed() ? " (guaranteed)" : " (" + Math.round(FogLurkerConfig.COMMON.spawnChance.get() * 100) + "% chance)")));
+        // name, grace min, hearts per hit (-1 = one shot), cooldown s, its own health in hearts, night fog
         Object[][] spec = {
-                {LurkerDifficulty.VERY_EASY, 45, 1F, 3.0F},
-                {LurkerDifficulty.EASY, 30, 3F, 2.5F},
-                {LurkerDifficulty.MEDIUM, 20, 5F, 2.0F},
-                {LurkerDifficulty.HARD, 10, 6F, 1.75F},
-                {LurkerDifficulty.DEATHWISH, 5, -1F, 1.5F},
+                {LurkerDifficulty.VERY_EASY, 45, 1F, 3.0F, 50, 1.10F},
+                {LurkerDifficulty.EASY, 30, 3F, 2.5F, 75, 1.15F},
+                {LurkerDifficulty.MEDIUM, 20, 5F, 2.0F, 100, 1.25F},
+                {LurkerDifficulty.HARD, 10, 6F, 1.75F, 125, 1.35F},
+                {LurkerDifficulty.DEATHWISH, 5, -1F, 1.5F, 175, 1.50F},
         };
         for (Object[] row : spec) {
             LurkerDifficulty m = (LurkerDifficulty) row[0];
             boolean ok = m.graceMinutes() == (int) row[1]
                     && (m.isOneShot() ? (float) row[2] < 0 : m.heartsPerHit() == (float) row[2])
-                    && Math.abs(m.attackCooldownSeconds() - (float) row[3]) < 1e-4;
-            r.check(m.displayName(), ok, (m.isOneShot() ? "one shot" : m.heartsPerHit() + " hearts") + ", "
+                    && Math.abs(m.attackCooldownSeconds() - (float) row[3]) < 1e-4
+                    && m.lurkerHearts() == (int) row[4]
+                    && Math.abs(m.nightFogMultiplier() - (float) row[5]) < 1e-4;
+            r.check(m.displayName(), ok, "it has " + m.lurkerHearts() + " hearts; " + (m.isOneShot() ? "one shot" : m.heartsPerHit() + " hearts") + ", "
                     + m.attackCooldownSeconds() + "s between hits, " + m.graceMinutes() + " min grace, attacks "
                     + Math.round(m.attackChance() * 100) + "% of spawns" + (m.speedMultiplier() != 1 ? ", 50% faster" : ""));
         }
@@ -270,7 +272,7 @@ public final class DebugCommand {
             r.run(d.id(), (rep, w) -> {
                 LurkerDirector.DryRun run = LurkerDirector.dryRun(player, d, false);
                 if (run.spot() == null) {
-                    rep.fail(w, "no dry loaded ground 12-55 blocks away");
+                    rep.fail(w, "no dry, loaded ground near you to appear on");
                     return;
                 }
                 BlockPos feet = BlockPos.containing(run.spot());

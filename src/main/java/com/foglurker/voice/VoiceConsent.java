@@ -40,11 +40,61 @@ public final class VoiceConsent {
     }
 
     /**
-     * A newer copy, written when the main file could not be (for example locked by another program on
-     * Windows). It wins on the next start, so an opt-out is never undone by a stale main file.
+     * A second copy, written when the main file could not be (for example locked by another program on
+     * Windows). Both copies carry a version number and the newer one wins on the next start, so an opt-out
+     * is never undone by an older copy, whichever file it is in.
      */
     private static Path newerFile() {
         return SecureStorage.root().resolve("voice_consent.next");
+    }
+
+    /** Bumped on every save; the copy with the highest number is the current one. */
+    private static long version;
+
+    private record Copy(Path path, long version, java.util.Set<UUID> optedIn, java.util.Map<UUID, Long> lastSeen) {
+    }
+
+    private static final Copy ABSENT = new Copy(null, -1, Set.of(), java.util.Map.of());
+
+    /** @return the copy in this file, ABSENT if there is none, or null if it exists but cannot be read */
+    @javax.annotation.Nullable
+    private static Copy read(Path f) {
+        if (!Files.isRegularFile(f)) {
+            return ABSENT;
+        }
+        try {
+            String json = new String(SecureStorage.readEncrypted(f), StandardCharsets.UTF_8);
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            java.util.Set<UUID> in = new java.util.HashSet<>();
+            for (JsonElement e : root.getAsJsonArray("optedIn")) {
+                in.add(UUID.fromString(e.getAsString()));
+            }
+            java.util.Map<UUID, Long> seen = new java.util.HashMap<>();
+            if (root.has("lastSeen")) {
+                root.getAsJsonObject("lastSeen").entrySet().forEach(en ->
+                        seen.put(UUID.fromString(en.getKey()), en.getValue().getAsLong()));
+            }
+            long v = root.has("version") ? root.get("version").getAsLong() : 0L;
+            return new Copy(f, v, in, seen);
+        } catch (Exception e) {
+            FogLurkerMod.LOGGER.error("Could not read the voice consent file {}", f, e);
+            return null;
+        }
+    }
+
+    private static String setAside(Path f) {
+        Path aside = f.resolveSibling(f.getFileName() + ".unreadable-" + System.currentTimeMillis());
+        try {
+            Files.move(f, aside); // kept for the server owner
+            return "kept as " + aside;
+        } catch (IOException | RuntimeException moveFailed) {
+            try {
+                Files.copy(f, aside);
+                return "a copy kept as " + aside;
+            } catch (IOException | RuntimeException copyFailed) {
+                return "no copy could be kept";
+            }
+        }
     }
 
     private static void ensureLoaded() {
@@ -55,42 +105,27 @@ public final class VoiceConsent {
             if (loaded) {
                 return;
             }
-            Path f = Files.isRegularFile(newerFile()) ? newerFile() : file();
-            if (Files.isRegularFile(f)) {
-                try {
-                    String json = new String(SecureStorage.readEncrypted(f), StandardCharsets.UTF_8);
-                    JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-                    for (JsonElement e : root.getAsJsonArray("optedIn")) {
-                        OPTED_IN.add(UUID.fromString(e.getAsString()));
-                    }
-                    if (root.has("lastSeen")) {
-                        root.getAsJsonObject("lastSeen").entrySet().forEach(en ->
-                                LAST_SEEN.put(UUID.fromString(en.getKey()), en.getValue().getAsLong()));
-                    }
-                } catch (Exception e) {
-                    // Half a list is worse than none: nobody is opted in unless we can read that they are.
-                    OPTED_IN.clear();
-                    LAST_SEEN.clear();
-                    Path aside = f.resolveSibling(f.getFileName() + ".unreadable-" + System.currentTimeMillis());
-                    String kept;
-                    try {
-                        Files.move(f, aside); // kept for the server owner; a later save must not replace it
-                        kept = "kept as " + aside;
-                    } catch (IOException | RuntimeException moveFailed) {
-                        try {
-                            Files.copy(f, aside);
-                            kept = "a copy kept as " + aside;
-                        } catch (IOException | RuntimeException copyFailed) {
-                            kept = "no copy could be kept";
-                        }
-                    }
-                    FogLurkerMod.LOGGER.error("Could not read the voice consent list ({}). Everyone is treated as opted out, "
-                            + "the voice snippets stored for them are deleted, and players can opt in again.", kept, e);
-                    // No readable consent, so no voice may be kept. Done before anyone else can opt in,
-                    // so the sweep can never take a fresh opt-in's snippets with it.
-                    SnippetStore.deleteExcept(Set.of());
-                }
+            Copy main = read(file());
+            Copy next = read(newerFile());
+            if (main == null || next == null) {
+                // A copy we cannot read might be the newest one, holding an opt-out. Half a list is worse than
+                // none: nobody is opted in unless we can read that they are.
+                String kept = (main == null ? setAside(file()) : "") + (next == null ? " " + setAside(newerFile()) : "");
+                FogLurkerMod.LOGGER.error("Could not read the voice consent list ({}). Everyone is treated as opted out, "
+                        + "the voice snippets stored for them are deleted, and players can opt in again.", kept.trim());
+                OPTED_IN.clear();
+                LAST_SEEN.clear();
+                version = Math.max(main == null ? 0 : main.version(), next == null ? 0 : next.version());
+                // Done before anyone else can opt in, so the sweep can never take a fresh opt-in's snippets with it.
+                SnippetStore.deleteExcept(Set.of());
+                loaded = true;
+                save(true); // an empty list, newer than anything left on disk
+                return;
             }
+            Copy current = next.version() > main.version() ? next : main;
+            OPTED_IN.addAll(current.optedIn());
+            LAST_SEEN.putAll(current.lastSeen());
+            version = Math.max(main.version(), next.version());
             loaded = true;
         }
     }
@@ -190,7 +225,9 @@ public final class VoiceConsent {
      * @return false if it could not be written; it is then retried by {@link #flushIfUnsaved}
      */
     private static synchronized boolean save(boolean removal) {
+        version++;
         JsonObject root = new JsonObject();
+        root.addProperty("version", version);
         JsonArray arr = new JsonArray();
         OPTED_IN.forEach(id -> arr.add(id.toString()));
         root.add("optedIn", arr);
@@ -203,30 +240,30 @@ public final class VoiceConsent {
             unsaved = false;
             unsavedRemoval = false;
             try {
-                Files.deleteIfExists(newerFile()); // the main file is current again
+                Files.deleteIfExists(newerFile()); // tidy: it is older than the main file now, so it can never win
             } catch (IOException | RuntimeException ignored) {
-                // harmless: it holds the same list, and the next save tries again
+                // harmless for the same reason
             }
             return true;
         } catch (IOException e) {
             unsaved = true;
             unsavedRemoval |= removal;
             FogLurkerMod.LOGGER.error("Could not save the voice consent list; it will be tried again", e);
-            // Keep the change somewhere that wins on the next start, even if the main file is locked.
-            boolean kept;
             try {
-                SecureStorage.writeEncrypted(newerFile(), bytes);
-                kept = true;
+                SecureStorage.writeEncrypted(newerFile(), bytes); // newer than the main file, so it wins on the next start
+                return false;
             } catch (IOException | RuntimeException e2) {
-                kept = false;
+                // fall through
             }
-            if (!kept && unsavedRemoval) {
-                // Last resort: the old list on disk still names someone who has opted out, and would opt them
-                // back in after a restart. With no list at all, everyone is opted out.
-                try {
-                    Files.deleteIfExists(file());
-                } catch (IOException | RuntimeException ignored) {
-                    // nothing more can be done until the disk works again; flushIfUnsaved keeps trying
+            if (unsavedRemoval) {
+                // Last resort: either copy on disk may still name someone who has opted out, and would opt them
+                // back in after a restart. With no copy at all, everyone is opted out.
+                for (Path f : new Path[]{file(), newerFile()}) {
+                    try {
+                        Files.deleteIfExists(f);
+                    } catch (IOException | RuntimeException ignored) {
+                        // nothing more can be done until the disk works again; flushIfUnsaved keeps trying
+                    }
                 }
             }
             return false;

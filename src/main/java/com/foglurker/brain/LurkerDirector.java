@@ -211,9 +211,10 @@ public final class LurkerDirector {
             return;
         }
         FogLurkerSavedData.get(server).setRestUntil(server.overworld().getGameTime() + REST_TICKS);
+        Hauntings.cancelPending(); // no fake "friend" line still on its way
         for (FogLurkerEntity other : active()) {
             if (other != dead && other.brain() != null && !other.isDeadOrDying()) {
-                other.brain().vanish(true);
+                other.brain().leaveBecauseKilled();
             }
         }
         Component line = Component.literal((killer != null ? killer.getGameProfile().getName() + " killed the Fog Lurker. "
@@ -245,7 +246,8 @@ public final class LurkerDirector {
         if (isFeared(target)) {
             boolean withFriends = false;
             for (ServerPlayer o : target.server.getPlayerList().getPlayers()) {
-                if (o != target && !o.isSpectator() && o.level() == target.level() && o.distanceTo(target) <= 16) {
+                if (o != target && !o.isSpectator() && !com.foglurker.world.AfkTracker.isAfk(o)
+                        && o.level() == target.level() && o.distanceTo(target) <= 16) {
                     withFriends = true;
                     break;
                 }
@@ -271,7 +273,8 @@ public final class LurkerDirector {
     /** Whether the spawn-roll clock is counting down (it waits while it is busy with everyone it could visit). */
     public static boolean rollsRunning(MinecraftServer server) {
         ACTIVE.removeIf(Entity::isRemoved);
-        return ACTIVE.isEmpty() || (ACTIVE.size() < FogLurkerConfig.COMMON.maxConcurrent.get() && !freeCandidates(server).isEmpty());
+        // With nobody to visit (everyone AFK, hunted or just visited) the clock waits, so misses do not pile up.
+        return ACTIVE.size() < FogLurkerConfig.COMMON.maxConcurrent.get() && !freeCandidates(server).isEmpty();
     }
 
     /** Players it could appear to right now: not already being hunted, not just visited. */

@@ -39,6 +39,7 @@ import java.util.List;
  *       middle, The Fog of the Day or of the Night around it, one charge each. It cannot be enchanted.</li>
  * </ul>
  */
+@net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = com.foglurker.FogLurkerMod.MOD_ID)
 public class ProtectorOfTheFogItem extends SwordItem {
     public static final int CHARGES = 10;
     /** A wooden sword hits for 4 (6 critical): x2.5 makes 10 (15) against the Fog Lurker. */
@@ -73,6 +74,14 @@ public class ProtectorOfTheFogItem extends SwordItem {
     @Override
     public boolean isRepairable(ItemStack stack) {
         return false;
+    }
+
+    /** The anvil ignores isRepairable when merging two of the same item: block that, and books. Renaming is fine. */
+    @net.minecraftforge.eventbus.api.SubscribeEvent
+    public static void onAnvil(net.minecraftforge.event.AnvilUpdateEvent event) {
+        if (event.getLeft().getItem() instanceof ProtectorOfTheFogItem && !event.getRight().isEmpty()) {
+            event.setCanceled(true);
+        }
     }
 
     // Unenchantable: not at a table, not with books on an anvil.
@@ -135,7 +144,7 @@ public class ProtectorOfTheFogItem extends SwordItem {
         int fled = 0;
         for (FogLurkerEntity lurker : LurkerDirector.active()) {
             var brain = lurker.brain();
-            if (brain == null || lurker.level() != level || lurker.isDeadOrDying()) {
+            if (brain == null || brain.isEnded() || lurker.level() != level || lurker.isDeadOrDying()) {
                 continue;
             }
             boolean afterYou = brain.targetId().equals(player.getUUID());

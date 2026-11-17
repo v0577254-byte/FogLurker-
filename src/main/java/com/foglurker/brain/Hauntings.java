@@ -78,6 +78,11 @@ public final class Hauntings {
     /** Hauntings so far this session: they get rarer as it goes on, so they stay scary instead of routine. */
     private static int count;
 
+    /** Drops every scheduled step of a haunting already under way (it was just killed). */
+    public static void cancelPending() {
+        QUEUE.clear();
+    }
+
     public static void reset() {
         count = 0;
         QUEUE.clear();

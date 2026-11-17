@@ -538,6 +538,9 @@ public class FogLurkerEntity extends PathfinderMob {
             }
             return true;
         }
+        if (isFlopped() || isDancing()) {
+            return false; // sinking away or dancing: untouchable, even for creative players
+        }
         if (brain != null && source.getEntity() instanceof Player p) {
             brain.onHurtBy(p);
         }
@@ -561,11 +564,16 @@ public class FogLurkerEntity extends PathfinderMob {
 
     // ------------------------------------------------------------------ death
 
+    /** The killing blow came from a player (only then does it drop anything). */
+    private boolean killedByPlayer;
+
     @Override
     public void die(DamageSource source) {
         if (!this.level().isClientSide && !this.isRemoved() && !this.dead) {
             this.setDisguise(Disguise.CRAWLER); // whatever it was wearing, it dies as itself
+            this.setFlag(FLAG_TRANSFORMING | FLAG_ANGRY | FLAG_SITTING, false); // no shaking corpse
             this.clearEquipment();
+            killedByPlayer = source.getEntity() instanceof Player;
             if (brain != null) {
                 brain.onDeath();
                 com.foglurker.brain.LurkerDirector.onKilled(this,
@@ -578,8 +586,8 @@ public class FogLurkerEntity extends PathfinderMob {
     @Override
     protected void dropCustomDeathLoot(DamageSource source, int looting, boolean recentlyHitByPlayer) {
         super.dropCustomDeathLoot(source, looting, recentlyHitByPlayer);
-        if (!recentlyHitByPlayer || brain == null) {
-            return; // only when a player killed it
+        if (!killedByPlayer || brain == null) {
+            return; // only when a player landed the killing blow (not lava after a player's hit)
         }
         boolean night = this.level().isNight();
         for (net.minecraft.world.item.ItemStack stack : LurkerLoot.roll(difficulty(), night, this.getRandom())) {

@@ -1013,16 +1013,35 @@ public final class LurkerBrain {
     /** The chase has started (so getting away from it counts). */
     private boolean meetingChase;
 
+    /** The meeting's lines already said (a bit per line), so each is said once even if a tick was skipped. */
+    private int meetingSaid;
+
+    /** True once: the first tick at or after {@code at} in the meeting. */
+    private boolean due(int at) {
+        int bit = switch (at) {
+            case MEETING_HELLO -> 1;
+            case MEETING_DONT_RUN -> 2;
+            case MEETING_WONT_HURT -> 4;
+            case MEETING_KIDDING -> 8;
+            default -> 16;
+        };
+        if (phaseAge >= at && (meetingSaid & bit) == 0) {
+            meetingSaid |= bit;
+            return true;
+        }
+        return false;
+    }
+
     private void nightMeeting(ServerPlayer t, double dist) {
         fog(t, 0.6F);
         halt();
         mob.setLying(false);
         stare(t);
-        if (phaseAge == MEETING_HELLO) {
+        if (due(MEETING_HELLO)) {
             meetingSay("hello " + t.getGameProfile().getName());
-        } else if (phaseAge == MEETING_DONT_RUN) {
+        } else if (due(MEETING_DONT_RUN)) {
             meetingSay("please dont run");
-        } else if (phaseAge == MEETING_WONT_HURT) {
+        } else if (due(MEETING_WONT_HURT)) {
             meetingSay("i will not hurt you");
         }
         if (!enc.willAttack() || !canAttack(t)) {
@@ -1031,9 +1050,9 @@ public final class LurkerBrain {
             }
             return;
         }
-        if (phaseAge == MEETING_KIDDING) {
+        if (due(MEETING_KIDDING)) {
             meetingSay("just kidding");
-        } else if (phaseAge == MEETING_RUN) {
+        } else if (due(MEETING_RUN)) {
             meetingSay("RUN!");
             t.displayClientMessage(Component.literal("RUN!").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), true);
             mob.playSound(ModSounds.SCREAM.get(), 2.0F, 0.6F);
@@ -1286,6 +1305,17 @@ public final class LurkerBrain {
      * @param flee true: it shrieks and runs; false: it holds on, weakened (slower, weaker bites, bites less
      *             often, and it glows so you can see where it is) for 15 seconds
      */
+    /** True once it has left (vanishing, flopping away or dead): nothing reaches it any more. */
+    public boolean isEnded() {
+        return ended;
+    }
+
+    /** Someone else killed one of its kind: it leaves too, and nobody "got away" from it. */
+    public void leaveBecauseKilled() {
+        meetingChase = false;
+        vanish(true);
+    }
+
     public void onScareBurst(boolean flee) {
         if (ended) {
             return;

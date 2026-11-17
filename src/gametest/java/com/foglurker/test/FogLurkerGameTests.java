@@ -592,6 +592,35 @@ public final class FogLurkerGameTests {
                     check(other.isRemoved() || other.isFlopped(), "the other creature should leave too");
                     check(FogLurkerSavedData.load(data.save(new net.minecraft.nbt.CompoundTag())).restUntil() == data.restUntil(),
                             "the rest must survive a restart");
+                    // Drops only come from a player's killing blow: a player hit it, then a cactus finished it: no drops.
+                    data.setRestUntil(0);
+                    p.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+                    FogLurkerEntity burnt = hunter(h, p, 1.5, 14.5);
+                    burnt.hurt(p.damageSources().playerAttack(p), 2F);
+                    burnt.invulnerableTime = 0;
+                    var area = burnt.getBoundingBox().inflate(4);
+                    burnt.hurt(p.damageSources().cactus(), 10000F); // it is fire-proof, so a cactus finishes it instead
+                    check(burnt.isDeadOrDying(), "the cactus should kill it");
+                    check(h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area).isEmpty(),
+                            "nothing should drop when a player did not land the killing blow (a cactus did)");
+                    // Flopping away or dancing, nothing hurts it, not even a creative player.
+                    data.setRestUntil(0);
+                    FogLurkerEntity flop = hunter(h, p, 8.5, 8.5);
+                    flop.beginFlop();
+                    p.setGameMode(GameType.CREATIVE);
+                    float before2 = flop.getHealth();
+                    flop.hurt(p.damageSources().playerAttack(p), 50F);
+                    p.setGameMode(GameType.SURVIVAL);
+                    check(flop.getHealth() == before2, "a flopping creature must not be hurt, even by a creative player");
+                    // The anvil cannot merge two Protectors (that would recharge it) or add books; renaming is fine.
+                    ItemStack prot = new ItemStack(com.foglurker.registry.ModItems.PROTECTOR_OF_THE_FOG.get());
+                    prot.setDamageValue(7);
+                    var merge = new net.minecraftforge.event.AnvilUpdateEvent(prot, prot.copy(), "", 1, p);
+                    net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(merge);
+                    check(merge.isCanceled(), "the anvil must not merge two Protectors");
+                    var rename = new net.minecraftforge.event.AnvilUpdateEvent(prot, ItemStack.EMPTY, "Fang", 1, p);
+                    net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(rename);
+                    check(!rename.isCanceled(), "renaming it should still work");
                 } finally {
                     data.setDifficulty(before);
                     data.setRestUntil(0);
