@@ -16,6 +16,10 @@ public final class ModDamageTypes {
     public static final ResourceKey<DamageType> LURKER_ONESHOT =
             ResourceKey.create(Registries.DAMAGE_TYPE, FogLurkerMod.id("lurker_oneshot"));
 
+    /** The Protector of the Fog against the Fog Lurker: straight through its armour. */
+    public static final ResourceKey<DamageType> PROTECTOR =
+            ResourceKey.create(Registries.DAMAGE_TYPE, FogLurkerMod.id("protector"));
+
     private ModDamageTypes() {
     }
 

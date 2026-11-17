@@ -419,6 +419,11 @@ public final class FogLurkerCommands {
     private static int spawnTimer(CommandContext<CommandSourceStack> ctx) {
         FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
         CommandSourceStack src = ctx.getSource();
+        if (LurkerDirector.isResting(src.getServer())) {
+            reply(src, Component.literal("It was killed. It comes back in " + time(LurkerDirector.restTicksLeft(src.getServer()))
+                    + "; until then nothing appears and nothing haunts.").withStyle(ChatFormatting.DARK_AQUA));
+            return 0;
+        }
         if (!data.naturalSpawning()) {
             reply(src, Component.literal("Natural spawning is off (/foglurker naturalspawning on to turn it back on). "
                     + "It only comes when summoned.").withStyle(ChatFormatting.GRAY));

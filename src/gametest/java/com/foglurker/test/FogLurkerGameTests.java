@@ -107,6 +107,14 @@ public final class FogLurkerGameTests {
         // chunk map ourselves. Otherwise a creature that appears on the far side of the field sits frozen
         // in a chunk outside the world-spawn area.
         level.getChunkSource().move(p);
+        // ...and keep the chunks around them running, for tests that do not build their own field.
+        int cx = p.getBlockX() >> 4;
+        int cz = p.getBlockZ() >> 4;
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                level.setChunkForced(cx + dx, cz + dz, true);
+            }
+        }
         return p;
     }
 
@@ -527,6 +535,196 @@ public final class FogLurkerGameTests {
                 live.setNaturalSpawning(was);
             }
             h.succeed();
+        });
+    }
+
+    // ------------------------------------------------------------------ killing it, its drops, the sword
+
+    @GameTest(template = "empty", batch = "kill", timeoutTicks = 400)
+    public static void healthPerModeSwordDamageAndDeath(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                LurkerDifficulty before = data.difficulty();
+                try {
+                    // 50 / 75 / 100 / 125 / 175 full hearts.
+                    int[] hearts = {50, 75, 100, 125, 175};
+                    for (int i = 0; i < hearts.length; i++) {
+                        data.setDifficulty(LurkerDifficulty.values()[i]);
+                        FogLurkerEntity l = hunter(h, p, 12.5, 1.5);
+                        check(l.getMaxHealth() == hearts[i] * 2F && l.getHealth() == hearts[i] * 2F,
+                                LurkerDifficulty.values()[i] + ": expected " + hearts[i] + " hearts, has " + l.getMaxHealth() / 2F);
+                        l.brain().vanish(true);
+                    }
+                    data.setDifficulty(LurkerDifficulty.MEDIUM);
+                    FogLurkerEntity l = hunter(h, p, 12.5, 1.5);
+                    // Bare hands go through its armour like any weapon...
+                    float hp = l.getHealth();
+                    l.hurt(p.damageSources().playerAttack(p), 4F);
+                    check(l.getHealth() < hp && hp - l.getHealth() < 4F, "its armour should soak part of an ordinary hit");
+                    // ...the Protector does 10, and 15 on a critical hit, straight through it.
+                    p.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                            new ItemStack(com.foglurker.registry.ModItems.PROTECTOR_OF_THE_FOG.get()));
+                    l.invulnerableTime = 0;
+                    hp = l.getHealth();
+                    l.hurt(p.damageSources().playerAttack(p), 4F);
+                    check(Math.abs(hp - l.getHealth() - 10F) < 0.01F, "a full Protector hit should do 10, did " + (hp - l.getHealth()));
+                    l.invulnerableTime = 0;
+                    hp = l.getHealth();
+                    l.hurt(p.damageSources().playerAttack(p), 6F);
+                    check(Math.abs(hp - l.getHealth() - 15F) < 0.01F, "a critical Protector hit should do 15, did " + (hp - l.getHealth()));
+                    check(!l.isDeadOrDying(), "it should still be standing");
+                    // It can be killed now. Every other creature leaves, and it rests for 30 minutes.
+                    FogLurkerEntity other = hunter(h, p, 1.5, 12.5);
+                    for (int i = 0; i < 40 && !l.isDeadOrDying(); i++) {
+                        l.invulnerableTime = 0;
+                        l.hurt(p.damageSources().playerAttack(p), 6F);
+                    }
+                    check(l.isDeadOrDying(), "it should die (health " + l.getHealth() + ")");
+                    check(LurkerDirector.isResting(server), "after it dies it should rest");
+                    long rest = LurkerDirector.restTicksLeft(server);
+                    check(rest > LurkerDirector.REST_TICKS - 40 && rest <= LurkerDirector.REST_TICKS, "it should rest 30 minutes, rests " + rest);
+                    check(other.isRemoved() || other.isFlopped(), "the other creature should leave too");
+                    check(FogLurkerSavedData.load(data.save(new net.minecraft.nbt.CompoundTag())).restUntil() == data.restUntil(),
+                            "the rest must survive a restart");
+                } finally {
+                    data.setDifficulty(before);
+                    data.setRestUntil(0);
+                }
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "kill", timeoutTicks = 100)
+    public static void dropRatesFollowTheMode(GameTestHelper h) {
+        logged(h, () -> {
+            RandomSource r = RandomSource.create(1234);
+            int n = 4000;
+            float lastFog = 0F;
+            for (LurkerDifficulty d : LurkerDifficulty.values()) {
+                float[] c = com.foglurker.entity.LurkerLoot.chances(d);
+                check(c[2] >= c[3], d + ": the foggy stick must never be rarer than the ingot");
+                check(c[0] >= lastFog, d + ": drops should get more likely with harder modes");
+                lastFog = c[0];
+                int fog = 0, teeth = 0, stick = 0, ingot = 0;
+                for (int i = 0; i < n; i++) {
+                    for (ItemStack s : com.foglurker.entity.LurkerLoot.roll(d, i % 2 == 0, r)) {
+                        if (s.is(com.foglurker.registry.ModItems.FOG_OF_THE_DAY.get())) {
+                            fog++;
+                            check(i % 2 != 0, "a night kill dropped The Fog of the Day");
+                        } else if (s.is(com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get())) {
+                            fog++;
+                            check(i % 2 == 0, "a day kill dropped The Fog of the Night");
+                        } else if (s.is(com.foglurker.registry.ModItems.TEETH_OF_THE_LURKER.get())) {
+                            teeth++;
+                        } else if (s.is(com.foglurker.registry.ModItems.FOGGY_STICK.get())) {
+                            stick++;
+                        } else if (s.is(com.foglurker.registry.ModItems.INGOT_OF_THE_FOG.get())) {
+                            ingot++;
+                        }
+                    }
+                }
+                check(Math.abs(fog / (float) n - c[0]) < 0.04F, d + ": fog dropped " + fog + "/" + n + ", expected " + c[0]);
+                check(Math.abs(teeth / (float) n - c[1]) < 0.04F, d + ": teeth dropped " + teeth + "/" + n);
+                check(Math.abs(stick / (float) n - c[2]) < 0.025F, d + ": foggy stick dropped " + stick + "/" + n);
+                check(Math.abs(ingot / (float) n - c[3]) < 0.015F, d + ": ingot dropped " + ingot + "/" + n);
+            }
+            float[] hard = com.foglurker.entity.LurkerLoot.chances(LurkerDifficulty.HARD);
+            float[] dw = com.foglurker.entity.LurkerLoot.chances(LurkerDifficulty.DEATHWISH);
+            check(Math.abs(dw[3] - hard[3] * 1.5F) < 1e-6, "Deathwish ingot should be 1.5x Hard");
+            check(dw[0] >= 0.95F && dw[1] >= 0.95F, "Deathwish drops should be almost guaranteed");
+            h.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", batch = "sword", timeoutTicks = 300)
+    public static void protectorScareBurstAndRecharge(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            ServerPlayer friend = player(h, 4.5, 1.5);
+            ServerPlayer far = player(h, 1.5, 22.5);
+            kickOtherPlayers(server, p, friend, far);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                var sword = (com.foglurker.item.ProtectorOfTheFogItem) com.foglurker.registry.ModItems.PROTECTOR_OF_THE_FOG.get();
+                ItemStack stack = new ItemStack(sword);
+                // A wooden sword against everything else, and it never wears from hitting.
+                var mods = stack.getAttributeModifiers(EquipmentSlot.MAINHAND)
+                        .get(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                double bonus = mods.stream().mapToDouble(m -> m.getAmount()).sum();
+                var wood = new ItemStack(Items.WOODEN_SWORD).getAttributeModifiers(EquipmentSlot.MAINHAND)
+                        .get(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                check(bonus == wood.stream().mapToDouble(m -> m.getAmount()).sum(), "it should hit like a wooden sword, bonus " + bonus);
+                check(stack.getMaxDamage() == 10 && com.foglurker.item.ProtectorOfTheFogItem.charges(stack) == 10, "it should hold 10 scare bursts");
+                sword.hurtEnemy(stack, friend, p);
+                check(stack.getDamageValue() == 0, "hitting things must not use up scare bursts");
+                // A scare burst reaches the creature hunting you wherever you aim: it flees or is weakened.
+                FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                LurkerDifficulty before = data.difficulty();
+                data.setDifficulty(LurkerDifficulty.MEDIUM);
+                FogLurkerEntity l;
+                try {
+                    l = hunter(h, p, 14.5, 1.5);
+                } finally {
+                    data.setDifficulty(before);
+                }
+                p.setYRot(180F); // looking the other way
+                int reached = com.foglurker.item.ProtectorOfTheFogItem.burst(h.getLevel(), p, stack);
+                check(reached == 1, "the burst should reach the creature hunting you, reached " + reached);
+                check(com.foglurker.item.ProtectorOfTheFogItem.charges(stack) == 9, "one burst should use one charge");
+                boolean fled = l.isRemoved() || l.brain().phase() == LurkerBrain.Phase.FLEE;
+                boolean weakened = l.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN)
+                        && l.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS);
+                check(fled ^ weakened, "it should either flee or be weakened (fled " + fled + ", weakened " + weakened + ")");
+                // And it fears you (and the friend standing with you) for 20 minutes.
+                var profile = data.profile(p.getUUID());
+                profile.escapes = 0;
+                check(LurkerDirector.isFeared(p) && LurkerDirector.isFeared(friend) && !LurkerDirector.isFeared(far),
+                        "you and the friend next to you should be feared, the far player not");
+                double base = LurkerDirector.attackChance(LurkerDifficulty.MEDIUM, profile);
+                check(Math.abs(LurkerDirector.attackChance(LurkerDifficulty.MEDIUM, profile, p) - base * 0.1) < 1e-9,
+                        "with a friend next to you it should almost never attack");
+                friend.teleportTo(friend.getX() + 40, friend.getY(), friend.getZ());
+                check(Math.abs(LurkerDirector.attackChance(LurkerDifficulty.MEDIUM, profile, p) - base * 0.5) < 1e-9,
+                        "alone, a scared creature should be half as likely to attack");
+                // Empty: it does nothing.
+                stack.setDamageValue(10);
+                p.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, stack);
+                var result = sword.use(h.getLevel(), p, net.minecraft.world.InteractionHand.MAIN_HAND);
+                check(result.getResult() == net.minecraft.world.InteractionResult.FAIL, "an empty sword must not burst");
+                // Recharge: one charge per fog item, equal day and night, never past full.
+                var recipe = new com.foglurker.item.ProtectorRechargeRecipe(new net.minecraft.resources.ResourceLocation("foglurker", "t"),
+                        net.minecraft.world.item.crafting.CraftingBookCategory.EQUIPMENT);
+                var grid = new net.minecraft.world.inventory.TransientCraftingContainer(
+                        net.minecraft.world.inventory.ChestMenu.threeRows(0, p.getInventory()), 3, 3);
+                grid.setItem(0, stack.copy());
+                for (int i = 1; i <= 4; i++) {
+                    grid.setItem(i, new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_DAY.get()));
+                    grid.setItem(i + 4, new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get()));
+                }
+                check(recipe.matches(grid, h.getLevel()), "4 day + 4 night should recharge an empty sword");
+                ItemStack out = recipe.assemble(grid, server.registryAccess());
+                check(com.foglurker.item.ProtectorOfTheFogItem.charges(out) == 8, "8 fog items should give 8 charges, got "
+                        + com.foglurker.item.ProtectorOfTheFogItem.charges(out));
+                grid.setItem(8, ItemStack.EMPTY);
+                check(!recipe.matches(grid, h.getLevel()), "unequal day and night must not recharge");
+                grid.setItem(0, out);
+                grid.setItem(8, new ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get()));
+                check(!recipe.matches(grid, h.getLevel()), "more fog than it is missing must not be wasted");
+                var recipes = server.getRecipeManager();
+                check(recipes.byKey(new net.minecraft.resources.ResourceLocation("foglurker", "protector_of_the_fog")).isPresent()
+                        && recipes.byKey(new net.minecraft.resources.ResourceLocation("foglurker", "protector_recharge")).isPresent(),
+                        "the sword and recharge recipes should be loaded");
+                h.succeed();
+            }));
         });
     }
 

@@ -59,6 +59,10 @@ public final class ClientShowcase {
             return;
         }
         String scene = System.getProperty("foglurker.scene", "");
+        if (scene.equals("sword")) {
+            swordScene(mc, server);
+            return;
+        }
         if (scene.equals("afk")) {
             afkScene(mc, server);
             return;
@@ -150,6 +154,50 @@ public final class ClientShowcase {
             case 180, 200, 220, 260 -> logFog(mc, "attacking");
             case 262 -> shot(mc, "foglurker_fog_attack_rd" + fogRenderDistance + ".png");
             case 300 -> mc.stop();
+            default -> {
+            }
+        }
+    }
+
+    /** The drops and the sword in the hotbar, then a scare burst at a creature that is hunting you. */
+    private static void swordScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.serverLevel().setDayTime(18000);
+                p.setGameMode(GameType.SURVIVAL);
+                p.setInvulnerable(true);
+                var inv = p.getInventory();
+                inv.clearContent();
+                inv.setItem(0, new net.minecraft.world.item.ItemStack(com.foglurker.registry.ModItems.PROTECTOR_OF_THE_FOG.get()));
+                inv.setItem(1, new net.minecraft.world.item.ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_DAY.get(), 5));
+                inv.setItem(2, new net.minecraft.world.item.ItemStack(com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get(), 5));
+                inv.setItem(3, new net.minecraft.world.item.ItemStack(com.foglurker.registry.ModItems.TEETH_OF_THE_LURKER.get(), 2));
+                inv.setItem(4, new net.minecraft.world.item.ItemStack(com.foglurker.registry.ModItems.FOGGY_STICK.get()));
+                inv.setItem(5, new net.minecraft.world.item.ItemStack(com.foglurker.registry.ModItems.INGOT_OF_THE_FOG.get()));
+                inv.selected = 0;
+            });
+            case 60 -> server.execute(() -> server.getCommands().performPrefixedCommand(
+                    sp(server).createCommandSourceStack().withPermission(2), "foglurker force attack"));
+            case 110 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                var l = com.foglurker.brain.LurkerDirector.active();
+                if (!l.isEmpty()) {
+                    var at = l.get(0).position();
+                    float yaw = (float) Math.toDegrees(Math.atan2(at.z - p.getZ(), at.x - p.getX())) - 90F;
+                    p.teleportTo(p.serverLevel(), p.getX(), p.getY(), p.getZ(), yaw, 0F);
+                }
+            });
+            case 116 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                int reached = com.foglurker.item.ProtectorOfTheFogItem.burst(p.serverLevel(), p, p.getMainHandItem());
+                FogLurkerMod.LOGGER.info("Showcase: scare burst reached {}, charges left {}", reached,
+                        com.foglurker.item.ProtectorOfTheFogItem.charges(p.getMainHandItem()));
+            });
+            case 119 -> shot(mc, "foglurker_scare_burst.png");
+            case 150 -> FogLurkerMod.LOGGER.info("Showcase: creatures out after the burst: {}", com.foglurker.brain.LurkerDirector.active().size());
+            case 200 -> shot(mc, "foglurker_drops_hotbar.png");
+            case 220 -> mc.stop();
             default -> {
             }
         }

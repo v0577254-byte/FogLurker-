@@ -24,7 +24,7 @@ Something in the fog has been watching you play. It learns how you move and how 
 
 ![Fog while it hunts](docs/images/fog.jpg)
 
-It never really dies. Hurt it badly enough and it melts back into the fog until next time.
+It can be killed, but it takes a lot (see Killing it below), and then it is gone for 30 minutes.
 
 ## What it really looks like
 
@@ -58,9 +58,46 @@ Between appearances (after the grace period) one player gets a small scare every
 |---|---|---|
 | ![Hiding in tall grass](docs/images/lying.jpg) | ![Lying like a dog](docs/images/lying_open.jpg) | ![Pancake flop](docs/images/flop.jpg) |
 
+## Killing it
+
+It can be killed. Its health depends on the mode:
+
+| Mode | Health |
+|---|---|
+| Very Easy | 50 hearts |
+| Easy | 75 hearts |
+| Medium | 100 hearts |
+| Hard | 125 hearts |
+| Deathwish | 175 hearts |
+
+It has 2 armour points, and it does not take fall, suffocation or drowning damage. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
+
+### What it drops (only when a player kills it)
+
+| Mode | The Fog of the Day / Night | Teeth of the Lurker | Foggy Stick | Ingot of the Fog |
+|---|---|---|---|---|
+| Very Easy | 25% | 15% | 4% | 1% |
+| Easy | 40% | 25% | 7% | 2% |
+| Medium | 60% | 40% | 10% | 3% |
+| Hard | 80% | 60% | 14% | 4% |
+| Deathwish | 98% | 95% | 18% | 6% (1.5x Hard) |
+
+It drops **The Fog of the Day** if it died in daylight and **The Fog of the Night** if it died at night (1-2 of them, 2-3 on Deathwish).
+
+### The Protector of the Fog
+
+Crafted in a column: **Ingot of the Fog** on top, **Teeth of the Lurker** in the middle, **Foggy Stick** at the bottom.
+
+- Against anything else it is just a wooden sword.
+- Against the Fog Lurker a fully charged hit does **10 damage**, a critical hit **15**, straight through its armour.
+- **Right-click: a scare burst.** A blue sonic boom like the Warden's. It reaches every creature that is hunting you or is within 96 blocks, **wherever you aim**. 3 times in 4 it shrieks and flees. Otherwise it holds on but is weakened for 15 seconds: slower, its bites do 40% less and come 50% less often, and it glows so you can see it.
+- After a scare burst it **fears you for 20 minutes**: it is half as likely to attack you, and if you are with a friend (within 16 blocks) it almost never attacks (a tenth as likely). Friends standing with you when you use it are feared too.
+- It holds **10 scare bursts** (the durability bar). Hitting things never wears it out, and it cannot be repaired with planks or Mending.
+- **Recharging:** craft it together with The Fog of the Day and The Fog of the Night in equal numbers. Each fog item gives back one burst, so **5 of each refill it** (the grid holds 4 of each at a time, so that is two crafts).
+
 ## How to survive it
 
-Its hits ignore armour, so you survive by knowing its rules, not by fighting.
+Its hits ignore armour. You can kill it (see above), but mostly you survive by knowing its rules.
 
 **Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out (a boat that is afloat is left alone: water is still your way out). Run *before* it reaches you; once it has your leg, the water trick and pillar-jumping are off the table until Mauled wears off. Milk clears both.
 

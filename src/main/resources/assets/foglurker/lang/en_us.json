@@ -13,5 +13,14 @@
   "subtitles.foglurker.lurker.hurt": "Something hurts",
   "subtitles.foglurker.lurker.attack": "Something lunges",
   "effect.foglurker.mauled": "Mauled",
-  "effect.foglurker.mauled.description": "Its teeth went into your leg. You cannot jump or get into a boat."
+  "effect.foglurker.mauled.description": "Its teeth went into your leg. You cannot jump or get into a boat.",
+  "item.foglurker.fog_of_the_day": "The Fog of the Day",
+  "item.foglurker.fog_of_the_night": "The Fog of the Night",
+  "item.foglurker.teeth_of_the_lurker": "Teeth of the Lurker",
+  "item.foglurker.ingot_of_the_fog": "Ingot of the Fog",
+  "item.foglurker.foggy_stick": "Foggy Stick",
+  "item.foglurker.protector_of_the_fog": "The Protector of the Fog",
+  "death.attack.foglurker.protector": "%1$s was cut down by %2$s",
+  "death.attack.foglurker.protector.player": "%1$s was cut down by %2$s",
+  "death.attack.foglurker.protector.item": "%1$s was cut down by %2$s using %3$s"
 }

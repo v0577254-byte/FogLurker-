@@ -1280,6 +1280,48 @@ public final class LurkerBrain {
         return p.getViewVector(1F).dot(to.scale(1 / len)) > 0.85 && p.hasLineOfSight(mob);
     }
 
+    /**
+     * Hit by a scare burst from The Protector of the Fog.
+     *
+     * @param flee true: it shrieks and runs; false: it holds on, weakened (slower, weaker bites, bites less
+     *             often, and it glows so you can see where it is) for 15 seconds
+     */
+    public void onScareBurst(boolean flee) {
+        if (ended) {
+            return;
+        }
+        if (flee) {
+            mob.playSound(ModSounds.SCREAM.get(), 2.0F, 1.5F);
+            if (phase == Phase.TRANSFORM) {
+                mob.setFlag(FogLurkerEntity.FLAG_TRANSFORMING | FogLurkerEntity.FLAG_ANGRY | FogLurkerEntity.FLAG_SITTING, false);
+                mob.setDisguise(Disguise.CRAWLER);
+                mob.clearEquipment();
+            }
+            if (phase != Phase.FLEE) {
+                setPhase(Phase.FLEE);
+            }
+            return;
+        }
+        mob.playSound(ModSounds.HURT.get(), 1.5F, 0.6F);
+        mob.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN, 300, 1));
+        mob.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 300, 0));
+        mob.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.GLOWING, 300, 0));
+    }
+
+    /** It died (a player killed it): tidy up everything it left in the world. */
+    public void onDeath() {
+        if (ended) {
+            return;
+        }
+        ended = true;
+        VoiceBridge.stop(mob);
+        if (breaking != null) {
+            level().destroyBlockProgress(mob.getId(), breaking, -1);
+        }
+        clearFakeMine();
+        clearFog();
+    }
+
     /** A bell rung nearby: whatever it was doing, it runs. */
     public void onBell() {
         if (ended || phase == Phase.FLEE) {

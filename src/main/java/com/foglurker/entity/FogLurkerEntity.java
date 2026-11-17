@@ -112,7 +112,7 @@ public class FogLurkerEntity extends PathfinderMob {
 
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes()
-                .add(Attributes.MAX_HEALTH, 80.0D)
+                .add(Attributes.MAX_HEALTH, 200.0D) // Medium; each encounter sets its own mode's health
                 // 0.32 makes a "walk" order move exactly as fast as a walking player.
                 .add(Attributes.MOVEMENT_SPEED, 0.32D)
                 .add(Attributes.ATTACK_DAMAGE, 4.0D)
@@ -149,6 +149,12 @@ public class FogLurkerEntity extends PathfinderMob {
     /** Called by the director right before the entity is added to the world. */
     public void begin(Encounter encounter) {
         this.brain = new LurkerBrain(this, encounter);
+        // 50 / 75 / 100 / 125 / 175 full hearts, by mode.
+        var health = this.getAttribute(Attributes.MAX_HEALTH);
+        if (health != null) {
+            health.setBaseValue(encounter.difficulty().lurkerHearts() * 2.0D);
+        }
+        this.setHealth(this.getMaxHealth());
         this.brain.start();
     }
 
@@ -523,11 +529,8 @@ public class FogLurkerEntity extends PathfinderMob {
         if (this.isInvulnerableTo(source)) {
             return false;
         }
-        if (brain != null && source.getEntity() instanceof Player p) {
-            brain.onHurtBy(p);
-        }
-        // It never dies: when badly hurt it simply melts back into the fog.
-        if (this.getHealth() - amount <= 2.0F || source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+        if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+            // /kill and the void: it simply melts back into the fog (no drops, no rest).
             if (brain != null) {
                 brain.vanish(true);
             } else {
@@ -535,12 +538,58 @@ public class FogLurkerEntity extends PathfinderMob {
             }
             return true;
         }
+        if (brain != null && source.getEntity() instanceof Player p) {
+            brain.onHurtBy(p);
+        }
+        // The Protector of the Fog: 10 (15 on a critical hit) straight through its armour.
+        if (source.is(DamageTypes.PLAYER_ATTACK) && source.getEntity() instanceof Player p && source.getDirectEntity() == p
+                && p.getMainHandItem().getItem() instanceof com.foglurker.item.ProtectorOfTheFogItem) {
+            return super.hurt(com.foglurker.registry.ModDamageTypes.source(p, com.foglurker.registry.ModDamageTypes.PROTECTOR),
+                    amount * com.foglurker.item.ProtectorOfTheFogItem.LURKER_MULTIPLIER);
+        }
         return super.hurt(source, amount);
     }
 
-    /** True when enough time has passed since the last hit (3 s on very easy ... 1.5 s on deathwish). */
+    /** True when enough time has passed since the last hit (3 s on very easy ... 1.5 s on deathwish; 50% longer while weakened). */
     public boolean canAttackNow() {
-        return this.tickCount - lastAttackTick >= difficulty().attackCooldownTicks();
+        int cooldown = difficulty().attackCooldownTicks();
+        if (this.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS)) {
+            cooldown = cooldown * 3 / 2;
+        }
+        return this.tickCount - lastAttackTick >= cooldown;
+    }
+
+    // ------------------------------------------------------------------ death
+
+    @Override
+    public void die(DamageSource source) {
+        if (!this.level().isClientSide && !this.isRemoved() && !this.dead) {
+            this.setDisguise(Disguise.CRAWLER); // whatever it was wearing, it dies as itself
+            this.clearEquipment();
+            if (brain != null) {
+                brain.onDeath();
+                com.foglurker.brain.LurkerDirector.onKilled(this,
+                        source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null);
+            }
+        }
+        super.die(source);
+    }
+
+    @Override
+    protected void dropCustomDeathLoot(DamageSource source, int looting, boolean recentlyHitByPlayer) {
+        super.dropCustomDeathLoot(source, looting, recentlyHitByPlayer);
+        if (!recentlyHitByPlayer || brain == null) {
+            return; // only when a player killed it
+        }
+        boolean night = this.level().isNight();
+        for (net.minecraft.world.item.ItemStack stack : LurkerLoot.roll(difficulty(), night, this.getRandom())) {
+            this.spawnAtLocation(stack);
+        }
+    }
+
+    @Override
+    public int getExperienceReward() {
+        return brain == null ? 0 : difficulty().lurkerHearts() / 2; // 25 / 37 / 50 / 62 / 87
     }
 
     @Override
@@ -559,6 +608,9 @@ public class FogLurkerEntity extends PathfinderMob {
             damage = diff.damagePerHit();
             if (!(target instanceof Player)) {
                 damage = Math.max(damage, 8.0F);
+            }
+            if (this.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS)) {
+                damage *= 0.6F; // weakened by a scare burst
             }
         }
         this.swing(InteractionHand.MAIN_HAND);

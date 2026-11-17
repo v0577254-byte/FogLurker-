@@ -107,8 +107,8 @@ public final class Hauntings {
             }
             due.forEach(Runnable::run);
         }
-        if (!FogLurkerConfig.COMMON.hauntings.get() || data.inGrace()) {
-            nextAt = -1; // when they come back on, the wait starts fresh
+        if (!FogLurkerConfig.COMMON.hauntings.get() || data.inGrace() || data.restingAt(now)) {
+            nextAt = -1; // when they come back on (or it stops resting after being killed), the wait starts fresh
             return;
         }
         RandomSource r = server.overworld().getRandom();

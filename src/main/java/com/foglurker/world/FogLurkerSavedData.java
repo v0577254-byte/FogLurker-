@@ -33,6 +33,8 @@ public final class FogLurkerSavedData extends SavedData {
     private boolean guaranteedNext;
     /** Whether it appears on its own (spawn rolls). Off: it only comes when summoned with a command. */
     private boolean naturalSpawning = true;
+    /** Game time until which it rests after being killed: nothing appears and nothing haunts. */
+    private long restUntil;
     private int encounters;
     private final Map<UUID, PlayerBehaviorProfile> profiles = new HashMap<>();
     private EntityBehaviorStats entityStats = new EntityBehaviorStats();
@@ -134,6 +136,19 @@ public final class FogLurkerSavedData extends SavedData {
         return spawn;
     }
 
+    public long restUntil() {
+        return restUntil;
+    }
+
+    public boolean restingAt(long gameTime) {
+        return gameTime < restUntil;
+    }
+
+    public void setRestUntil(long gameTime) {
+        restUntil = gameTime;
+        setDirty();
+    }
+
     public boolean naturalSpawning() {
         return naturalSpawning;
     }
@@ -193,6 +208,7 @@ public final class FogLurkerSavedData extends SavedData {
         tag.putInt("nextSpawn", nextSpawnTicks);
         tag.putBoolean("guaranteedNext", guaranteedNext);
         tag.putBoolean("naturalSpawning", naturalSpawning);
+        tag.putLong("restUntil", restUntil);
         tag.putInt("encounters", encounters);
         CompoundTag prof = new CompoundTag();
         profiles.forEach((id, p) -> prof.put(id.toString(), p.save()));
@@ -215,6 +231,7 @@ public final class FogLurkerSavedData extends SavedData {
         d.nextSpawnTicks = tag.contains("nextSpawn") ? tag.getInt("nextSpawn") : -1;
         d.guaranteedNext = tag.getBoolean("guaranteedNext");
         d.naturalSpawning = !tag.contains("naturalSpawning") || tag.getBoolean("naturalSpawning");
+        d.restUntil = tag.getLong("restUntil");
         d.encounters = tag.getInt("encounters");
         CompoundTag prof = tag.getCompound("profiles");
         for (String k : prof.getAllKeys()) {

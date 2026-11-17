@@ -59,7 +59,17 @@ public enum LurkerDifficulty {
         };
     }
 
-    /** Chance that a spawn turns into an attack (the rest only watch / lure / stalk). */
+    /** Its own health in full hearts: 50 / 75 / 100 / 125 / 175. */
+    public int lurkerHearts() {
+        return switch (this) {
+            case VERY_EASY -> 50;
+            case EASY -> 75;
+            case MEDIUM -> 100;
+            case HARD -> 125;
+            case DEATHWISH -> 175;
+        };
+    }
+
     /** How much thicker its fog is at night: +10% / +15% / +25% / +35% / +50%. */
     public float nightFogMultiplier() {
         return switch (this) {

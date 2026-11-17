@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "foglurker:item/protector_of_the_fog"
+  }
+}

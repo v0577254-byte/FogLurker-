@@ -11,6 +11,8 @@ import com.foglurker.registry.ModEntities;
 import com.foglurker.voice.VoiceBridge;
 import com.foglurker.world.FogLurkerSavedData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -78,7 +80,7 @@ public final class LurkerDirector {
             com.foglurker.voice.VoiceRetention.heartbeat(System.currentTimeMillis(), online);
         }
         ACTIVE.removeIf(Entity::isRemoved);
-        if (naturalSpawnsPaused || !data.naturalSpawning() || data.inGrace() || !rollsRunning(server)) {
+        if (naturalSpawnsPaused || !data.naturalSpawning() || data.inGrace() || isResting(server) || !rollsRunning(server)) {
             return; // busy with everyone it could go after: the clock waits
         }
         if (data.nextSpawnTicks() < 0) {
@@ -110,6 +112,7 @@ public final class LurkerDirector {
         ACTIVE.clear();
         LAST_VISIT.clear();
         LEFT_ALONE_UNTIL.clear();
+        FEAR_UNTIL.clear();
         BELL_IMMUNE_UNTIL.clear();
         RecentChat.clear();
         Hauntings.reset();
@@ -181,6 +184,75 @@ public final class LurkerDirector {
     public static double attackChance(LurkerDifficulty diff, PlayerBehaviorProfile profile) {
         double bonus = FogLurkerConfig.COMMON.escapeEscalation.get() ? Math.min(0.3, profile.escapes * 0.1) : 0.0;
         return Math.min(1.0, diff.attackChance() + bonus);
+    }
+
+    // ------------------------------------------------------------------ killed, and scared
+
+    /** How long it rests after being killed. */
+    public static final long REST_TICKS = 30L * 60 * 20;
+    /** How long it remembers a scare burst. */
+    public static final long FEAR_TICKS = 20L * 60 * 20;
+    /** Game time until which it is afraid of a player (they used a scare burst near it, or were with someone who did). */
+    private static final java.util.Map<java.util.UUID, Long> FEAR_UNTIL = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** True for 30 minutes after it was killed: nothing appears and nothing haunts. */
+    public static boolean isResting(MinecraftServer server) {
+        return FogLurkerSavedData.get(server).restingAt(server.overworld().getGameTime());
+    }
+
+    public static long restTicksLeft(MinecraftServer server) {
+        return Math.max(0, FogLurkerSavedData.get(server).restUntil() - server.overworld().getGameTime());
+    }
+
+    /** It died. Every other creature leaves too, and for 30 minutes it does nothing at all. */
+    public static void onKilled(FogLurkerEntity dead, @Nullable ServerPlayer killer) {
+        MinecraftServer server = dead.getServer();
+        if (server == null) {
+            return;
+        }
+        FogLurkerSavedData.get(server).setRestUntil(server.overworld().getGameTime() + REST_TICKS);
+        for (FogLurkerEntity other : active()) {
+            if (other != dead && other.brain() != null && !other.isDeadOrDying()) {
+                other.brain().vanish(true);
+            }
+        }
+        Component line = Component.literal((killer != null ? killer.getGameProfile().getName() + " killed the Fog Lurker. "
+                : "The Fog Lurker is dead. ") + "The fog lifts... for 30 minutes.").withStyle(ChatFormatting.DARK_AQUA);
+        server.getPlayerList().broadcastSystemMessage(line, false);
+    }
+
+    /**
+     * A scare burst: it is afraid of this player (and of anyone standing with them) for 20 minutes. While
+     * it is, it is half as likely to attack them, and almost never when they are with friends.
+     */
+    public static void scare(ServerPlayer user) {
+        long until = user.server.overworld().getGameTime() + FEAR_TICKS;
+        FEAR_UNTIL.put(user.getUUID(), until);
+        for (ServerPlayer friend : user.server.getPlayerList().getPlayers()) {
+            if (friend != user && friend.level() == user.level() && friend.distanceTo(user) <= 16) {
+                FEAR_UNTIL.put(friend.getUUID(), until);
+            }
+        }
+    }
+
+    public static boolean isFeared(ServerPlayer p) {
+        return p.server.overworld().getGameTime() < FEAR_UNTIL.getOrDefault(p.getUUID(), Long.MIN_VALUE);
+    }
+
+    /** Attack chance for this player right now: escalation, then halved if it fears them, a tenth if they are with friends. */
+    public static double attackChance(LurkerDifficulty diff, PlayerBehaviorProfile profile, ServerPlayer target) {
+        double chance = attackChance(diff, profile);
+        if (isFeared(target)) {
+            boolean withFriends = false;
+            for (ServerPlayer o : target.server.getPlayerList().getPlayers()) {
+                if (o != target && !o.isSpectator() && o.level() == target.level() && o.distanceTo(target) <= 16) {
+                    withFriends = true;
+                    break;
+                }
+            }
+            chance *= withFriends ? 0.1 : 0.5;
+        }
+        return chance;
     }
 
     public static void onPlayerChat(ServerPlayer player, String text) {
@@ -456,7 +528,7 @@ public final class LurkerDirector {
                 && SpotFinder.placeOf(level, target, null) == SpotFinder.Place.SURFACE && r.nextFloat() < NIGHT_MEETING_CHANCE) {
             return nightMeeting(target, diff, !peaceful && r.nextBoolean());
         }
-        boolean willAttack = forcedAttack != null ? forcedAttack : !peaceful && r.nextDouble() < attackChance(diff, targetProfile);
+        boolean willAttack = forcedAttack != null ? forcedAttack : !peaceful && r.nextDouble() < attackChance(diff, targetProfile, target);
 
         ServerPlayer friend = pickFriend(target, r);
         boolean dogKnown = targetProfile.dogUuid != null;

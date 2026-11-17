@@ -29,6 +29,9 @@ public final class FogLurkerMod {
         ModEntities.ENTITIES.register(modBus);
         ModSounds.SOUNDS.register(modBus);
         com.foglurker.registry.ModEffects.EFFECTS.register(modBus);
+        com.foglurker.registry.ModItems.ITEMS.register(modBus);
+        com.foglurker.registry.ModItems.RECIPES.register(modBus);
+        modBus.addListener(com.foglurker.registry.ModItems::addToCreativeTabs);
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(this::commonSetup);
 
