@@ -59,6 +59,10 @@ public final class ClientShowcase {
             return;
         }
         String scene = System.getProperty("foglurker.scene", "");
+        if (scene.equals("afk")) {
+            afkScene(mc, server);
+            return;
+        }
         if (scene.startsWith("fogattack")) {
             // "fogattack2" ... "fogattack32": the render distance to test at (default 32).
             String digits = scene.substring("fogattack".length());
@@ -146,6 +150,22 @@ public final class ClientShowcase {
             case 180, 200, 220, 260 -> logFog(mc, "attacking");
             case 262 -> shot(mc, "foglurker_fog_attack_rd" + fogRenderDistance + ".png");
             case 300 -> mc.stop();
+            default -> {
+            }
+        }
+    }
+
+    /** Types /afk like a player: "AFK" above the hotbar and "<name> went afk" in chat. */
+    private static void afkScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 60 -> server.execute(() -> sp(server).serverLevel().setDayTime(6000));
+            case 80 -> mc.player.connection.sendCommand("afk");
+            case 150 -> FogLurkerMod.LOGGER.info("Showcase: afk={} (tick 150, after 70 ticks)", com.foglurker.world.AfkTracker.isAfk(sp(server)));
+            case 152 -> shot(mc, "foglurker_afk.png");
+            case 160 -> mc.player.connection.sendCommand("afk");
+            case 170 -> FogLurkerMod.LOGGER.info("Showcase: afk={} after /afk again", com.foglurker.world.AfkTracker.isAfk(sp(server)));
+            case 175 -> shot(mc, "foglurker_afk_back.png");
+            case 200 -> mc.stop();
             default -> {
             }
         }

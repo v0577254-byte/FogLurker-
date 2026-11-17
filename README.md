@@ -109,7 +109,7 @@ It leaves players who are away from the keyboard alone: it never comes for them,
 - **Automatic:** 5 minutes without doing anything (config `afkMinutes`) and you are AFK.
 - **`/afk`** (or `/AFK`): AFK right now, without waiting. Type it again to come back. It is refused while it is already hunting you, so it cannot be used to escape.
 - **Coming back:** anything you do ends it: looking around, walking, sneaking, chatting, breaking, placing, using items or attacking. Being pushed (knockback, water, riding something) does not count, so a mob nudging you will not wake you up.
-- AFK players show **[AFK]** after their name in the player list (Tab).
+- When you go AFK, everyone sees **"*name* went afk"** in chat, and **AFK** stays above your hotbar until you are back. AFK players also show **[AFK]** after their name in the player list (Tab).
 - Operators cannot send it after an AFK player with `/foglurker spawn` or `force` either; the command says so.
 - Server owners can turn all of this off with `afkProtection = false`.
 

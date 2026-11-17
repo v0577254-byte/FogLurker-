@@ -150,13 +150,23 @@ public final class AfkTracker {
         s.afkSince = now;
         p.refreshTabListName();
         if (afk) {
+            // Everyone on the server sees it, like a join message.
+            p.server.getPlayerList().broadcastSystemMessage(Component.literal(p.getGameProfile().getName() + " went afk")
+                    .withStyle(ChatFormatting.GRAY), false);
             p.sendSystemMessage(Component.literal(manual
-                    ? "You are now AFK. It will leave you alone until you move. (/afk again to come back)"
-                    : "You have been AFK for " + FogLurkerConfig.COMMON.afkMinutes.get()
-                    + " minutes. It will leave you alone until you move.").withStyle(ChatFormatting.GRAY));
+                    ? "It will leave you alone until you move. (/afk again to come back)"
+                    : "You did nothing for " + FogLurkerConfig.COMMON.afkMinutes.get()
+                    + " minutes. It will leave you alone until you move.").withStyle(ChatFormatting.DARK_GRAY));
+            showAfk(p);
         } else {
+            p.displayClientMessage(Component.empty(), true); // clear "AFK" above the hotbar
             p.sendSystemMessage(Component.literal("Welcome back. You are no longer AFK.").withStyle(ChatFormatting.GRAY));
         }
+    }
+
+    /** "AFK" just above the hotbar. Minecraft fades those after ~3 s, so it is shown again every second. */
+    private static void showAfk(ServerPlayer p) {
+        p.displayClientMessage(Component.literal("AFK").withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD), true);
     }
 
     /**
@@ -184,6 +194,9 @@ public final class AfkTracker {
             markActive(p, now);
         } else if (!s.afk && now - s.lastActive >= afkTicks()) {
             setAfk(p, s, true, false, now);
+        }
+        if (s.afk) {
+            showAfk(p); // keep "AFK" above the hotbar for as long as it lasts
         }
     }
 
