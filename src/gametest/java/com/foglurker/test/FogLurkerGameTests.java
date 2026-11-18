@@ -2489,25 +2489,4 @@ public final class FogLurkerGameTests {
             h.succeed();
         });
     }
-
-    @GameTest(template = "empty", batch = "mood", timeoutTicks = 600)
-    public static void discordMoodFollowsWhatItDoes(GameTestHelper h) {
-        logged(h, () -> {
-            flatten(h, 24);
-            MinecraftServer server = h.getLevel().getServer();
-            server.setDifficulty(Difficulty.NORMAL, true);
-            ServerPlayer p = player(h, 1.5, 1.5);
-            kickOtherPlayers(server, p);
-            h.runAfterDelay(40, () -> logged(h, () -> {
-                FogLurkerEntity meet = LurkerDirector.spawnNightMeeting(p, true);
-                check(meet != null, "no spot for the night meeting");
-                check(meet.brain().mood() == com.foglurker.network.Mood.MEETING, "a night meeting should read \"Who's that?\", got " + meet.brain().mood());
-                h.runAfterDelay(LurkerBrain.MEETING_RUN + 2, () -> logged(h, () -> {
-                    check(meet.brain().mood() == com.foglurker.network.Mood.HUNTED, "after RUN! it should read as hunted, got " + meet.brain().mood());
-                    meet.brain().vanish(true);
-                    h.succeed();
-                }));
-            }));
-        });
-    }
 }

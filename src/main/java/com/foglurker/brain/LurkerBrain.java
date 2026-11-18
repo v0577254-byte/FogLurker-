@@ -1686,31 +1686,6 @@ public final class LurkerBrain {
     private float fogLevel;
     /** What was last sent, and to whom. */
     private float fogSent = -1F;
-    private byte moodSent = -1;
-
-    /** What it is doing to its target, for their Discord status (see {@link com.foglurker.network.Mood}). */
-    public byte mood() {
-        if (phase == Phase.FLEE) {
-            return com.foglurker.network.Mood.FLEEING;
-        }
-        if (phase == Phase.ATTACK || meetingChase) {
-            return com.foglurker.network.Mood.HUNTED;
-        }
-        if (phase == Phase.TRANSFORM) {
-            return com.foglurker.network.Mood.TRANSFORM;
-        }
-        if (enc.mode() == Mode.NIGHT_MEETING || enc.mode() == Mode.WATCHER) {
-            return com.foglurker.network.Mood.MEETING;
-        }
-        if (mob.isLying()) {
-            return com.foglurker.network.Mood.BUSHES; // dropped flat in cover the moment you looked
-        }
-        if ((enc.mode() == Mode.MIMIC || enc.mode() == Mode.DOG)
-                && (phase == Phase.GREET || phase == Phase.LURE || phase == Phase.CLIMAX)) {
-            return com.foglurker.network.Mood.FOLLOWING;
-        }
-        return com.foglurker.network.Mood.WATCHED;
-    }
     @Nullable
     private UUID fogSentTo;
 
@@ -1720,7 +1695,7 @@ public final class LurkerBrain {
      */
     private void fog(ServerPlayer t, float intensity) {
         fogLevel = intensity;
-        if (Math.abs(nightFog(intensity) - fogSent) >= 0.2F || !t.getUUID().equals(fogSentTo) || mood() != moodSent) {
+        if (Math.abs(nightFog(intensity) - fogSent) >= 0.2F || !t.getUUID().equals(fogSentTo)) {
             sendFog(t);
         }
     }
@@ -1731,9 +1706,7 @@ public final class LurkerBrain {
 
     private void sendFog(ServerPlayer t) {
         float f = nightFog(fogLevel);
-        byte m = mood();
-        ModNetwork.send(t, new FogPacket(f, m));
-        moodSent = m;
+        ModNetwork.send(t, new FogPacket(f));
         fogSent = f;
         fogSentTo = t.getUUID();
         fogged.add(t.getUUID());
