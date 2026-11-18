@@ -47,10 +47,8 @@ public final class Apparitions {
         if (player == null || level == null || ACTIVE.size() >= 2) {
             return false;
         }
-        // Half the horizontal field of view; it goes at ~85% of the way to the edge of the screen.
-        double vfov = Math.toRadians(mc.options.fov().get());
-        double aspect = (double) mc.getWindow().getWidth() / Math.max(1, mc.getWindow().getHeight());
-        double halfH = Math.atan(Math.tan(vfov / 2) * aspect);
+        // It goes at 80-90% of the angle to the screen's edge (nearer the middle of the screen at a wide view).
+        double halfH = halfWidthAngle(mc);
         // Prefer a spot you could actually see (behind a hill it never gets the "look and it is gone" moment),
         // but if the woods or hills hide every spot, any good spot beats showing nothing.
         double[] fallback = null;
@@ -97,6 +95,13 @@ public final class Apparitions {
         return true;
     }
 
+    /** Half the horizontal field of view, in radians. */
+    private static double halfWidthAngle(Minecraft mc) {
+        double vfov = Math.toRadians(mc.options.fov().get());
+        double aspect = (double) mc.getWindow().getWidth() / Math.max(1, mc.getWindow().getHeight());
+        return Math.atan(Math.tan(vfov / 2) * aspect);
+    }
+
     private static BlockPos standable(ClientLevel level, BlockPos near) {
         for (int dy = 4; dy >= -5; dy--) {
             BlockPos p = near.above(dy);
@@ -122,11 +127,14 @@ public final class Apparitions {
         }
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getViewVector(1F);
+        double lookCone = Math.cos(Math.min(Math.toRadians(20), 0.5 * halfWidthAngle(mc)));
         for (Iterator<FogLurkerEntity> it = ACTIVE.iterator(); it.hasNext(); ) {
             FogLurkerEntity e = it.next();
             Vec3 to = new Vec3(e.getX(), e.getY(0.5), e.getZ()).subtract(eye);
             double len = to.length();
-            boolean lookedAt = len > 1e-3 && look.dot(to.scale(1 / len)) > 0.94; // within ~20 degrees of the crosshair
+            // "Looked at" = within ~20 degrees of the crosshair, but never wider than half the screen's half-width,
+            // so at a narrow field of view it is not "looked at" the moment it appears at the edge.
+            boolean lookedAt = len > 1e-3 && look.dot(to.scale(1 / len)) > lookCone;
             if (lookedAt || len < 5 || e.tickCount > 240 || e.isRemoved() || e.level() != level) {
                 level.removeEntity(e.getId(), Entity.RemovalReason.DISCARDED);
                 it.remove();

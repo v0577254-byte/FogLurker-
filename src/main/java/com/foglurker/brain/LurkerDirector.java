@@ -70,7 +70,9 @@ public final class LurkerDirector {
         VoiceBridge.tick();
         if (server.getPlayerList().getPlayerCount() == 0) {
             if (server.getTickCount() % 12000 == 0) {
-                com.foglurker.voice.VoiceRetention.stamp(System.currentTimeMillis()); // running, just empty: not "unused"
+                // Running, just empty: not "unused". The 30-day expiry still runs, so someone who returns after
+                // 30 days away finds their clips gone, as promised, even if nobody else came by.
+                com.foglurker.voice.VoiceRetention.emptyHeartbeat(System.currentTimeMillis());
             }
             return; // timers only run while someone is playing
         }
@@ -264,10 +266,13 @@ public final class LurkerDirector {
     /** The 15-minute peace, the 20-minute fear and the bell cooldown, saved with the world (overworld game time). */
     public static net.minecraft.nbt.CompoundTag saveTimers() {
         net.minecraft.nbt.CompoundTag t = new net.minecraft.nbt.CompoundTag();
-        t.put("leftAlone", writeTimes(LEFT_ALONE_UNTIL));
-        t.put("fear", writeTimes(FEAR_UNTIL));
-        t.put("bell", writeTimes(BELL_IMMUNE_UNTIL));
-        t.put("lastVisit", writeTimes(LAST_VISIT));
+        MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        long now = server == null ? Long.MIN_VALUE : server.overworld().getGameTime();
+        t.put("leftAlone", writeTimes(LEFT_ALONE_UNTIL, now));
+        t.put("fear", writeTimes(FEAR_UNTIL, now));
+        t.put("bell", writeTimes(BELL_IMMUNE_UNTIL, now));
+        // A visit only matters for half a roll; keep a day of them.
+        t.put("lastVisit", writeTimes(LAST_VISIT, server == null ? Long.MIN_VALUE : now - 24000L));
         return t;
     }
 
@@ -278,9 +283,12 @@ public final class LurkerDirector {
         readTimes(t.getList("lastVisit", net.minecraft.nbt.Tag.TAG_COMPOUND), LAST_VISIT);
     }
 
-    private static net.minecraft.nbt.ListTag writeTimes(java.util.Map<java.util.UUID, Long> m) {
+    private static net.minecraft.nbt.ListTag writeTimes(java.util.Map<java.util.UUID, Long> m, long keepAfter) {
         net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
         m.forEach((id, until) -> {
+            if (until < keepAfter) {
+                return; // long over: not worth saving
+            }
             net.minecraft.nbt.CompoundTag e = new net.minecraft.nbt.CompoundTag();
             e.putUUID("id", id);
             e.putLong("until", until);
@@ -337,17 +345,23 @@ public final class LurkerDirector {
     /** Whether the spawn-roll clock is counting down (it waits while it is busy with everyone it could visit). */
     public static boolean rollsRunning(MinecraftServer server) {
         ACTIVE.removeIf(Entity::isRemoved);
-        // With nobody to visit (everyone AFK, hunted or just visited) the clock waits, so misses do not pile up.
-        return ACTIVE.size() < FogLurkerConfig.COMMON.maxConcurrent.get() && !freeCandidates(server).isEmpty();
+        // With nobody to visit (everyone AFK or hunted) the clock waits, so misses do not pile up. "Just visited"
+        // does not stop the clock: that wait is shorter than a roll, so the next roll still comes 5 minutes after.
+        return ACTIVE.size() < FogLurkerConfig.COMMON.maxConcurrent.get() && !freeCandidates(server, false).isEmpty();
     }
 
     /** Players it could appear to right now: not already being hunted, not just visited. */
     public static List<ServerPlayer> freeCandidates(MinecraftServer server) {
+        return freeCandidates(server, true);
+    }
+
+    private static List<ServerPlayer> freeCandidates(MinecraftServer server, boolean skipJustVisited) {
         long now = server.overworld().getGameTime();
         List<ServerPlayer> candidates = new ArrayList<>();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (eligible(p) && (!FogLurkerConfig.COMMON.overworldOnly.get() || p.level().dimension() == Level.OVERWORLD)
-                    && !isHunted(p.getUUID()) && now - LAST_VISIT.getOrDefault(p.getUUID(), Long.MIN_VALUE / 2) >= rollInterval() / 2
+                    && !isHunted(p.getUUID())
+                    && (!skipJustVisited || now - LAST_VISIT.getOrDefault(p.getUUID(), Long.MIN_VALUE / 2) >= rollInterval() / 2)
                     && now >= LEFT_ALONE_UNTIL.getOrDefault(p.getUUID(), Long.MIN_VALUE)
                     && !com.foglurker.world.AfkTracker.isAfk(p)) { // nothing comes for someone who is not there
                 candidates.add(p);
@@ -364,6 +378,17 @@ public final class LurkerDirector {
 
     public static long leftAloneTicks(ServerPlayer p) {
         return Math.max(0, LEFT_ALONE_UNTIL.getOrDefault(p.getUUID(), 0L) - p.server.overworld().getGameTime());
+    }
+
+    /** Like {@link #isHunted}, not counting {@code self}. */
+    public static boolean isHuntedByAnother(java.util.UUID player, LurkerBrain self) {
+        for (FogLurkerEntity l : ACTIVE) {
+            LurkerBrain b = l.brain();
+            if (b != self && !l.isRemoved() && b != null && !b.isEnded() && b.targetId().equals(player)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean isHunted(java.util.UUID player) {
@@ -568,7 +593,7 @@ public final class LurkerDirector {
         double best = 96 * 96;
         for (ServerPlayer p : level.players()) {
             double d = p.distanceToSqr(lurker);
-            if (!p.isSpectator() && d < best) {
+            if (!p.isSpectator() && !com.foglurker.world.AfkTracker.isAfk(p) && d < best) {
                 best = d;
                 nearest = p;
             }
@@ -576,7 +601,8 @@ public final class LurkerDirector {
         if (nearest == null) {
             return false;
         }
-        Encounter enc = plan(nearest, FogLurkerSavedData.get(level.getServer()), null, null, level.getRandom());
+        // /summon gives the pale crawler itself (README), not a random disguise.
+        Encounter enc = plan(nearest, FogLurkerSavedData.get(level.getServer()), Disguise.CRAWLER, null, level.getRandom());
         lurker.begin(enc);
         ACTIVE.add(lurker);
         return true;
@@ -602,7 +628,8 @@ public final class LurkerDirector {
         ServerPlayer friend = pickFriend(target, r);
         boolean dogKnown = targetProfile.dogUuid != null;
         Wolf realDog = dogKnown && level.getEntity(targetProfile.dogUuid) instanceof Wolf w ? w : null;
-        boolean dogAvailable = dogKnown && (realDog == null || realDog.distanceTo(target) > 24 || realDog.isInSittingPose());
+        // Only when the real dog is not with them (a dog sitting right beside you must not get a twin).
+        boolean dogAvailable = dogKnown && (realDog == null || realDog.distanceTo(target) > 24);
 
         List<Option> options = new ArrayList<>();
         if (forced != null) {

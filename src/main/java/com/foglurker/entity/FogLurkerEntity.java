@@ -179,6 +179,9 @@ public class FogLurkerEntity extends PathfinderMob {
             return;
         }
         if (this.isNoAi()) {
+            if (brain != null && !brain.isEnded()) {
+                brain.dismiss(); // a hunting creature frozen with /data: it leaves instead of holding a hunt forever
+            }
             return; // {NoAI:1b}: a harmless statue, e.g. for map makers
         }
         if (brain == null) {
@@ -530,7 +533,9 @@ public class FogLurkerEntity extends PathfinderMob {
             return super.hurt(source, amount);
         }
         if (source.is(DamageTypeTags.IS_FALL) || source.is(DamageTypes.IN_WALL) || source.is(DamageTypes.DROWN)
-                || source.is(DamageTypes.CRAMMING) || source.is(DamageTypes.SWEET_BERRY_BUSH)) {
+                || source.is(DamageTypes.CRAMMING) || source.is(DamageTypes.SWEET_BERRY_BUSH)
+                || source.is(DamageTypes.CACTUS) || source.is(DamageTypes.FREEZE)) {
+            // (Cactus and powder snow too: a cactus moat must not be a free way to rest it for the whole server.)
             return false;
         }
         if (this.isInvulnerableTo(source)) {
@@ -539,7 +544,7 @@ public class FogLurkerEntity extends PathfinderMob {
         if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             // /kill and the void: it simply melts back into the fog (no drops, no rest).
             if (brain != null) {
-                brain.vanish(true);
+                brain.dismiss(true); // not an escape: no "you got away"
             } else {
                 this.discard();
             }

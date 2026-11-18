@@ -61,6 +61,16 @@ public final class VoiceRetention {
         return deleted;
     }
 
+    /** Every 10 minutes while the server runs with nobody on: still running (stamp) and still expiring old clips. */
+    public static void emptyHeartbeat(long nowMillis) {
+        VoiceConsent.flushIfUnsaved();
+        int expired = VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
+        if (expired > 0) {
+            FogLurkerMod.LOGGER.info("Deleted the voice snippets of {} player(s) not seen for 30 days", expired);
+        }
+        stamp(nowMillis);
+    }
+
     /** Runs every so often while playing, and when players join or leave. */
     public static void heartbeat(long nowMillis, Iterable<UUID> onlinePlayers) {
         VoiceConsent.flushIfUnsaved();

@@ -302,6 +302,7 @@ public final class LurkerBrain {
         queuedIntent = null; // a line planned for the last phase does not belong in this one
         if (p == Phase.TRANSFORM || p == Phase.ATTACK || p == Phase.FLEE) {
             pendingChat = null; // the mask is off: a line it was still "typing" is never sent
+            heardPending = null; // ...nor a reply to something said before
             chatGen++; // ...and one still being written is thrown away when it arrives
         }
         clearFakeMine();
@@ -336,10 +337,24 @@ public final class LurkerBrain {
         ServerPlayer t = target();
         if (huntId != null && (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator()
                 || t.isCreative() || com.foglurker.world.AfkTracker.isAfk(t))) {
-            huntId = null; // the one it switched to is gone: back to the first target
+            huntId = null; // the one it switched to is gone: back to the first target...
             t = target();
+            if (LurkerDirector.isHuntedByAnother(enc.targetId(), this)) {
+                vanish(false); // ...unless another one has them by now: never two at once
+                return;
+            }
         }
-        if (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator()) {
+        if (t == null && (phase == Phase.ATTACK || phase == Phase.TRANSFORM || meetingChase)
+                && FogLurkerConfig.COMMON.escapeEscalation.get() && !escaped) {
+            // Logged out with its teeth almost in them: that counts as getting away (it comes back angrier),
+            // but it is not the night meeting's earned peace.
+            escaped = true;
+            PlayerBehaviorProfile gone = savedData().profile(targetId());
+            gone.escapes = Math.min(gone.escapes + 1, 10);
+            savedData().setDirty();
+        }
+        // Creative counts as gone, like spectator: nothing comes for a player it could never hurt.
+        if (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator() || t.isCreative()) {
             vanish(false);
             return;
         }
@@ -824,7 +839,10 @@ public final class LurkerBrain {
             LurkerDirector.noteLeft(t.getUUID()); // it left this one: no new creature straight back to them
             pendingChat = null;
             queuedIntent = null;
+            heardPending = null;
             chatGen++;
+            leftId = t.getUUID();
+            leftAt = age;
             huntId = easier.getUUID();
             lastSwitch = age;
             windupUntil = age + DEATHWISH_WINDUP; // a new victim gets the same warning before a Deathwish bite
@@ -910,7 +928,14 @@ public final class LurkerBrain {
         // Claws still reach you from the shore if you only waded in.
         double reachSqr = 2.3 * 2.3;
         if (!warded && !windingUp && mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
-            if (mob.doHurtTarget(t)) {
+            boolean shielded = t.isBlocking();
+            boolean bit = mob.doHurtTarget(t);
+            if (!bit && shielded) {
+                // Teeth on a raised shield: it wrenches the shield aside like an axe does (5 s), so a shield buys
+                // one bite, not a whole fight.
+                t.disableShield(true);
+            }
+            if (bit) {
                 hits++;
                 escaped = false;
                 PlayerBehaviorProfile caught = savedData().profile(t.getUUID());
@@ -961,6 +986,7 @@ public final class LurkerBrain {
     /** Breaks whatever stands between it and you, except protected blocks (deepslate, obsidian, bedrock...). */
     private void dig(ServerPlayer t) {
         if (!FogLurkerConfig.COMMON.breakBlocks.get() || !ForgeEventFactory.getMobGriefingEvent(level(), mob)) {
+            clearBreaking(); // switched off mid-dig: no cracks left behind
             return;
         }
         ServerLevel level = level();
@@ -1087,6 +1113,7 @@ public final class LurkerBrain {
         }
         if (!enc.willAttack() || !canAttack(t)) {
             if (phaseAge >= MEETING_LEAVE) {
+                meetingChase = false; // (e.g. switched to Peaceful after "RUN!": nobody outran anything)
                 vanish(false); // it meant it this time
             }
             return;
@@ -1345,8 +1372,13 @@ public final class LurkerBrain {
 
     /** Sent away by an admin command: it leaves, but nobody "got away" from it. */
     public void dismiss() {
+        dismiss(false);
+    }
+
+    /** As {@link #dismiss()}, screaming (/kill). */
+    public void dismiss(boolean screaming) {
         meetingChase = false;
-        vanish(false);
+        vanish(screaming);
     }
 
     /** True once it has left (vanishing, flopping away or dead): nothing reaches it any more. */
@@ -1475,7 +1507,8 @@ public final class LurkerBrain {
             if (p == t || !canAttack(p) || p.isCreative() || p.distanceTo(t) > 16
                     || SpotFinder.isInOrOnWater(p) || isWarded(p)
                     || LurkerDirector.isHunted(p.getUUID()) // another one already has them: never two at once
-                    || LurkerDirector.leftAloneTicks(p) > 0) { // they earned 15 minutes of peace
+                    || LurkerDirector.leftAloneTicks(p) > 0 // they earned 15 minutes of peace
+                    || (p.getUUID().equals(leftId) && age - leftAt < 1200)) { // not straight back to the one it left
                 continue;
             }
             double d = mob.distanceTo(p);
@@ -1740,6 +1773,11 @@ public final class LurkerBrain {
         }
     }
 
+    /** The victim it last switched away from, and when: it does not switch straight back for a minute. */
+    @Nullable
+    private UUID leftId;
+    private int leftAt;
+
     /** A planned line that came while another was still being written; said as soon as that one is out. */
     @Nullable
     private MimicChat.Intent queuedIntent;
@@ -1797,6 +1835,10 @@ public final class LurkerBrain {
         } else {
             t.sendSystemMessage(line);
         }
-        RecentChat.add(enc.copiedName(), text);
+        // Remembered as context for the next line, unless the copied player keeps their chat out of it.
+        PlayerBehaviorProfile copiedProf = enc.copiedId() == null ? null : savedData().profileOrNull(enc.copiedId());
+        if (FogLurkerConfig.COMMON.learnChat.get() && (copiedProf == null || !copiedProf.chatLearningOff)) {
+            RecentChat.add(enc.copiedName(), text);
+        }
     }
 }

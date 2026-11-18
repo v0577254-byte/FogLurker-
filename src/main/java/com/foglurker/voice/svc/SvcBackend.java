@@ -124,6 +124,16 @@ final class SvcBackend implements VoiceBridge.Backend {
     /** Stopped for good: a late microphone packet must not open a new recorder (its decoder would leak). */
     private volatile boolean stopped;
 
+    @Override
+    public boolean hasVoiceClient(UUID player) {
+        try {
+            var c = api.getConnectionOf(player);
+            return c != null && c.isInstalled() && c.isConnected();
+        } catch (RuntimeException e) {
+            return true; // cannot tell: do not claim otherwise
+        }
+    }
+
     void shutdown() {
         stopped = true;
         recorders.values().forEach(Recorder::close);

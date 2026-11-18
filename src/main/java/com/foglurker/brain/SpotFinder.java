@@ -94,11 +94,15 @@ public final class SpotFinder {
         if (!level.isInWorldBounds(feet)) {
             return false;
         }
+        if (level.dimensionType().hasCeiling() && feet.getY() >= level.dimensionType().logicalHeight()) {
+            return false; // on top of the Nether's bedrock roof: outside the world as far as anyone is concerned
+        }
         BlockState ground = level.getBlockState(below);
         if (!ground.isFaceSturdy(level, below, Direction.UP) || ground.is(BlockTags.LEAVES)) {
             return false;
         }
-        if (!level.getFluidState(feet).isEmpty() || !level.getFluidState(below).isEmpty()) {
+        if (!level.getFluidState(feet).isEmpty() || !level.getFluidState(below).isEmpty()
+                || !level.getFluidState(feet.above()).isEmpty()) { // nor with its head in lava or water
             return false;
         }
         return level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()

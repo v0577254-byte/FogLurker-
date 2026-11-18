@@ -205,16 +205,25 @@ public final class GeminiClient {
 
     /** Generates text with the stored key, trying fallback models when one is unavailable. */
     public static CompletableFuture<Result> generate(String system, String user, float temperature) {
+        return generate(system, user, temperature, false);
+    }
+
+    private static CompletableFuture<Result> generate(String system, String user, float temperature, boolean ignoreLimits) {
         String key = ApiKeyStore.get();
         if (key == null) {
             return CompletableFuture.completedFuture(Result.fail(0, "No Gemini API key set"));
         }
-        return generate(models(), key, system, user, temperature);
+        return generate(models(), key, system, user, temperature, ignoreLimits);
     }
 
     /** Same as {@link #generate(String, String, float)} with explicit models and key. Always completes normally. */
     public static CompletableFuture<Result> generate(List<String> models, String key, String system, String user,
                                                      float temperature) {
+        return generate(models, key, system, user, temperature, false);
+    }
+
+    private static CompletableFuture<Result> generate(List<String> models, String key, String system, String user,
+                                                      float temperature, boolean ignoreLimits) {
         if (!ApiKeyStore.isPlausible(key)) {
             return CompletableFuture.completedFuture(Result.fail(0,
                     "The stored key has characters a Gemini key cannot have; set it again"));
@@ -222,9 +231,12 @@ public final class GeminiClient {
         if (models.isEmpty()) {
             return CompletableFuture.completedFuture(Result.fail(0, "No valid Gemini model names in the config"));
         }
+        // The chain stops trying further models once the caller has stopped waiting.
+        Chain chain = new Chain(key, models, system, user, temperature,
+                System.nanoTime() + TimeUnit.SECONDS.toNanos(overallTimeoutSeconds()), ignoreLimits);
         CompletableFuture<Result> attempt;
         try {
-            attempt = tryModels(key, models, 0, system, user, temperature, null);
+            attempt = tryModels(chain, 0, null, true);
         } catch (RuntimeException e) {
             return CompletableFuture.completedFuture(Result.fail(0, "Gemini request failed: " + e.getClass().getSimpleName()));
         }
@@ -233,27 +245,38 @@ public final class GeminiClient {
                 .completeOnTimeout(Result.fail(0, "Gemini took too long to answer"), overallTimeoutSeconds(), TimeUnit.SECONDS);
     }
 
-    private static CompletableFuture<Result> tryModels(String key, List<String> models, int index, String system,
-                                                       String user, float temperature, @Nullable Result lastFailure) {
-        if (index >= models.size()) {
+    private record Chain(String key, List<String> models, String system, String user, float temperature,
+                         long deadlineNanos, boolean ignoreLimits) {
+        boolean overdue() {
+            return System.nanoTime() - deadlineNanos > 0;
+        }
+    }
+
+    /**
+     * @param allKeyProblems every model tried so far refused because of the key (or project): only then is the
+     *                       key paused. One model a project cannot use, after another that was just busy, is not.
+     */
+    private static CompletableFuture<Result> tryModels(Chain c, int index, @Nullable Result lastFailure, boolean allKeyProblems) {
+        if (index >= c.models().size() || (index > 0 && c.overdue())) {
             Result r = lastFailure != null ? lastFailure
                     : Result.fail(404, "None of the configured Gemini models are available");
-            if (isKeyProblem(r)) {
-                rejectKey(key, r); // every model refused this key
+            if (allKeyProblems && lastFailure != null && isKeyProblem(r)) {
+                rejectKey(c.key(), r); // every model refused this key
             }
             return CompletableFuture.completedFuture(r);
         }
-        String model = models.get(index);
-        if (isLimited(model, System.currentTimeMillis())) {
+        String model = c.models().get(index);
+        if (!c.ignoreLimits() && isLimited(model, System.currentTimeMillis())) {
             // Still waiting out this model's rate limit: do not even ask.
-            return tryModels(key, models, index + 1, system, user, temperature,
-                    Result.fail(429, "Gemini model " + model + " is rate limited; waiting as Google asked", "RATE_LIMITED"));
+            return tryModels(c, index + 1,
+                    Result.fail(429, "Gemini model " + model + " is rate limited; waiting as Google asked", "RATE_LIMITED"), false);
         }
+        String key = c.key();
         boolean disableThinking = !THINKING_REJECTED.containsKey(model);
-        return call(key, model, system, user, temperature, disableThinking).thenCompose(r -> {
+        return call(key, model, c.system(), c.user(), c.temperature(), disableThinking).thenCompose(r -> {
             if (r.status() == 400 && disableThinking && mentionsThinking(r.error())) {
                 THINKING_REJECTED.put(model, Boolean.TRUE);
-                return call(key, model, system, user, temperature, false);
+                return call(key, model, c.system(), c.user(), c.temperature(), false);
             }
             return CompletableFuture.completedFuture(r);
         }).thenCompose(r -> {
@@ -269,15 +292,16 @@ public final class GeminiClient {
             }
             if (isKeyProblem(r)) {
                 // Could be this model only (e.g. a preview model the project has no access to): try the others.
-                return tryModels(key, models, index + 1, system, user, temperature, r);
+                return tryModels(c, index + 1, r, allKeyProblems);
             }
             if (r.status() == 429) {
                 // Free-tier limits are per model: the next model may still have quota.
                 MODEL_LIMITED_UNTIL.put(model, System.currentTimeMillis() + rateLimitMillis(r));
-                return tryModels(key, models, index + 1, system, user, temperature, r);
+                return tryModels(c, index + 1, r, false);
             }
-            if (r.status() == 404 || (r.status() >= 500 && r.status() < 600)) {
-                return tryModels(key, models, index + 1, system, user, temperature, r);
+            if (r.status() == 400 || r.status() == 404 || (r.status() >= 500 && r.status() < 600)) {
+                // Missing, broken, or refusing this request shape (some models reject a system prompt): next model.
+                return tryModels(c, index + 1, r, false);
             }
             return CompletableFuture.completedFuture(r);
         });
@@ -498,8 +522,8 @@ public final class GeminiClient {
         return c.getClass().getSimpleName() + (c.getMessage() == null ? "" : ": " + oneLine(c.getMessage()));
     }
 
-    /** Sends a tiny request to check that the stored key works (ignores any back-off). */
+    /** Sends a tiny request to check that the stored key works (asks even models that are waiting out a rate limit). */
     public static CompletableFuture<Result> test() {
-        return generate("Reply with exactly the word: ok", "ping", 1.0F);
+        return generate("Reply with exactly the word: ok", "ping", 1.0F, true); // asks even a model that is resting
     }
 }

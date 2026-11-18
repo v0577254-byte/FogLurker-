@@ -91,7 +91,10 @@ public final class MimicChat {
 
     private static String userPrompt(Context ctx, Intent intent, @Nullable String heard) {
         StringBuilder sb = new StringBuilder();
-        List<String> samples = ctx.copiedProfile() == null ? List.of() : ctx.copiedProfile().recentChat(15);
+        // Only chat the server may still use: learnChat on, and the copied player has not opted out.
+        boolean learning = com.foglurker.config.FogLurkerConfig.COMMON.learnChat.get();
+        List<String> samples = !learning || ctx.copiedProfile() == null || ctx.copiedProfile().chatLearningOff
+                ? List.of() : ctx.copiedProfile().recentChat(15);
         if (!samples.isEmpty()) {
             sb.append("Real messages ").append(ctx.copiedName()).append(" has typed before:\n");
             for (String s : samples) {
@@ -101,7 +104,7 @@ public final class MimicChat {
             sb.append(ctx.copiedName()).append(" has not chatted much; type like a casual teenage Minecraft player "
                     + "(lowercase, little punctuation).\n");
         }
-        List<String> recent = RecentChat.last(8);
+        List<String> recent = learning ? RecentChat.last(8) : List.of();
         if (!recent.isEmpty()) {
             sb.append("\nRecent server chat:\n");
             for (String s : recent) {

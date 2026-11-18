@@ -195,7 +195,8 @@ public final class ClientEffects {
             return;
         }
         float t = scareTicks - (float) event.getPartialTick();
-        float amp = 4.0F * scareTicks / scareTotal;
+        // Scaled by Minecraft's own Distortion Effects slider (0 = no shake at all).
+        float amp = 4.0F * scareTicks / scareTotal * Minecraft.getInstance().options.screenEffectScale().get().floatValue();
         event.setRoll(event.getRoll() + Mth.sin(t * 1.7F) * amp);
         event.setYaw(event.getYaw() + Mth.cos(t * 2.3F) * amp * 0.5F);
     }

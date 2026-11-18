@@ -47,6 +47,23 @@ public final class PlayerEvents {
         }
     }
 
+    /** A bell rung by an arrow or trident counts too (its shooter is the ringer). */
+    @SubscribeEvent
+    public static void onProjectileHit(net.minecraftforge.event.entity.ProjectileImpactEvent event) {
+        if (event.getRayTraceResult() instanceof net.minecraft.world.phys.BlockHitResult hit
+                && event.getProjectile().level() instanceof net.minecraft.server.level.ServerLevel level
+                && level.getBlockState(hit.getBlockPos()).getBlock() instanceof net.minecraft.world.level.block.BellBlock) {
+            net.minecraft.core.BlockPos pos = hit.getBlockPos().immutable();
+            ServerPlayer ringer = event.getProjectile().getOwner() instanceof ServerPlayer sp ? sp : null;
+            level.getServer().execute(() -> {
+                if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity bell
+                        && bell.shaking && bell.ticks <= 5) {
+                    com.foglurker.brain.LurkerDirector.onBell(level, pos, ringer);
+                }
+            });
+        }
+    }
+
     /** Tell every player once that voice snippets exist and are strictly opt-in. */
     @SubscribeEvent
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {

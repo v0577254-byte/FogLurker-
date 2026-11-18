@@ -541,6 +541,11 @@ public final class FogLurkerCommands {
     private static int geminiStatus(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         String key = ApiKeyStore.get();
+        if (key == null && ApiKeyStore.storedKeyUnreadable()) {
+            reply(src, Component.literal("A Gemini API key is saved but cannot be read (the secure folder's key changed or the "
+                    + "file is damaged). Set it again with /foglurker setgeminiapikey <key>.").withStyle(ChatFormatting.GOLD));
+            return 0;
+        }
         if (key == null) {
             reply(src, Component.literal("No Gemini API key set. It uses built-in phrases that copy each player's typing style. "
                     + "Set one with /foglurker setgeminiapikey <key>.").withStyle(ChatFormatting.GRAY));
@@ -565,8 +570,15 @@ public final class FogLurkerCommands {
                         .withStyle(ChatFormatting.GREEN));
             } else {
                 String why = err != null ? "request failed" : result == null ? "no answer" : result.error();
-                reply(src, Component.literal("Gemini test failed: " + why
-                        + ". The key is kept; check it and set it again if needed.").withStyle(ChatFormatting.RED));
+                int status = result == null ? 0 : result.status();
+                // Advice that fits the failure: only a refusal points at the key.
+                String advice = status == 0 ? "Could not reach Google (network or timeout); the key may be fine, try again later."
+                        : status == 429 ? "Google is rate limiting this key for now; it waits and tries again by itself."
+                        : status >= 500 ? "Google's side is having trouble; try again later."
+                        : status == 401 || status == 403 || status == 400
+                        ? "Check the key, and that the Generative Language API, billing and your region are allowed for it."
+                        : "The key is kept; check it and set it again if needed.";
+                reply(src, Component.literal("Gemini test failed: " + why + ". " + advice).withStyle(ChatFormatting.RED));
             }
         }));
     }
@@ -646,6 +658,10 @@ public final class FogLurkerCommands {
         ServerPlayer p = ctx.getSource().getPlayerOrException();
         p.sendSystemMessage(PREFIX.copy().append(Component.literal("Voice snippets").withStyle(ChatFormatting.GOLD)));
         p.sendSystemMessage(Component.literal(VoiceConsent.TERMS).withStyle(ChatFormatting.WHITE));
+        if (!VoiceBridge.isActive()) {
+            p.sendSystemMessage(Component.literal("(Simple Voice Chat is not running on this server, so nothing would be recorded "
+                    + "until it is.)").withStyle(ChatFormatting.DARK_GRAY));
+        }
         p.sendSystemMessage(Component.empty()
                 .append(button("[YES]", ChatFormatting.GREEN, "/flurk voicesnippets terms accept", "I agree"))
                 .append(Component.literal("   "))
@@ -735,7 +751,9 @@ public final class FogLurkerCommands {
         p.sendSystemMessage(PREFIX.copy().append(Component.literal(in
                 ? "You are opted in. Stored snippets: " + count + "."
                 : "You are opted out. Nothing of your voice is stored.").withStyle(ChatFormatting.GRAY)));
-        p.sendSystemMessage(Component.literal(VoiceBridge.isActive() ? "Simple Voice Chat: running" : "Simple Voice Chat: not running")
+        p.sendSystemMessage(Component.literal(!VoiceBridge.isActive() ? "Simple Voice Chat: not running"
+                : VoiceBridge.hasVoiceClient(p.getUUID()) ? "Simple Voice Chat: running"
+                : "Simple Voice Chat: running, but your game is not connected to it, so nothing of your voice can be recorded")
                 .withStyle(ChatFormatting.DARK_GRAY));
         return in ? 1 : 0;
     }

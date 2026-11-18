@@ -161,7 +161,9 @@ public final class FogLurkerConfig {
         Client(ForgeConfigSpec.Builder b) {
             fogEffects = b.comment("Thick fog rolls in while the creature is hunting you.")
                     .define("fogEffects", true);
-            screenEffects = b.comment("Camera shake and vignette when it reveals itself.")
+            screenEffects = b.comment("Camera shake and the dark red flash when it reveals itself, the darkening edges and the",
+                            "heartbeat while it hunts you. (The heartbeat on the reveal itself always plays.) The shake also",
+                            "follows Minecraft's Distortion Effects slider.")
                     .define("screenEffects", true);
             fogOverlay = b.comment("Also draw the fog as a see-through layer over the screen. This shows even when a shader pack",
                             "or another mod replaces Minecraft's own fog.")

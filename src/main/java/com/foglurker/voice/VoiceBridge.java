@@ -20,6 +20,11 @@ public final class VoiceBridge {
 
         /** Called every server tick to close finished recordings. */
         void tick();
+
+        /** Whether this player's game is connected to voice chat (nothing can be recorded otherwise). */
+        default boolean hasVoiceClient(UUID player) {
+            return true;
+        }
     }
 
     private static volatile Backend backend;
@@ -34,6 +39,11 @@ public final class VoiceBridge {
     /** Simple Voice Chat is installed and its voice server is running. */
     public static boolean isActive() {
         return backend != null;
+    }
+
+    public static boolean hasVoiceClient(UUID player) {
+        Backend b = backend;
+        return b != null && b.hasVoiceClient(player);
     }
 
     public static boolean canSpeakAs(UUID voiceOwner) {

@@ -70,7 +70,7 @@ It can be killed. Its health depends on the mode:
 | Hard | 125 hearts |
 | Deathwish | 175 hearts |
 
-It has 4 armour points (2 armour icons), and it does not take fall, suffocation or drowning damage. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears on its own and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long; admin spawn commands still work). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
+It has 4 armour points (2 armour icons), and it does not take fall, suffocation, drowning, fire, lava, cactus or freezing damage. Swords, arrows, tridents, explosions and Harming potions hurt it normally (it is not undead, so Healing heals it). A raised shield stops one bite, then its teeth wrench the shield aside for 5 seconds, like an axe. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears on its own and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long; admin spawn commands still work). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
 
 ### What it drops (only when a player lands the killing blow)
 
@@ -124,13 +124,13 @@ Ordinary armour maths does not apply to its bite. Only good armour helps, by its
 
 Protection IV adds 5% only on diamond and netherite; lower Protection levels, and Protection on any other armour, do nothing against it. Resistance potions still help as normal, except against the Deathwish bite, which no potion stops (a Totem of Undying still does).
 
-**Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump (no riptide launches either) and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out (a boat that is afloat is left alone: water is still your way out). Run *before* it reaches you; once it has your leg, the water trick and pillar-jumping are off the table until Mauled wears off. A horse you are already riding can still jump for you. Milk clears both.
+**Its bite goes into your leg.** Every bite gives **Slowness I for 10 seconds** on every mode. On **Hard and Deathwish** it also gives **Mauled** for 10 seconds: **you cannot jump (no riptide launches either) and you cannot get into a boat**, and if it bites you while you sit in a boat on land it drags you out (a boat that is afloat is left alone: water is still your way out). Run *before* it reaches you; once it has your leg, boats and pillar-jumping are off the table until Mauled wears off (walking into water still works). A horse you are already riding can still jump for you. Milk clears both.
 
 | What | Effect |
 |---|---|
 | **Water** | It cannot swim. Get in water or a boat and it can only pace the shore; after 20 seconds it gives up. |
 | **Soul fire** | A soul torch, soul lantern or lit soul campfire protects everyone within 6 blocks. It will not shed its disguise there, will not come inside the circle, and cannot hit you. It circles outside and gives up after 20 seconds. (Soul sand comes from the Nether, so this is something you earn.) |
-| **Bells** | Ring a bell and anything within 32 blocks flees. **It learns:** for 15 minutes after a bell drives it away from you, bells do nothing against it ("The bell rings out... nothing runs this time."). |
+| **Bells** | Ring a bell (by hand, or with an arrow) and anything within 32 blocks flees. **It learns:** for 15 minutes after a bell drives it away from you, bells do nothing against it ("The bell rings out... nothing runs this time."). |
 | **Do not look at it** | While it hunts you, looking at it makes it charge 25% faster. Looking away slows it to walking pace (a fast walk on Deathwish), so you can outrun it, if you can stand running blind and listening to it behind you. |
 | **Deepslate and obsidian** | It cannot break them. |
 | **Totem of Undying** | Still works, even on Deathwish. |
@@ -186,7 +186,7 @@ The fog rolls in whenever it is near you and lifts a few seconds after it leaves
 | luring you deep | about 30 blocks, or a third of your view |
 | attacking | about 11 blocks (7 at a 2-chunk render distance) |
 
-So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in over about 2 seconds. The same fog is also drawn as a soft veil over the screen (under your hotbar and chat), so it still shows if a shader pack or rendering mod replaces Minecraft's own fog.
+So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in over about 2 seconds. The same fog is also drawn as a soft veil over the screen (under your hotbar and chat), so it still shows if a shader pack or rendering mod replaces Minecraft's own fog. (Like the hotbar, the veil hides with F1.)
 
 ## Night
 
@@ -203,7 +203,7 @@ It is a coin flip whether it means it. If it does, it sinks flat into the ground
 > fogstalker: just kidding
 > fogstalker: **RUN!**
 
-**RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, you die instantly**. If you get away (outrun it, water, soul fire, a bell, a scare burst from the Protector), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Like the scare-burst fear and the bell cooldown, this is saved with the world, so quitting and coming back does not reset it. Try it with `/foglurker force meet [player]`.
+**RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, you die instantly**. If you get away (outrun it, water, soul fire, a bell, a scare burst from the Protector, or through a portal), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Like the scare-burst fear and the bell cooldown, this is saved with the world, so quitting and coming back does not reset it. Try it with `/foglurker force meet [player]`.
 
 ## The five modes
 
@@ -234,6 +234,8 @@ It is a coin flip whether it means it. If it does, it sinks flat into the ground
 
 Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn`.
 
+"op" means permission level 2 or higher (the singleplayer host counts too). Admin spawn and force commands are not limited by the rules for natural appearances: they work during the rest after a kill and can send a second creature to someone already hunted.
+
 | Command | Who | What it does |
 |---|---|---|
 | `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `crawler` (itself), `random` |
@@ -243,12 +245,12 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
 | `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
 | `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
-| `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force` (hauntings still happen; turn those off with the `hauntings` config option). Saved with the world. `on` starts a fresh 5-minute countdown |
+| `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. `on` starts a fresh 5-minute countdown |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
 | `/foglurker geministatus` | op / host | Shows the masked key and tests it |
-| `/foglurker despawn` | cheats / op | Sends it away |
+| `/foglurker despawn` | cheats / op | Sends it away (this never counts as you getting away) |
 | `/foglurker-macarena [loops]` | cheats / op | The pale crawler appears in front of you and does the Macarena (default 3 loops, max 20), then vanishes. Harmless and invulnerable, never counts as a hunt. Also `/foglurker macarena` |
 | `/foglurker debugeverything` | op / host | **Temporary.** Checks everything on the server *and* in your game, and lists what passed and failed in chat (see below) |
 | `/flurk voicesnippets terms` | everyone | Shows the voice snippet terms with **[YES] [NO]** buttons |
@@ -351,7 +353,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `sabotage` | true | Let hauntings put out torches and leave books in chests |
 | `wardRadius` | 6 | How far soul fire protects (0 turns wards off) |
 | `eyeContactRule` | true | Looking at it speeds it up, looking away slows it down |
-| `encounterMaxMinutes` | 5 | An appearance gives up after this long |
+| `encounterMaxMinutes` | 5 | An appearance gives up after this long (a watcher that only stares leaves after 2 minutes at most) |
 | `overworldOnly` | true | Only appear on its own in the Overworld |
 | `allowDoppelganger` | true | When you are alone it can copy *you* |
 | `minPlayerSeparation` | 48 | Players must be this far apart before it impersonates one to the other |

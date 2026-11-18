@@ -711,10 +711,15 @@ public final class FogLurkerGameTests {
                     burnt.hurt(p.damageSources().playerAttack(p), 2F);
                     burnt.invulnerableTime = 0;
                     var area = burnt.getBoundingBox().inflate(4);
-                    burnt.hurt(p.damageSources().cactus(), 10000F); // it is fire-proof, so a cactus finishes it instead
-                    check(burnt.isDeadOrDying(), "the cactus should kill it");
+                    // It shrugs off fire, cactus and fall damage, so something else (not a player) finishes it.
+                    float hpBefore = burnt.getHealth();
+                    burnt.hurt(p.damageSources().cactus(), 10000F);
+                    check(burnt.getHealth() == hpBefore, "a cactus must not hurt it");
+                    burnt.invulnerableTime = 0;
+                    burnt.hurt(p.damageSources().generic(), 10000F);
+                    check(burnt.isDeadOrDying(), "generic damage should kill it");
                     check(h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area).isEmpty(),
-                            "nothing should drop when a player did not land the killing blow (a cactus did)");
+                            "nothing should drop when a player did not land the killing blow");
                     // ...while a player's killing blow does drop its loot through the real death path. On Deathwish
                     // three kills without a single drop is about a 1 in 10,000 chance.
                     data.setDifficulty(LurkerDifficulty.DEATHWISH);

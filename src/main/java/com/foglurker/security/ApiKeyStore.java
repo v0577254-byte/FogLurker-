@@ -17,6 +17,12 @@ public final class ApiKeyStore {
     private static final String ENV = "FOGLURKER_GEMINI_API_KEY";
     private static volatile String cached;
     private static volatile boolean loaded;
+    /** A saved key file exists but could not be decrypted (told to the operator by /foglurker geministatus). */
+    private static volatile boolean unreadable;
+
+    public static boolean storedKeyUnreadable() {
+        return unreadable && cached == null;
+    }
 
     private ApiKeyStore() {
     }
@@ -35,6 +41,7 @@ public final class ApiKeyStore {
             cached = k;
         }
         loaded = true;
+        unreadable = false;
     }
 
     /** @return the key, or null when none has been set. */
@@ -47,7 +54,8 @@ public final class ApiKeyStore {
                         loaded = true;
                     } catch (SecureStorage.Unavailable e) {
                         // Locked for a moment (a virus scanner, a backup): not cached, so the next call tries again.
-                        cached = null;
+                        // No falling back to the environment key either: that may be a different key.
+                        return null;
                     }
                 }
             }
@@ -105,6 +113,7 @@ public final class ApiKeyStore {
             throw e;
         } catch (IOException e) {
             FogLurkerMod.LOGGER.error("Could not read the stored Gemini API key; set it again with /foglurker setgeminiapikey", e);
+            unreadable = true;
             return null;
         }
     }
