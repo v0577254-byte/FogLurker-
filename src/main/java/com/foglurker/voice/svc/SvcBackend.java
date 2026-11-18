@@ -234,6 +234,7 @@ final class SvcBackend implements VoiceBridge.Backend {
         if (stopped || !loading.add(entityId)) {
             return false; // shutting down, or a clip for it is already on its way
         }
+        cancelled.remove(entityId); // a stop meant for an earlier clip must not cancel this one
         SnippetStore.io().execute(() -> {
             try {
                 short[] pcm;
@@ -281,6 +282,12 @@ final class SvcBackend implements VoiceBridge.Backend {
                 }
                 playingOwner.put(player, voiceOwner);
                 playing.put(entityId, player);
+                if (cancelled.contains(entityId)) {
+                    playing.remove(entityId, player); // stopped in the instant before it would have started
+                    playingOwner.remove(player);
+                    encoder.close();
+                    return;
+                }
                 try {
                     player.startPlaying();
                 } catch (RuntimeException e) {

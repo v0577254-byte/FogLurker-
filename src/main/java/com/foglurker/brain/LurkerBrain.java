@@ -298,6 +298,11 @@ public final class LurkerBrain {
         bestToWoods = Double.MAX_VALUE;
         lureStuck = 0;
         detour = null; // a side-step planned for the old phase must not steer the new one
+        detours = 0; // each phase gets its own two tries at walking around an obstacle
+        if (p == Phase.TRANSFORM || p == Phase.ATTACK || p == Phase.FLEE) {
+            pendingChat = null; // the mask is off: a line it was still "typing" is never sent
+            queuedIntent = null;
+        }
         clearFakeMine();
         clearBreaking();
     }
@@ -356,6 +361,11 @@ public final class LurkerBrain {
             return;
         }
         deliverChat(t);
+        if (queuedIntent != null && heardPending == null && !chatInFlight && pendingChat == null) {
+            MimicChat.Intent next = queuedIntent;
+            queuedIntent = null;
+            say(t, next, null);
+        }
         if (heardPending != null && !chatInFlight && pendingChat == null) {
             String heard = heardPending;
             heardPending = null;
@@ -699,6 +709,8 @@ public final class LurkerBrain {
 
         if (dist > 40) {
             goTo(t, speedFor(4.3));
+        } else if (enc.willAttack() && canAttack(t) && dist > 16 && !isLookedAtBy(t)) {
+            goTo(t, speedFor(2.0)); // it means it: it creeps closer whenever you look away
         } else {
             halt();
         }
@@ -761,6 +773,9 @@ public final class LurkerBrain {
                 BlockPos g = SpotFinder.ground(level(), Mth.floor(wanderTarget.x), Mth.floor(wanderTarget.z), mob.getBlockY());
                 wanderSince = age;
                 wanderTarget = g == null ? null : Vec3.atBottomCenterOf(g);
+                if (wanderTarget == null) {
+                    idleUntil = age + 40 + random.nextInt(60); // boxed in: stand a while instead of searching every tick
+                }
             }
         }
 
@@ -789,6 +804,7 @@ public final class LurkerBrain {
             mob.playSound(ModSounds.REVEAL.get(), 2.0F, 1.0F);
             ModNetwork.send(t, new ScarePacket(70));
             UUID voice = enc.mode() == Mode.MIMIC ? enc.copiedId() : enc.targetId();
+            nextVoiceAt = age; // the reveal is never silenced by the wait between ordinary lines
             speak(voice, AudioFx.Style.DEMONIC, true);
         }
         if (phaseAge >= 36) {
@@ -805,6 +821,8 @@ public final class LurkerBrain {
         ServerPlayer easier = easierPrey(t, dist);
         if (easier != null) {
             LurkerDirector.noteLeft(t.getUUID()); // it left this one: no new creature straight back to them
+            pendingChat = null;
+            queuedIntent = null;
             huntId = easier.getUUID();
             lastSwitch = age;
             windupUntil = age + DEATHWISH_WINDUP; // a new victim gets the same warning before a Deathwish bite
@@ -1312,7 +1330,7 @@ public final class LurkerBrain {
         return c[1] == 1;
     }
 
-    /** Wider than "staring straight at it": anywhere in the middle third of your screen counts. */
+    /** Wider than "staring straight at it": anything within about 30 degrees of where you look counts. */
     private boolean isWatchedBy(ServerPlayer p) {
         Vec3 eyePos = p.getEyePosition();
         Vec3 to = new Vec3(mob.getX(), mob.getY(0.5), mob.getZ()).subtract(eyePos);
@@ -1506,6 +1524,11 @@ public final class LurkerBrain {
      * Converts a real-world ground speed (blocks per second) into a navigation speed modifier.
      * A mob's top speed scales with the square of its speed value, hence the square root.
      */
+    /**
+     * Speed modifier for a ground speed in blocks/s. Square root on purpose: Mob.setSpeed also sets the mob's
+     * forward input (setZza), so vanilla mob ground speed grows with the square of the speed value. 43.17 is
+     * vanilla's player walk (speed 0.1 with full input = 4.317 blocks/s).
+     */
     private double speedFor(double blocksPerSecond) {
         double attr = mob.getAttributeValue(Attributes.MOVEMENT_SPEED);
         return Math.sqrt(blocksPerSecond / 43.17) / Math.max(0.01, attr);
@@ -1522,14 +1545,16 @@ public final class LurkerBrain {
         }
         // Re-plan at most every 10 ticks while a path runs, and every 5 when none does (a target it cannot
         // reach would otherwise cost a full path search every tick).
+        if (mob.distanceTo(e) > 40) {
+            goTo(e.position(), speed); // in hops; that method throttles itself (setting lastRepath here would block it)
+            return;
+        }
         if (age - lastRepath < (mob.getNavigation().isInProgress() ? 10 : 5)) {
             mob.getNavigation().setSpeedModifier(speed);
             return;
         }
         lastRepath = age;
-        if (mob.distanceTo(e) > 40) {
-            goTo(e.position(), speed);
-        } else if (!mob.getNavigation().moveTo(e, speed)) {
+        if (!mob.getNavigation().moveTo(e, speed)) {
             mob.getMoveControl().setWantedPosition(e.getX(), e.getY(), e.getZ(), speed);
         }
     }
@@ -1710,8 +1735,18 @@ public final class LurkerBrain {
         }
     }
 
+    /** A planned line that came while another was still being written; said as soon as that one is out. */
+    @Nullable
+    private MimicChat.Intent queuedIntent;
+
     private void say(ServerPlayer t, MimicChat.Intent intent, @Nullable String heard) {
-        if (!FogLurkerConfig.COMMON.impersonateInChat.get() || chatInFlight || pendingChat != null || enc.copiedName() == null) {
+        if (!FogLurkerConfig.COMMON.impersonateInChat.get() || enc.copiedName() == null) {
+            return;
+        }
+        if (chatInFlight || pendingChat != null) {
+            if (heard == null) {
+                queuedIntent = intent; // not lost: said after the current line
+            }
             return;
         }
         chatInFlight = true;

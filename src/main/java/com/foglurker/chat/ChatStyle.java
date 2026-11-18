@@ -123,7 +123,7 @@ public final class ChatStyle {
         if (dropsApostrophes) {
             s = s.replace("'", "");
         }
-        if (!fillers.isEmpty() && random.nextFloat() < 0.4F) {
+        if (!fillers.isEmpty() && s.chars().anyMatch(Character::isLetter) && random.nextFloat() < 0.4F) {
             String f = fillers.get(random.nextInt(fillers.size()));
             if (!s.toLowerCase(Locale.ROOT).contains(f)) {
                 s = random.nextBoolean() ? s + " " + f : f + " " + s;

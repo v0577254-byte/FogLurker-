@@ -293,7 +293,7 @@ public final class Hauntings {
             if (d < 3) {
                 continue;
             }
-            boolean inView = look.dot(to.scale(1 / d)) > 0.3 && SpotFinder.canSee(p, center);
+            boolean inView = look.dot(to.scale(1 / d)) > 0.3 && SpotFinder.canSeeBlock(p, pos);
             if (!inView) {
                 found.add(pos.immutable());
             }
@@ -472,8 +472,11 @@ public final class Hauntings {
     @Nullable
     private static String friendName(FogLurkerSavedData data, UUID self, RandomSource r) {
         List<String> names = new ArrayList<>();
+        MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
         data.profiles().forEach((id, prof) -> {
-            if (!id.equals(self) && prof.lastKnownName != null && !prof.lastKnownName.isEmpty()) {
+            boolean online = server != null && server.getPlayerList().getPlayer(id) != null;
+            // "when <friend> comes back" only makes sense for someone who is away
+            if (!id.equals(self) && !online && prof.lastKnownName != null && !prof.lastKnownName.isEmpty()) {
                 names.add(prof.lastKnownName);
             }
         });

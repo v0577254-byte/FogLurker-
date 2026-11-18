@@ -68,7 +68,7 @@ public final class PlayerBehaviorProfile {
     public boolean chatLearningOff;
     private int homeHits;
     private int awayHits;
-    /** Game time of the last book it left for them (not saved). */
+    /** Game time of the last book it left for them (saved, so the 20-minute limit survives a restart). */
     public long lastBookAt = Long.MIN_VALUE / 2;
 
     public net.minecraft.core.BlockPos home() {

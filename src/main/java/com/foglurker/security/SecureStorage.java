@@ -145,6 +145,17 @@ public final class SecureStorage {
         }
     }
 
+    /**
+     * The file (or the key) is there but cannot be opened right now, for example because another program
+     * (a virus scanner, a backup tool) has it open. Nothing is wrong with its contents: try again later and
+     * never treat it as damaged.
+     */
+    public static final class Unavailable extends IOException {
+        Unavailable(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     private static SecretKey key() throws IOException {
         SecretKey k = masterKey;
         if (k != null) {
@@ -155,10 +166,17 @@ public final class SecureStorage {
                 return masterKey;
             }
             Path keyFile = root().resolve(".master.key");
-            byte[] raw;
-            if (Files.isRegularFile(keyFile) && Files.size(keyFile) == 32) {
-                raw = Files.readAllBytes(keyFile);
-            } else {
+            byte[] raw = null;
+            boolean intact;
+            try {
+                intact = Files.isRegularFile(keyFile) && Files.size(keyFile) == 32;
+                if (intact) {
+                    raw = Files.readAllBytes(keyFile);
+                }
+            } catch (IOException e) {
+                throw new Unavailable("The secure folder key cannot be opened right now", e);
+            }
+            if (!intact) {
                 boolean wasThere = Files.exists(keyFile);
                 if (wasThere) {
                     // Damaged key: keep it (it may be recoverable) and say so loudly instead of silently
@@ -222,7 +240,13 @@ public final class SecureStorage {
     }
 
     public static byte[] readEncrypted(Path file) throws IOException {
-        return decrypt(Files.readAllBytes(file));
+        byte[] data;
+        try {
+            data = Files.readAllBytes(file);
+        } catch (IOException e) {
+            throw new Unavailable("Cannot open " + file.getFileName() + " right now", e);
+        }
+        return decrypt(data);
     }
 
     /** Writes via a temp file + move so a crash never leaves half a file behind. */

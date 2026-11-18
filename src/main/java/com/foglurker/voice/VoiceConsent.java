@@ -55,6 +55,14 @@ public final class VoiceConsent {
     }
 
     private static final Copy ABSENT = new Copy(null, -1, Set.of(), java.util.Map.of());
+    /** The file is there but cannot be opened right now: try again later, change and delete nothing. */
+    private static final Copy BUSY = new Copy(null, -2, Set.of(), java.util.Map.of());
+    /** While the list cannot be opened: when to try again (System.currentTimeMillis). */
+    private static volatile long retryAt;
+    /** Opt-outs made while the list could not be opened; applied (and saved) as soon as it can be. */
+    private static final Set<UUID> PENDING_OUT = ConcurrentHashMap.newKeySet();
+    /** wipeEverything() ran while the list could not be opened; applied as soon as it can be. */
+    private static volatile boolean pendingWipe;
 
     /** @return the copy in this file, ABSENT if there is none, or null if it exists but cannot be read */
     @javax.annotation.Nullable
@@ -76,6 +84,10 @@ public final class VoiceConsent {
             }
             long v = root.has("version") ? root.get("version").getAsLong() : 0L;
             return new Copy(f, v, in, seen);
+        } catch (SecureStorage.Unavailable e) {
+            FogLurkerMod.LOGGER.warn("The voice consent file {} cannot be opened right now ({}); trying again shortly",
+                    f.getFileName(), e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+            return BUSY;
         } catch (Exception e) {
             FogLurkerMod.LOGGER.error("Could not read the voice consent file {}", f, e);
             return null;
@@ -97,16 +109,28 @@ public final class VoiceConsent {
         }
     }
 
-    private static void ensureLoaded() {
+    /**
+     * @return true once the list is loaded. False while it cannot be opened (another program has it):
+     * then nobody counts as opted in, so nobody is recorded or played, and nothing is deleted.
+     */
+    private static boolean ensureLoaded() {
         if (loaded) {
-            return;
+            return true;
         }
         synchronized (VoiceConsent.class) {
             if (loaded) {
-                return;
+                return true;
+            }
+            if (System.currentTimeMillis() < retryAt) {
+                return false;
             }
             Copy main = read(file());
             Copy next = read(newerFile());
+            if (main == BUSY || next == BUSY) {
+                retryAt = System.currentTimeMillis() + 30_000;
+                return false;
+            }
+            retryAt = 0;
             if (main == null || next == null) {
                 // A copy we cannot read might be the newest one, holding an opt-out. Half a list is worse than
                 // none: nobody is opted in unless we can read that they are.
@@ -118,28 +142,51 @@ public final class VoiceConsent {
                 version = Math.max(main == null ? 0 : main.version(), next == null ? 0 : next.version());
                 // Done before anyone else can opt in, so the sweep can never take a fresh opt-in's snippets with it.
                 SnippetStore.deleteExcept(Set.of());
+                PENDING_OUT.clear();
+                pendingWipe = false;
                 loaded = true;
                 save(true); // an empty list, newer than anything left on disk
-                return;
+                return true;
             }
             Copy current = next.version() > main.version() ? next : main;
             OPTED_IN.addAll(current.optedIn());
             LAST_SEEN.putAll(current.lastSeen());
             version = Math.max(main.version(), next.version());
             loaded = true;
+            // Apply what happened while the list could not be opened.
+            boolean removed = false;
+            if (pendingWipe) {
+                removed = !OPTED_IN.isEmpty();
+                OPTED_IN.clear();
+                LAST_SEEN.clear();
+                pendingWipe = false;
+            }
+            for (UUID out : PENDING_OUT) {
+                removed |= OPTED_IN.remove(out);
+                LAST_SEEN.remove(out);
+            }
+            PENDING_OUT.clear();
+            if (removed) {
+                save(true);
+            }
+            return true;
         }
     }
 
     public static boolean isOptedIn(UUID player) {
-        ensureLoaded();
-        return OPTED_IN.contains(player);
+        return ensureLoaded() && OPTED_IN.contains(player);
     }
 
-    public static void optIn(UUID player) {
-        ensureLoaded();
+    /** @return false if the list cannot be opened right now (nothing changed; try again in a minute) */
+    public static boolean optIn(UUID player) {
+        if (!ensureLoaded()) {
+            return false;
+        }
+        PENDING_OUT.remove(player);
         OPTED_IN.add(player);
         LAST_SEEN.put(player, System.currentTimeMillis());
         save(false);
+        return true;
     }
 
     /**
@@ -149,7 +196,9 @@ public final class VoiceConsent {
      * @return number of snippet files deleted
      */
     public static int deleteOrphanSnippets() {
-        ensureLoaded();
+        if (!ensureLoaded()) {
+            return 0; // the list cannot be opened: never guess who is opted in
+        }
         return SnippetStore.deleteExcept(java.util.Collections.unmodifiableSet(OPTED_IN)); // live: someone opting in mid-sweep is kept
     }
 
@@ -167,8 +216,7 @@ public final class VoiceConsent {
 
     /** Records that an opted-in player is online now. */
     public static void touch(UUID player, long nowMillis) {
-        ensureLoaded();
-        if (OPTED_IN.contains(player)) {
+        if (ensureLoaded() && OPTED_IN.contains(player)) {
             LAST_SEEN.put(player, nowMillis);
             save(false);
         }
@@ -181,7 +229,9 @@ public final class VoiceConsent {
      * @return how many players' snippets were deleted
      */
     public static int expireStale(long nowMillis, long maxAgeMillis) {
-        ensureLoaded();
+        if (!ensureLoaded()) {
+            return 0;
+        }
         int expired = 0;
         for (UUID id : java.util.List.copyOf(OPTED_IN)) {
             Long seen = LAST_SEEN.get(id);
@@ -198,7 +248,10 @@ public final class VoiceConsent {
 
     /** Forgets every opt-in and deletes every snippet (used when the mod was unused for too long). */
     public static int wipeEverything() {
-        ensureLoaded();
+        if (!ensureLoaded()) {
+            pendingWipe = true; // forgets every opt-in as soon as the list can be opened
+            return SnippetStore.deleteEveryone();
+        }
         OPTED_IN.clear();
         LAST_SEEN.clear();
         save(true);
@@ -206,13 +259,17 @@ public final class VoiceConsent {
     }
 
     public static java.util.Optional<Long> lastSeen(UUID player) {
-        ensureLoaded();
-        return java.util.Optional.ofNullable(LAST_SEEN.get(player));
+        return ensureLoaded() ? java.util.Optional.ofNullable(LAST_SEEN.get(player)) : java.util.Optional.empty();
     }
 
     /** Opts out and deletes every snippet stored for this player. */
     public static int optOut(UUID player) {
-        ensureLoaded();
+        if (!ensureLoaded()) {
+            // The list cannot be opened right now: recording stops and the clips go now; the list catches up later.
+            PENDING_OUT.add(player);
+            VoiceBridge.forget(player);
+            return SnippetStore.deleteAll(player);
+        }
         OPTED_IN.remove(player);
         LAST_SEEN.remove(player);
         int deleted = 0;

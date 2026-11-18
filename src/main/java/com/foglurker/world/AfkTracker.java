@@ -205,7 +205,8 @@ public final class AfkTracker {
         boolean ownPace = (p.isFallFlying() || (moved <= 12.0 && climbedUp <= 12.0)) && p.hurtTime == 0 && p.invulnerableTime == 0;
         net.minecraft.world.entity.Entity vehicle = p.getVehicle();
         boolean walked = ownPace && moved > 0.3 && !p.isPassenger()
-                && (p.onGround() || p.isFallFlying() || p.isSwimming()) && (!p.isInWater() || p.isSwimming());
+                && (p.onGround() || p.isFallFlying() || p.isSwimming() || p.getAbilities().flying)
+                && (!p.isInWater() || p.isSwimming());
         boolean climbed = ownPace && climbedUp > 0.5 && p.onClimbable() && !p.isPassenger();
         // Steering a horse, boat or pig counts (a minecart, which nobody steers, does not).
         boolean steered = ownPace && moved > 1.0 && vehicle != null && vehicle.getControllingPassenger() == p;

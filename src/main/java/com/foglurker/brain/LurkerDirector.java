@@ -110,6 +110,12 @@ public final class LurkerDirector {
         return FogLurkerConfig.COMMON.spawnRollMinutes.get() * 60 * 20;
     }
 
+    /** Runs before the final save: the countdown and grace only mark themselves dirty every 10 s. */
+    @SubscribeEvent
+    public static void onServerStopping(net.minecraftforge.event.server.ServerStoppingEvent event) {
+        FogLurkerSavedData.get(event.getServer()).setDirty();
+    }
+
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         ACTIVE.clear();
@@ -135,6 +141,7 @@ public final class LurkerDirector {
         boolean was = ACTIVE.remove(lurker);
         if (was && lurker.brain() != null && lurker.getServer() != null) {
             LAST_VISIT.put(lurker.brain().targetId(), lurker.getServer().overworld().getGameTime());
+            FogLurkerSavedData.get(lurker.getServer()).setDirty();
         }
         if (was && ACTIVE.isEmpty() && lurker.getServer() != null) {
             FogLurkerSavedData data = FogLurkerSavedData.get(lurker.getServer());

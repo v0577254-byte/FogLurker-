@@ -661,7 +661,11 @@ public final class FogLurkerCommands {
 
     private static int acceptTerms(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer p = ctx.getSource().getPlayerOrException();
-        VoiceConsent.optIn(p.getUUID());
+        if (!VoiceConsent.optIn(p.getUUID())) {
+            ctx.getSource().sendFailure(Component.literal("The voice consent list cannot be opened right now (another program "
+                    + "may have it open). Nothing was changed; please try again in a minute."));
+            return 0;
+        }
         p.sendSystemMessage(Component.literal("great! you have now opted in use the command ").withStyle(ChatFormatting.GREEN)
                 .append(suggest("/fglurk optout"))
                 .append(Component.literal(" to cancel it ").withStyle(ChatFormatting.GREEN))

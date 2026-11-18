@@ -61,6 +61,13 @@ public final class Apparitions {
             if (ground == null) {
                 continue;
             }
+            // Only where you could actually see it: behind a hill it would never get the "look and it is gone" moment.
+            Vec3 chest = new Vec3(x, ground.getY() + 0.9, z);
+            if (level.clip(new net.minecraft.world.level.ClipContext(player.getEyePosition(), chest,
+                    net.minecraft.world.level.ClipContext.Block.VISUAL, net.minecraft.world.level.ClipContext.Fluid.NONE, player))
+                    .getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+                continue;
+            }
             FogLurkerEntity e = ModEntities.FOG_LURKER.get().create(level);
             if (e == null) {
                 return false;

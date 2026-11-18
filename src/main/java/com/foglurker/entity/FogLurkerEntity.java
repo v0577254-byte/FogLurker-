@@ -394,9 +394,10 @@ public class FogLurkerEntity extends PathfinderMob {
         } else if (this.isSwimming()) {
             this.setSwimming(false);
             this.setSprinting(false);
-            if (this.level().noCollision(this, getDimensions(Pose.STANDING).makeBoundingBox(this.position()))) {
-                this.setPose(Pose.STANDING);
-            }
+        }
+        if (!wantSwim && this.getPose() == Pose.SWIMMING
+                && this.level().noCollision(this, getDimensions(Pose.STANDING).makeBoundingBox(this.position()))) {
+            this.setPose(Pose.STANDING); // tried every tick, so leaving water under a low ceiling cannot leave it flat
         }
     }
 

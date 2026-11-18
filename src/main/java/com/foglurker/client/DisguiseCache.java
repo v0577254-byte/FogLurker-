@@ -68,8 +68,12 @@ public final class DisguiseCache {
         }
     }
 
+    /** The last full profile (with skin data) seen in the player list, per player, so a copy never flashes a default skin. */
+    private static final Map<UUID, GameProfile> KNOWN_PROFILES = new HashMap<>();
+
     public static void clear() {
         CACHE.clear();
+        KNOWN_PROFILES.clear();
     }
 
     public static void cleanup(ClientLevel level) {
@@ -113,7 +117,12 @@ public final class DisguiseCache {
             ClientPacketListener conn = Minecraft.getInstance().getConnection();
             PlayerInfo info = id == null || conn == null ? null : conn.getPlayerInfo(id);
             if (info != null) {
+                KNOWN_PROFILES.put(info.getProfile().getId(), info.getProfile());
                 return new MimicDummyPlayer(level, info.getProfile());
+            }
+            GameProfile known = id == null ? null : KNOWN_PROFILES.get(id);
+            if (known != null) {
+                return new MimicDummyPlayer(level, known); // seen earlier this session: no lookup, no default-skin flash
             }
             // Not online: fetch their skin from Mojang by name, the way a player head does.
             GameProfile bare = new GameProfile(id != null ? id : UUID.randomUUID(), name.isEmpty() ? "Player" : name);

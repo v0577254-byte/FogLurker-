@@ -42,8 +42,13 @@ public final class ApiKeyStore {
         if (!loaded) {
             synchronized (ApiKeyStore.class) {
                 if (!loaded) {
-                    cached = load();
-                    loaded = true;
+                    try {
+                        cached = load();
+                        loaded = true;
+                    } catch (SecureStorage.Unavailable e) {
+                        // Locked for a moment (a virus scanner, a backup): not cached, so the next call tries again.
+                        cached = null;
+                    }
                 }
             }
         }
@@ -88,7 +93,7 @@ public final class ApiKeyStore {
         return true;
     }
 
-    private static String load() {
+    private static String load() throws SecureStorage.Unavailable {
         Path f = file();
         if (!Files.isRegularFile(f)) {
             return null;
@@ -96,6 +101,8 @@ public final class ApiKeyStore {
         try {
             String k = new String(SecureStorage.readEncrypted(f), StandardCharsets.UTF_8).trim();
             return k.isEmpty() ? null : k;
+        } catch (SecureStorage.Unavailable e) {
+            throw e;
         } catch (IOException e) {
             FogLurkerMod.LOGGER.error("Could not read the stored Gemini API key; set it again with /foglurker setgeminiapikey", e);
             return null;

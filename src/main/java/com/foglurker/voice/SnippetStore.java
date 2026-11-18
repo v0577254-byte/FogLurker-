@@ -95,14 +95,25 @@ public final class SnippetStore {
 
     /** Loads a random snippet (blocking; call off the server thread). */
     public static short[] loadRandom(UUID player) {
+        Path pick = null;
         try {
             List<Path> files = list(dir(player));
             if (files.isEmpty()) {
                 return null;
             }
-            Path pick = files.get(ThreadLocalRandom.current().nextInt(files.size()));
+            pick = files.get(ThreadLocalRandom.current().nextInt(files.size()));
             return fromBytes(SecureStorage.readEncrypted(pick));
+        } catch (SecureStorage.Unavailable e) {
+            FogLurkerMod.LOGGER.warn("Could not open a voice snippet right now: {}", e.getMessage());
+            return null;
         } catch (IOException e) {
+            if (pick != null) {
+                try {
+                    Files.deleteIfExists(pick); // damaged or from an old key: it can never play, so it goes
+                } catch (IOException | RuntimeException ignored) {
+                    // the sweep or the next attempt tries again
+                }
+            }
             FogLurkerMod.LOGGER.warn("Could not load a voice snippet: {}", e.getMessage());
             return null;
         }

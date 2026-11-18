@@ -199,7 +199,7 @@ public final class MimicChat {
                 }
                 String l = s.toLowerCase(Locale.ROOT);
                 for (String w : LURE_WORDS) {
-                    if (l.contains(w) && s.length() < 60 && !ctx.alreadySaid().contains(s)) {
+                    if (l.contains(w) && s.length() < 60 && !saidBefore(ctx, s)) {
                         fitting.add(s);
                         break;
                     }
@@ -220,18 +220,33 @@ public final class MimicChat {
             case REPLY -> replyPool(heard);
         };
         String pick = pool[random.nextInt(pool.length)];
-        for (int tries = 0; tries < 4 && ctx.alreadySaid().contains(fill(pick, ctx)); tries++) {
+        for (int tries = 0; tries < 4 && saidBefore(ctx, fill(pick, ctx)); tries++) {
             pick = pool[random.nextInt(pool.length)];
         }
         String text = fill(pick, ctx);
         return intent == Intent.CREEPY ? text : style.apply(text, random);
     }
 
+    /** Compares ignoring case and end punctuation, since what was said went through the player's style. */
+    private static boolean saidBefore(Context ctx, String line) {
+        String want = normalise(line);
+        for (String s : ctx.alreadySaid()) {
+            if (normalise(s).equals(want)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalise(String s) {
+        return s.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9 ]", "").replaceAll(" +", " ").trim();
+    }
+
     private static String[] replyPool(@Nullable String heard) {
         if (heard == null) {
             return REPLY_OTHER;
         }
-        String h = " " + heard.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9? ]", " ") + " ";
+        String h = " " + heard.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9 ]", " ") + " "; // "where?" is " where "
         if (h.contains(" where ")) {
             return REPLY_WHERE;
         }

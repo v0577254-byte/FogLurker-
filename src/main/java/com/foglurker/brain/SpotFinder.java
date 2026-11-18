@@ -250,6 +250,17 @@ public final class SpotFinder {
         return null;
     }
 
+    /** Whether the player can see this block: the sight line may end on the block itself (a torch is solid to rays). */
+    public static boolean canSeeBlock(ServerPlayer viewer, BlockPos pos) {
+        Vec3 point = Vec3.atCenterOf(pos);
+        Vec3 eye = viewer.getEyePosition();
+        if (eye.distanceToSqr(point) > 128 * 128 || !viewer.level().hasChunkAt(pos)) {
+            return false;
+        }
+        var hit = viewer.level().clip(new ClipContext(eye, point, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, viewer));
+        return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(pos);
+    }
+
     public static boolean canSee(ServerPlayer viewer, Vec3 point) {
         Vec3 eye = viewer.getEyePosition();
         if (eye.distanceToSqr(point) > 128 * 128) {
@@ -395,6 +406,9 @@ public final class SpotFinder {
     public static String compass(Vec3 from, Vec3 to) {
         double dx = to.x - from.x;
         double dz = to.z - from.z;
+        if (dx * dx + dz * dz < 1e-6) {
+            return "north"; // no direction at all (it could not find woods): a fixed answer, not whatever -0.0 gives
+        }
         double deg = Math.toDegrees(Math.atan2(dx, -dz));
         if (deg < 0) {
             deg += 360;

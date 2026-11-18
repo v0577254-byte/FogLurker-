@@ -246,7 +246,10 @@ public final class BehaviorTracker {
                 PlayerBehaviorProfile prof = data.profile(p.getUUID());
                 boolean named = wolf.hasCustomName();
                 // Prefer remembering a named dog over unnamed ones.
-                if (prof.dogUuid == null || prof.dogUuid.equals(wolf.getUUID()) || named || prof.dogName == null) {
+                // A remembered dog that is not around any more (dead, or given away) gives way to the one here.
+                boolean rememberedGone = prof.dogUuid != null && !prof.dogUuid.equals(wolf.getUUID())
+                        && !(((net.minecraft.server.level.ServerLevel) wolf.level()).getEntity(prof.dogUuid) instanceof Wolf);
+                if (prof.dogUuid == null || prof.dogUuid.equals(wolf.getUUID()) || named || prof.dogName == null || rememberedGone) {
                     prof.dogUuid = wolf.getUUID();
                     prof.dogName = named ? wolf.getCustomName().getString() : null;
                     prof.dogCollar = wolf.getCollarColor().getId();
@@ -307,7 +310,8 @@ public final class BehaviorTracker {
     public static void onContainer(net.minecraftforge.event.entity.player.PlayerContainerEvent.Open event) {
         // Only storage (chests, barrels, shulker boxes) marks a home: not crafting tables, furnaces or villagers.
         var menu = event.getContainer();
-        boolean storage = menu instanceof net.minecraft.world.inventory.ChestMenu
+        boolean storage = (menu instanceof net.minecraft.world.inventory.ChestMenu chest
+                && !(chest.getContainer() instanceof net.minecraft.world.inventory.PlayerEnderChestContainer)) // an ender chest goes anywhere
                 || menu instanceof net.minecraft.world.inventory.ShulkerBoxMenu;
         if (storage && event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)) {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
