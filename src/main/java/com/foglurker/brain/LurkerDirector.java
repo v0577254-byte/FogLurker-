@@ -91,6 +91,9 @@ public final class LurkerDirector {
             data.setNextSpawnTicks(rollInterval());
             return;
         }
+        if (data.nextSpawnTicks() > rollInterval()) {
+            data.setNextSpawnTicks(rollInterval()); // spawnRollMinutes was lowered: the shorter wait applies now
+        }
         data.countDownSpawn();
         if (data.nextSpawnTicks() == 0) {
             // Every 5 minutes: 50/50. If it did not come, the next roll is guaranteed.
@@ -174,7 +177,7 @@ public final class LurkerDirector {
                 continue;
             }
             java.util.UUID target = brain.targetId();
-            if (now < BELL_IMMUNE_UNTIL.getOrDefault(target, Long.MIN_VALUE)) {
+            if (cooldown > 0 && now < BELL_IMMUNE_UNTIL.getOrDefault(target, Long.MIN_VALUE)) {
                 ignored = true; // it has heard that bell before
                 continue;
             }
@@ -185,7 +188,7 @@ public final class LurkerDirector {
             }
             driven++;
         }
-        if (ignored && ringer != null) {
+        if (ignored && driven == 0 && ringer != null) {
             ringer.displayClientMessage(net.minecraft.network.chat.Component.literal("The bell rings out... nothing runs this time.")
                     .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC), true);
         }

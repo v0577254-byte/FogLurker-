@@ -379,7 +379,9 @@ public class FogLurkerEntity extends PathfinderMob {
             if (!this.isSwimming()) {
                 this.setSwimming(true);
                 this.setSprinting(true);
-                this.setPose(Pose.SWIMMING);
+            }
+            if (this.getPose() != Pose.SWIMMING) {
+                this.setPose(Pose.SWIMMING); // every tick: copying your crouch must not stand it up mid-swim
             }
             Path path = this.getNavigation().getPath();
             if (path != null && !path.isDone()) {
@@ -576,7 +578,7 @@ public class FogLurkerEntity extends PathfinderMob {
     public void die(DamageSource source) {
         if (!this.level().isClientSide && !this.isRemoved() && !this.dead) {
             this.setDisguise(Disguise.CRAWLER); // whatever it was wearing, it dies as itself
-            this.setFlag(FLAG_TRANSFORMING | FLAG_ANGRY | FLAG_SITTING, false); // no shaking corpse
+            this.setFlag(FLAG_TRANSFORMING | FLAG_ANGRY | FLAG_SITTING | FLAG_LYING, false); // no shaking or hidden corpse
             this.clearEquipment();
             killedByPlayer = source.getEntity() instanceof Player;
             if (brain != null) {

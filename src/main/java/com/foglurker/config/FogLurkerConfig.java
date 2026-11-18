@@ -71,7 +71,7 @@ public final class FogLurkerConfig {
                             "A roll that fails makes the next roll a guaranteed appearance.")
                     .defineInRange("spawnRollMinutes", 5, 1, 600);
             spawnChance = b.comment("Chance that a normal roll makes it appear (0.5 = 50/50). 0 = it never appears on its own",
-                            "(the same as /foglurker naturalspawning off, but for every world).")
+                            "in any world (hauntings still happen; /foglurker naturalspawning off stops those too).")
                     .defineInRange("spawnChance", 0.5, 0.0, 1.0);
             breakBlocks = b.comment("Let its attacking form break blocks to get to you (also needs the mobGriefing gamerule).",
                             "It never breaks anything in the foglurker:unbreakable block tag (deepslate, obsidian, bedrock...),",
@@ -81,7 +81,9 @@ public final class FogLurkerConfig {
                             "something at the edge of your vision, a torch going out, a message from a friend who is not online,",
                             "a book left in one of your chests.")
                     .define("hauntings", true);
-            hauntingMinSeconds = b.defineInRange("hauntingMinSeconds", 90, 10, 36000);
+            hauntingMinSeconds = b.comment("Seconds between hauntings: a random wait between these two.",
+                            "If the maximum is set below the minimum, the minimum is used every time.")
+                    .defineInRange("hauntingMinSeconds", 90, 10, 36000);
             hauntingMaxSeconds = b.defineInRange("hauntingMaxSeconds", 240, 10, 36000);
             sabotage = b.comment("Let hauntings change the world a little: put out a torch behind you (the torch drops as an item,",
                             "needs the mobGriefing gamerule) and leave a book in a chest at your base.")
@@ -91,7 +93,8 @@ public final class FogLurkerConfig {
                     .defineInRange("wardRadius", 6, 0, 16);
             eyeContactRule = b.comment("While it hunts you: looking at it makes it charge faster, looking away slows it down.")
                     .define("eyeContactRule", true);
-            encounterMaxMinutes = b.comment("An appearance gives up and fades away after this long.")
+            encounterMaxMinutes = b.comment("An appearance gives up and fades away after this long (a watcher that only",
+                            "stares leaves after 2 minutes at most). Applies from the next appearance.")
                     .defineInRange("encounterMaxMinutes", 5, 1, 60);
             overworldOnly = b.comment("Only appear on its own in the Overworld (/foglurker spawn works everywhere).")
                     .define("overworldOnly", true);

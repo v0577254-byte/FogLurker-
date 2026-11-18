@@ -51,6 +51,15 @@ public class MauledEffect extends MobEffect {
         }
     }
 
+    /** ...and a charge started before the bite does not launch either. */
+    @SubscribeEvent
+    public static void onStopUsing(net.minecraftforge.event.entity.living.LivingEntityUseItemEvent.Stop event) {
+        if (isMauled(event.getEntity()) && event.getItem().getItem() instanceof net.minecraft.world.item.TridentItem
+                && net.minecraft.world.item.enchantment.EnchantmentHelper.getRiptide(event.getItem()) > 0) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public static void onMount(EntityMountEvent event) {
         // Server side only: the server decides who sits in a boat. Refusing on the client as well

@@ -70,6 +70,8 @@ public final class PlayerBehaviorProfile {
     private int awayHits;
     /** Game time of the last book it left for them (saved, so the 20-minute limit survives a restart). */
     public long lastBookAt = Long.MIN_VALUE / 2;
+    /** Game time the remembered dog was last seen with them (a dog unseen for a whole day may be gone). */
+    public long dogSeenAt;
 
     public net.minecraft.core.BlockPos home() {
         return new net.minecraft.core.BlockPos(homeX, homeY, homeZ);
@@ -196,6 +198,7 @@ public final class PlayerBehaviorProfile {
         }
         t.putInt("dogCollar", dogCollar);
         t.putFloat("dogSit", dogSitRatio);
+        t.putLong("dogSeen", dogSeenAt);
         t.putInt("escapes", escapes);
         t.putLong("lastBook", lastBookAt);
         t.putBoolean("noChatLearn", chatLearningOff);
@@ -235,6 +238,7 @@ public final class PlayerBehaviorProfile {
         }
         p.dogCollar = t.contains("dogCollar") ? t.getInt("dogCollar") : -1;
         p.dogSitRatio = t.contains("dogSit") ? t.getFloat("dogSit") : 0.3F;
+        p.dogSeenAt = t.getLong("dogSeen");
         p.escapes = t.getInt("escapes");
         if (t.contains("lastBook")) {
             p.lastBookAt = t.getLong("lastBook");

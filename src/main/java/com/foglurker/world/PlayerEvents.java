@@ -32,9 +32,18 @@ public final class PlayerEvents {
     @SubscribeEvent
     public static void onRightClickBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
         if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel level
+                && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
                 && level.getBlockState(event.getPos()).getBlock() instanceof net.minecraft.world.level.block.BellBlock) {
-            com.foglurker.brain.LurkerDirector.onBell(level, event.getPos(),
-                    event.getEntity() instanceof ServerPlayer sp ? sp : null);
+            // Only a bell that really rang counts (sneak-clicking with a block in hand, or the wrong face, does not
+            // ring it). The click is handled first; the bell's state is checked right after.
+            net.minecraft.core.BlockPos pos = event.getPos().immutable();
+            ServerPlayer ringer = event.getEntity() instanceof ServerPlayer sp ? sp : null;
+            level.getServer().execute(() -> {
+                if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity bell
+                        && bell.shaking && bell.ticks <= 5) {
+                    com.foglurker.brain.LurkerDirector.onBell(level, pos, ringer);
+                }
+            });
         }
     }
 

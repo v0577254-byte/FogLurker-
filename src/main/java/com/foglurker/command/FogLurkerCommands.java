@@ -235,6 +235,7 @@ public final class FogLurkerCommands {
             return 0;
         }
         boolean attack = target.serverLevel().getDifficulty() != net.minecraft.world.Difficulty.PEACEFUL
+                && !target.isCreative() && !target.isSpectator() // it could never keep that threat
                 && target.getRandom().nextBoolean();
         FogLurkerEntity lurker = LurkerDirector.spawnNightMeeting(target, attack);
         if (lurker == null) {
@@ -250,8 +251,11 @@ public final class FogLurkerCommands {
     private static int endGrace(CommandContext<CommandSourceStack> ctx) {
         FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
         data.endGrace();
+        String rest = LurkerDirector.isResting(ctx.getSource().getServer())
+                ? " (it was killed: the clock only starts after its rest, in " + time(LurkerDirector.restTicksLeft(ctx.getSource().getServer())) + ")"
+                : "";
         String next = data.naturalSpawning()
-                ? "First spawn roll in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes."
+                ? "First spawn roll in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes" + rest + "."
                 : "Natural spawning is off, so nothing rolls until /foglurker naturalspawning on.";
         ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal(
                 "The grace period is over. It is out there. " + next).withStyle(ChatFormatting.DARK_RED)), true);
@@ -391,8 +395,11 @@ public final class FogLurkerCommands {
             case WATCHER -> "as itself, the pale crawler, watching from the fog";
             default -> "hiding as a " + enc.disguise().id();
         };
+        boolean canHurt = target.serverLevel().getDifficulty() != net.minecraft.world.Difficulty.PEACEFUL
+                && !target.isCreative() && !target.isSpectator();
         reply(src, Component.literal("It is coming for " + target.getGameProfile().getName() + ", " + as
-                + ". Will attack: " + (enc.willAttack() ? "yes" : "no") + ".").withStyle(ChatFormatting.GRAY));
+                + ". Will attack: " + (!enc.willAttack() ? "no" : canHurt ? "yes"
+                : "no (it cannot hurt them now: Peaceful, Creative or spectator)") + ".").withStyle(ChatFormatting.GRAY));
         return 1;
     }
 
@@ -432,7 +439,9 @@ public final class FogLurkerCommands {
                 ? (wasOn ? "Natural spawning is already ON. " : "Natural spawning is now ON. ")
                 + (data.inGrace() ? "It starts rolling when the grace period ends."
                 : data.nextSpawnTicks() >= 0 ? "The next roll is in " + time(data.nextSpawnTicks()) + "."
-                : "The first roll is in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes.")
+                : "The first roll is in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes"
+                + (LurkerDirector.isResting(src.getServer()) ? " (after its rest, in " + time(LurkerDirector.restTicksLeft(src.getServer())) + ")" : "")
+                + ".")
                 : "Natural spawning is now OFF. It will only come when summoned with /foglurker spawn or /foglurker force. "
                 + "Anything already out there stays until it leaves (/foglurker despawn sends it away).")
                 .withStyle(on ? ChatFormatting.RED : ChatFormatting.GRAY));
@@ -619,7 +628,7 @@ public final class FogLurkerCommands {
         int n = 0;
         for (FogLurkerEntity l : LurkerDirector.active()) {
             if (l.brain() != null) {
-                l.brain().vanish(false);
+                l.brain().dismiss(); // sent away by an admin: not an escape, so no "you got away" and no peace
             } else {
                 l.discard();
             }
@@ -671,6 +680,7 @@ public final class FogLurkerCommands {
                 .append(Component.literal(" to cancel it ").withStyle(ChatFormatting.GREEN))
                 .append(Component.literal("NOTE: this will delete all your voice snippets that have been stored")
                         .withStyle(ChatFormatting.YELLOW)));
+        warnIfUnsaved(p);
         if (!VoiceBridge.isActive()) {
             p.sendSystemMessage(Component.literal("(Simple Voice Chat is not running on this server, so nothing is recorded until it is.)")
                     .withStyle(ChatFormatting.DARK_GRAY));
@@ -681,13 +691,16 @@ public final class FogLurkerCommands {
     private static int declineTerms(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer p = ctx.getSource().getPlayerOrException();
         boolean wasIn = VoiceConsent.isOptedIn(p.getUUID());
-        int deleted = wasIn ? VoiceConsent.optOut(p.getUUID()) : 0;
+        // Always opt out, even when the list cannot be read right now (then wasIn is unknown): saying no must
+        // never leave an old opt-in standing.
+        int deleted = VoiceConsent.optOut(p.getUUID());
         p.sendSystemMessage(Component.literal("we are sad that you chose this if you want to opt in then use ")
                 .withStyle(ChatFormatting.GRAY).append(suggest("/fglurk optin")));
-        if (wasIn) {
+        if (wasIn || deleted > 0) {
             p.sendSystemMessage(Component.literal("You were opted in before, so you are now opted out and "
                     + deleted + " stored snippet(s) were deleted.").withStyle(ChatFormatting.DARK_GRAY));
         }
+        warnIfUnsaved(p);
         return 1;
     }
 
@@ -704,11 +717,15 @@ public final class FogLurkerCommands {
         p.sendSystemMessage(PREFIX.copy().append(Component.literal("You have opted out. " + deleted
                 + " voice snippet(s) were deleted and nothing more will be recorded. Opt back in any time with ")
                 .withStyle(ChatFormatting.GRAY)).append(suggest("/fglurk optin")));
-        if (VoiceConsent.hasUnsavedChanges()) {
-            p.sendSystemMessage(Component.literal("Note: the server could not write this to its disk yet. You are opted out now and it "
-                    + "keeps trying; if you see this again, tell the server owner.").withStyle(ChatFormatting.GOLD));
-        }
+        warnIfUnsaved(p);
         return 1;
+    }
+
+    private static void warnIfUnsaved(ServerPlayer p) {
+        if (VoiceConsent.hasUnsavedChanges()) {
+            p.sendSystemMessage(Component.literal("Note: the server could not write this to its disk yet. It applies now and the "
+                    + "server keeps trying; if you see this again, tell the server owner.").withStyle(ChatFormatting.GOLD));
+        }
     }
 
     private static int voiceStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

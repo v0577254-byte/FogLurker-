@@ -215,7 +215,7 @@ public final class FogLurkerGameTests {
         CommandSourceStack console = server.createCommandSourceStack().withSuppressedOutput();
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         LurkerDifficulty before = data.difficulty();
-
+        try {
         d.execute("foglurker difficulty deathwish", console);
         check(data.difficulty() == LurkerDifficulty.DEATHWISH, "difficulty command did not set deathwish");
         d.execute("foglurker difficulty very easy", console);
@@ -241,7 +241,9 @@ public final class FogLurkerGameTests {
             check(m.attackCooldownTicks() == cooldowns[m.ordinal()], m + " has the wrong time between hits");
         }
         check(LurkerDifficulty.byId("medium") == LurkerDifficulty.MEDIUM, "byId");
-        data.setDifficulty(before);
+        } finally {
+            data.setDifficulty(before); // never leave later tests on Deathwish
+        }
         h.succeed();
     }
 
@@ -340,6 +342,7 @@ public final class FogLurkerGameTests {
             FogLurkerSavedData data = FogLurkerSavedData.get(server);
             LurkerDifficulty before = data.difficulty();
             int i = 0;
+            try {
             for (LurkerDifficulty mode : LurkerDifficulty.values()) {
                 data.setDifficulty(mode);
                 ServerPlayer p = players.get(i++);
@@ -357,7 +360,9 @@ public final class FogLurkerGameTests {
                 }
                 l.brain().vanish(false);
             }
-            data.setDifficulty(before);
+            } finally {
+                data.setDifficulty(before);
+            }
             h.succeed();
         }));
     }
@@ -536,6 +541,10 @@ public final class FogLurkerGameTests {
         check(com.foglurker.brain.SpotFinder.ground(level, pool.getX(), pool.getZ(), pool.getY(), true) == null,
                 "a water column was accepted as a spawn spot");
         check(!com.foglurker.brain.SpotFinder.isDry(level, pool.above()), "water was reported as dry");
+        // ...but dry ground right next to you is accepted (otherwise the checks above prove nothing).
+        check(com.foglurker.brain.SpotFinder.isDry(level, p.blockPosition()), "dry ground was reported as wet");
+        check(com.foglurker.brain.SpotFinder.ground(level, p.getBlockX(), p.getBlockZ(), p.getBlockY(), true) != null,
+                "dry ground was refused as a spawn spot");
 
         h.runAfterDelay(80, () -> logged(h, () -> {
             FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.CRAWLER, Boolean.FALSE);
@@ -706,6 +715,21 @@ public final class FogLurkerGameTests {
                     check(burnt.isDeadOrDying(), "the cactus should kill it");
                     check(h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area).isEmpty(),
                             "nothing should drop when a player did not land the killing blow (a cactus did)");
+                    // ...while a player's killing blow does drop its loot through the real death path. On Deathwish
+                    // three kills without a single drop is about a 1 in 10,000 chance.
+                    data.setDifficulty(LurkerDifficulty.DEATHWISH);
+                    int drops = 0;
+                    for (int k = 0; k < 3; k++) {
+                        data.setRestUntil(0);
+                        FogLurkerEntity prey = hunter(h, p, 1.5 + k * 4, 19.5);
+                        var spot = prey.getBoundingBox().inflate(4);
+                        prey.invulnerableTime = 0;
+                        prey.hurt(p.damageSources().playerAttack(p), 100000F);
+                        check(prey.isDeadOrDying(), "a huge player hit should kill it");
+                        drops += h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, spot).size();
+                    }
+                    check(drops > 0, "three Deathwish kills by a player dropped nothing");
+                    data.setDifficulty(LurkerDifficulty.MEDIUM);
                     // Flopping away or dancing, nothing hurts it, not even a creative player.
                     data.setRestUntil(0);
                     FogLurkerEntity flop = hunter(h, p, 8.5, 8.5);
@@ -2170,15 +2194,22 @@ public final class FogLurkerGameTests {
 
         String key = "AIzaTESTKEY_0123456789abcdef";
         String realKey = ApiKeyStore.storedKey(); // put back afterwards so tests never delete a real key
-        ApiKeyStore.set(key);
-        check(key.equals(ApiKeyStore.get()), "API key did not round-trip");
-        String onDisk = new String(Files.readAllBytes(SecureStorage.root().resolve("gemini_api_key.enc")),
-                StandardCharsets.ISO_8859_1);
-        check(!onDisk.contains("AIza"), "API key is stored in plain text");
-        check(ApiKeyStore.masked(key).equals("AIza…cdef"), "masking is wrong: " + ApiKeyStore.masked(key));
-        ApiKeyStore.set(null);
-        check(!Files.exists(SecureStorage.root().resolve("gemini_api_key.enc")), "clearing did not delete the key file");
-        ApiKeyStore.set(realKey);
+        try {
+            ApiKeyStore.set(key);
+            check(key.equals(ApiKeyStore.get()), "API key did not round-trip");
+            byte[] raw = Files.readAllBytes(SecureStorage.root().resolve("gemini_api_key.enc"));
+            String onDisk = new String(raw, StandardCharsets.ISO_8859_1);
+            check(!onDisk.contains("AIza") && !new String(raw, StandardCharsets.UTF_16LE).contains("AIza"),
+                    "API key is stored in plain text");
+            check(key.equals(new String(SecureStorage.decrypt(raw), StandardCharsets.UTF_8)), "the stored key does not decrypt back");
+            check(!java.util.Arrays.equals(SecureStorage.encrypt(key.getBytes(StandardCharsets.UTF_8)),
+                    SecureStorage.encrypt(key.getBytes(StandardCharsets.UTF_8))), "encrypting twice must never give the same bytes");
+            check(ApiKeyStore.masked(key).equals("AIza…cdef"), "masking is wrong: " + ApiKeyStore.masked(key));
+            ApiKeyStore.set(null);
+            check(!Files.exists(SecureStorage.root().resolve("gemini_api_key.enc")), "clearing did not delete the key file");
+        } finally {
+            ApiKeyStore.set(realKey); // even if a check above failed
+        }
 
         UUID id = UUID.randomUUID();
         check(!VoiceConsent.isOptedIn(id), "players must start opted out");

@@ -35,7 +35,16 @@ public final class VoiceRetention {
     /** Runs when the server (or singleplayer world) starts. @return snippets deleted */
     public static int onStart(long nowMillis) {
         int deleted = 0;
-        Long last = readStamp();
+        Long last;
+        boolean stampReadable = true;
+        try {
+            last = readStampStrict();
+        } catch (IOException e) {
+            // Cannot tell when it last ran: neither wipe nor overwrite the stamp (that would lose the 30-day rule).
+            FogLurkerMod.LOGGER.warn("Could not read when Fog Lurker last ran ({}); checking again next start", e.getMessage());
+            last = null;
+            stampReadable = false;
+        }
         if (last != null && nowMillis - last > RETENTION_MILLIS) {
             deleted = VoiceConsent.wipeEverything();
             FogLurkerMod.LOGGER.info("Fog Lurker was not used for over 30 days: deleted all {} stored voice snippets", deleted);
@@ -46,22 +55,38 @@ public final class VoiceRetention {
             FogLurkerMod.LOGGER.warn("Deleted {} voice snippet(s) that had no opt-in on record", orphans);
         }
         deleted += orphans;
-        stamp(nowMillis);
+        if (stampReadable) {
+            stamp(nowMillis);
+        }
         return deleted;
     }
 
     /** Runs every so often while playing, and when players join or leave. */
     public static void heartbeat(long nowMillis, Iterable<UUID> onlinePlayers) {
         VoiceConsent.flushIfUnsaved();
-        for (UUID id : onlinePlayers) {
-            VoiceConsent.touch(id, nowMillis);
-        }
+        VoiceConsent.touchAll(onlinePlayers, nowMillis);
         int expired = VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
         VoiceConsent.deleteOrphanSnippets(); // retries anything an opt-out could not delete at the time
         if (expired > 0) {
             FogLurkerMod.LOGGER.info("Deleted the voice snippets of {} player(s) not seen for 30 days", expired);
         }
         stamp(nowMillis);
+    }
+
+    /** @return when it last ran, null if never; throws if the stamp is there but cannot be read right now */
+    static Long readStampStrict() throws IOException {
+        Path f = SecureStorage.root().resolve(STAMP);
+        String text;
+        try {
+            text = Files.readString(f, StandardCharsets.UTF_8);
+        } catch (java.nio.file.NoSuchFileException missing) {
+            return null;
+        }
+        try {
+            return Long.parseLong(text.trim());
+        } catch (NumberFormatException damaged) {
+            return null; // garbage in the stamp: treat as never (it is rewritten below)
+        }
     }
 
     static Long readStamp() {

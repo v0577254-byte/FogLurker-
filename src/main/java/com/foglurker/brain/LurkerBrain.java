@@ -299,9 +299,10 @@ public final class LurkerBrain {
         lureStuck = 0;
         detour = null; // a side-step planned for the old phase must not steer the new one
         detours = 0; // each phase gets its own two tries at walking around an obstacle
+        queuedIntent = null; // a line planned for the last phase does not belong in this one
         if (p == Phase.TRANSFORM || p == Phase.ATTACK || p == Phase.FLEE) {
             pendingChat = null; // the mask is off: a line it was still "typing" is never sent
-            queuedIntent = null;
+            chatGen++; // ...and one still being written is thrown away when it arrives
         }
         clearFakeMine();
         clearBreaking();
@@ -823,6 +824,7 @@ public final class LurkerBrain {
             LurkerDirector.noteLeft(t.getUUID()); // it left this one: no new creature straight back to them
             pendingChat = null;
             queuedIntent = null;
+            chatGen++;
             huntId = easier.getUUID();
             lastSwitch = age;
             windupUntil = age + DEATHWISH_WINDUP; // a new victim gets the same warning before a Deathwish bite
@@ -1341,6 +1343,12 @@ public final class LurkerBrain {
         return p.getViewVector(1F).dot(to.scale(1 / len)) > 0.85 && p.hasLineOfSight(mob);
     }
 
+    /** Sent away by an admin command: it leaves, but nobody "got away" from it. */
+    public void dismiss() {
+        meetingChase = false;
+        vanish(false);
+    }
+
     /** True once it has left (vanishing, flopping away or dead): nothing reaches it any more. */
     public boolean isEnded() {
         return ended;
@@ -1521,13 +1529,10 @@ public final class LurkerBrain {
     }
 
     /**
-     * Converts a real-world ground speed (blocks per second) into a navigation speed modifier.
-     * A mob's top speed scales with the square of its speed value, hence the square root.
-     */
-    /**
      * Speed modifier for a ground speed in blocks/s. Square root on purpose: Mob.setSpeed also sets the mob's
      * forward input (setZza), so vanilla mob ground speed grows with the square of the speed value. 43.17 is
-     * vanilla's player walk (speed 0.1 with full input = 4.317 blocks/s).
+     * vanilla's walk: blocks/s = 43.17 x speed x input. A player walks with speed 0.1 and input 1.0 (4.317 blocks/s);
+     * a mob's input equals its speed, so for a mob blocks/s = 43.17 x speed squared.
      */
     private double speedFor(double blocksPerSecond) {
         double attr = mob.getAttributeValue(Attributes.MOVEMENT_SPEED);
@@ -1739,6 +1744,9 @@ public final class LurkerBrain {
     @Nullable
     private MimicChat.Intent queuedIntent;
 
+    /** Bumped when the mask comes off or it switches victim: chat written before that is never sent. */
+    private int chatGen;
+
     private void say(ServerPlayer t, MimicChat.Intent intent, @Nullable String heard) {
         if (!FogLurkerConfig.COMMON.impersonateInChat.get() || enc.copiedName() == null) {
             return;
@@ -1750,14 +1758,17 @@ public final class LurkerBrain {
             return;
         }
         chatInFlight = true;
+        int gen = chatGen;
         MimicChat.Context ctx = new MimicChat.Context(enc.copiedName(), t.getGameProfile().getName(), copiedProfile,
                 woodsDir, mob.level().isNight(), List.copyOf(said));
         MinecraftServer server = server();
-        boolean shareHeard = heard == null || !savedData().profile(t.getUUID()).chatLearningOff;
+        // Their words go to Gemini only if the server keeps chat at all (learnChat) and they did not opt out.
+        boolean shareHeard = heard == null
+                || (FogLurkerConfig.COMMON.learnChat.get() && !savedData().profile(t.getUUID()).chatLearningOff);
         MimicChat.compose(ctx, intent, heard, shareHeard, random).whenComplete((text, err) -> server.execute(() -> {
             chatInFlight = false;
-            if (err != null || text == null || text.isBlank() || ended) {
-                return;
+            if (err != null || text == null || text.isBlank() || ended || gen != chatGen) {
+                return; // failed, or written for a moment that has passed (it revealed itself or changed victim)
             }
             pendingChat = text;
             // Human typing time.

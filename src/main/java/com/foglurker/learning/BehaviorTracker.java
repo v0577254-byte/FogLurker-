@@ -246,10 +246,14 @@ public final class BehaviorTracker {
                 PlayerBehaviorProfile prof = data.profile(p.getUUID());
                 boolean named = wolf.hasCustomName();
                 // Prefer remembering a named dog over unnamed ones.
-                // A remembered dog that is not around any more (dead, or given away) gives way to the one here.
+                // A remembered dog not seen with them for a whole day (dead, given away) gives way to the one here.
+                // Not just "not loaded": a dog left at home in another dimension must not flip back and forth.
+                long dayClock = p.server.overworld().getGameTime();
                 boolean rememberedGone = prof.dogUuid != null && !prof.dogUuid.equals(wolf.getUUID())
-                        && !(((net.minecraft.server.level.ServerLevel) wolf.level()).getEntity(prof.dogUuid) instanceof Wolf);
+                        && !(((net.minecraft.server.level.ServerLevel) wolf.level()).getEntity(prof.dogUuid) instanceof Wolf)
+                        && dayClock - prof.dogSeenAt > 24000;
                 if (prof.dogUuid == null || prof.dogUuid.equals(wolf.getUUID()) || named || prof.dogName == null || rememberedGone) {
+                    prof.dogSeenAt = dayClock;
                     prof.dogUuid = wolf.getUUID();
                     prof.dogName = named ? wolf.getCustomName().getString() : null;
                     prof.dogCollar = wolf.getCollarColor().getId();

@@ -166,34 +166,42 @@ public final class SecureStorage {
                 return masterKey;
             }
             Path keyFile = root().resolve(".master.key");
-            byte[] raw = null;
-            boolean intact;
+            byte[] raw;
+            // Only "the file is definitely not there" counts as missing. Any other trouble reading it (a lock,
+            // an access error, a flaky drive) is "try again later": replacing a key we merely could not read
+            // would make every clip and the API key unreadable for good.
             try {
-                intact = Files.isRegularFile(keyFile) && Files.size(keyFile) == 32;
-                if (intact) {
-                    raw = Files.readAllBytes(keyFile);
+                java.nio.file.attribute.BasicFileAttributes attrs;
+                try {
+                    attrs = Files.readAttributes(keyFile, java.nio.file.attribute.BasicFileAttributes.class);
+                } catch (java.nio.file.NoSuchFileException missing) {
+                    attrs = null;
                 }
+                if (attrs != null && attrs.isRegularFile() && attrs.size() == 32) {
+                    raw = Files.readAllBytes(keyFile);
+                } else {
+                    boolean wasThere = attrs != null;
+                    if (wasThere) {
+                        // Damaged key: keep it (it may be recoverable) and say so loudly instead of silently
+                        // replacing it, which would make everything encrypted with it unreadable without warning.
+                        Path aside = keyFile.resolveSibling(".master.key.damaged-" + System.currentTimeMillis());
+                        Files.move(keyFile, aside);
+                        FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key was damaged and was moved to {}. A new key was "
+                                + "created: existing voice snippets and the Gemini API key cannot be read and must be set again.", aside);
+                    }
+                    if (!wasThere && hasEncryptedData()) {
+                        FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key is missing but encrypted files are still there "
+                                + "(was the folder copied without its .master.key?). A new key was created: existing voice "
+                                + "snippets and the Gemini API key cannot be read and must be set again.");
+                    }
+                    raw = new byte[32];
+                    RANDOM.nextBytes(raw);
+                    writeAtomic(keyFile, raw);
+                }
+            } catch (Unavailable e) {
+                throw e;
             } catch (IOException e) {
                 throw new Unavailable("The secure folder key cannot be opened right now", e);
-            }
-            if (!intact) {
-                boolean wasThere = Files.exists(keyFile);
-                if (wasThere) {
-                    // Damaged key: keep it (it may be recoverable) and say so loudly instead of silently
-                    // replacing it, which would make everything encrypted with it unreadable without warning.
-                    Path aside = keyFile.resolveSibling(".master.key.damaged-" + System.currentTimeMillis());
-                    Files.move(keyFile, aside);
-                    FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key was damaged and was moved to {}. A new key was "
-                            + "created: existing voice snippets and the Gemini API key cannot be read and must be set again.", aside);
-                }
-                if (!wasThere && hasEncryptedData()) {
-                    FogLurkerMod.LOGGER.error("Fog Lurker's secure folder key is missing but encrypted files are still there "
-                            + "(was the folder copied without its .master.key?). A new key was created: existing voice "
-                            + "snippets and the Gemini API key cannot be read and must be set again.");
-                }
-                raw = new byte[32];
-                RANDOM.nextBytes(raw);
-                writeAtomic(keyFile, raw);
             }
             masterKey = new SecretKeySpec(raw, "AES");
             Arrays.fill(raw, (byte) 0);
@@ -243,6 +251,8 @@ public final class SecureStorage {
         byte[] data;
         try {
             data = Files.readAllBytes(file);
+        } catch (java.nio.file.NoSuchFileException gone) {
+            throw gone; // really not there: callers treat that as "absent", not "busy"
         } catch (IOException e) {
             throw new Unavailable("Cannot open " + file.getFileName() + " right now", e);
         }
@@ -264,6 +274,7 @@ public final class SecureStorage {
             restrict(tmp, false); // narrowed while still empty, before the secret goes in
         }
         // Flushed to the disk before it replaces the old file, so a power cut cannot leave an empty file behind.
+        try {
         try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(tmp,
                 java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
             java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(bytes);
@@ -277,6 +288,14 @@ public final class SecureStorage {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+        }
+        } catch (IOException | RuntimeException failed) {
+            try {
+                Files.deleteIfExists(tmp); // never leave a half-written or orphaned temp file behind
+            } catch (IOException | RuntimeException ignored) {
+                // the next write of this file deletes it first anyway
+            }
+            throw failed;
         }
         restrict(file, false);
     }

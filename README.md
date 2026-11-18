@@ -356,7 +356,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `allowDoppelganger` | true | When you are alone it can copy *you* |
 | `minPlayerSeparation` | 48 | Players must be this far apart before it impersonates one to the other |
 | `chatVisibility` | `TARGET_ONLY` | `EVERYONE` lets the impersonated player see their own fake messages too |
-| `learnChat` | true | Remember recent chat lines to copy typing style (players can opt out with `/fglurk chatlearning off`) |
+| `learnChat` | true | Remember recent chat lines to copy typing style (players can opt out with `/fglurk chatlearning off`). Off: nothing players type is kept or sent to Gemini |
 | `impersonateInChat` | true | Let it send fake chat as a player (the mimic's lines and the "friend who is not online" haunting). Off: it still copies skins, voices and movement |
 | `bellCooldownMinutes` | 15 | After a bell drives it off a player, bells do not work against it for that player for this long (0 = bells always work) |
 | `escapeEscalation` | true | Each escape makes the next appearance 10% more likely to attack (up to +30%); a bite resets it |

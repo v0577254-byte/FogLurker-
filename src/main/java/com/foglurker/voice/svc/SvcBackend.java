@@ -290,6 +290,9 @@ final class SvcBackend implements VoiceBridge.Backend {
                 }
                 try {
                     player.startPlaying();
+                    if (cancelled.contains(entityId)) {
+                        player.stopPlaying(); // told to stop while it was starting
+                    }
                 } catch (RuntimeException e) {
                     playing.remove(entityId, player);
                     playingOwner.remove(player);

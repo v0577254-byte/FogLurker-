@@ -169,6 +169,9 @@ public class ProtectorOfTheFogItem extends SwordItem {
             player.displayClientMessage(Component.literal(fled == reached ? "It shrieks and flees into the fog."
                     : fled > 0 ? "Some of it fled. The rest is weakened." : "It shrugs it off... but it is weakened.")
                     .withStyle(ChatFormatting.AQUA), true);
+        } else {
+            player.displayClientMessage(Component.literal("The fog swallows the sound. Nothing was near enough to hear it.")
+                    .withStyle(ChatFormatting.DARK_AQUA), true);
         }
         return reached;
     }

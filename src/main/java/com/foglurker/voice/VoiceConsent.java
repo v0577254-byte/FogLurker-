@@ -67,8 +67,14 @@ public final class VoiceConsent {
     /** @return the copy in this file, ABSENT if there is none, or null if it exists but cannot be read */
     @javax.annotation.Nullable
     private static Copy read(Path f) {
-        if (!Files.isRegularFile(f)) {
+        try {
+            if (!Files.readAttributes(f, java.nio.file.attribute.BasicFileAttributes.class).isRegularFile()) {
+                return ABSENT;
+            }
+        } catch (java.nio.file.NoSuchFileException missing) {
             return ABSENT;
+        } catch (IOException | RuntimeException e) {
+            return BUSY; // there, but cannot even be looked at right now
         }
         try {
             String json = new String(SecureStorage.readEncrypted(f), StandardCharsets.UTF_8);
@@ -84,6 +90,8 @@ public final class VoiceConsent {
             }
             long v = root.has("version") ? root.get("version").getAsLong() : 0L;
             return new Copy(f, v, in, seen);
+        } catch (java.nio.file.NoSuchFileException gone) {
+            return ABSENT; // deleted in between
         } catch (SecureStorage.Unavailable e) {
             FogLurkerMod.LOGGER.warn("The voice consent file {} cannot be opened right now ({}); trying again shortly",
                     f.getFileName(), e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
@@ -121,20 +129,22 @@ public final class VoiceConsent {
             if (loaded) {
                 return true;
             }
-            if (System.currentTimeMillis() < retryAt) {
+            if (retryAt != 0 && System.nanoTime() - retryAt < 0) {
                 return false;
             }
             Copy main = read(file());
             Copy next = read(newerFile());
             if (main == BUSY || next == BUSY) {
-                retryAt = System.currentTimeMillis() + 30_000;
+                retryAt = System.nanoTime() + 30_000_000_000L; // nanoTime: a clock change cannot stretch the wait
                 return false;
             }
             retryAt = 0;
             if (main == null || next == null) {
                 // A copy we cannot read might be the newest one, holding an opt-out. Half a list is worse than
                 // none: nobody is opted in unless we can read that they are.
-                String kept = (main == null ? setAside(file()) : "") + (next == null ? " " + setAside(newerFile()) : "");
+                // Both copies are kept aside for the server owner (the readable one too: it is about to be replaced).
+                String kept = (main == null || main != ABSENT ? setAside(file()) : "")
+                        + (next == null || next != ABSENT ? " " + setAside(newerFile()) : "");
                 FogLurkerMod.LOGGER.error("Could not read the voice consent list ({}). Everyone is treated as opted out, "
                         + "the voice snippets stored for them are deleted, and players can opt in again.", kept.trim());
                 OPTED_IN.clear();
@@ -144,31 +154,33 @@ public final class VoiceConsent {
                 SnippetStore.deleteExcept(Set.of());
                 PENDING_OUT.clear();
                 pendingWipe = false;
-                loaded = true;
                 save(true); // an empty list, newer than anything left on disk
+                loaded = true; // published last: nobody sees the list before it is final
                 return true;
             }
             Copy current = next.version() > main.version() ? next : main;
             OPTED_IN.addAll(current.optedIn());
             LAST_SEEN.putAll(current.lastSeen());
             version = Math.max(main.version(), next.version());
-            loaded = true;
-            // Apply what happened while the list could not be opened.
+            // Apply what happened while the list could not be opened, before anyone can see the list.
             boolean removed = false;
             if (pendingWipe) {
                 removed = !OPTED_IN.isEmpty();
                 OPTED_IN.clear();
                 LAST_SEEN.clear();
                 pendingWipe = false;
+                SnippetStore.deleteEveryone();
             }
             for (UUID out : PENDING_OUT) {
                 removed |= OPTED_IN.remove(out);
                 LAST_SEEN.remove(out);
+                SnippetStore.deleteAll(out); // anything written for them meanwhile goes too
             }
             PENDING_OUT.clear();
             if (removed) {
                 save(true);
             }
+            loaded = true; // published last: nobody sees the list before it is final
             return true;
         }
     }
@@ -218,6 +230,23 @@ public final class VoiceConsent {
     public static void touch(UUID player, long nowMillis) {
         if (ensureLoaded() && OPTED_IN.contains(player)) {
             LAST_SEEN.put(player, nowMillis);
+            save(false);
+        }
+    }
+
+    /** Like {@link #touch} for many players at once, with a single write (not one disk flush per player). */
+    public static void touchAll(Iterable<UUID> players, long nowMillis) {
+        if (!ensureLoaded()) {
+            return;
+        }
+        boolean any = false;
+        for (UUID id : players) {
+            if (OPTED_IN.contains(id)) {
+                LAST_SEEN.put(id, nowMillis);
+                any = true;
+            }
+        }
+        if (any) {
             save(false);
         }
     }

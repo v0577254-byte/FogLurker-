@@ -56,7 +56,7 @@ public final class SnippetStore {
                     return;
                 }
                 prune(d);
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
                 FogLurkerMod.LOGGER.error("Could not store voice snippet", e);
             }
         });
@@ -82,6 +82,8 @@ public final class SnippetStore {
         }
         try (Stream<Path> s = Files.list(d)) {
             return new ArrayList<>(s.filter(p -> p.getFileName().toString().endsWith(".snip")).toList());
+        } catch (java.io.UncheckedIOException e) {
+            throw e.getCause(); // a directory read error mid-listing: an ordinary IOException for the callers
         }
     }
 
@@ -103,6 +105,8 @@ public final class SnippetStore {
             }
             pick = files.get(ThreadLocalRandom.current().nextInt(files.size()));
             return fromBytes(SecureStorage.readEncrypted(pick));
+        } catch (java.nio.file.NoSuchFileException gone) {
+            return null; // deleted in between (pruned, or an opt-out): nothing to play, nothing to clean up
         } catch (SecureStorage.Unavailable e) {
             FogLurkerMod.LOGGER.warn("Could not open a voice snippet right now: {}", e.getMessage());
             return null;
@@ -134,7 +138,7 @@ public final class SnippetStore {
                     // leave anything that is not a player folder alone
                 }
             }
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             FogLurkerMod.LOGGER.error("Could not list voice snippet folders", e);
         }
         return deleted;
@@ -152,7 +156,7 @@ public final class SnippetStore {
                     // leave anything that is not a player folder alone
                 }
             }
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             FogLurkerMod.LOGGER.error("Could not list voice snippet folders", e);
         }
         return deleted;
