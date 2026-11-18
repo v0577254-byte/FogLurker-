@@ -606,7 +606,7 @@ public class FogLurkerEntity extends PathfinderMob {
         if (!killedByPlayer || brain == null) {
             return; // only when a player landed the killing blow (not lava after a player's hit)
         }
-        boolean night = this.level().isNight();
+        boolean night = !this.level().isDay(); // (the Nether and End have no daylight: there it counts as night)
         for (net.minecraft.world.item.ItemStack stack : LurkerLoot.roll(difficulty(), night, this.getRandom())) {
             this.spawnAtLocation(stack);
         }

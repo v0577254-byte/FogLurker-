@@ -331,10 +331,13 @@ public final class BehaviorTracker {
             // This event comes before vanilla's own checks (too far, blocked, monsters, daytime). Only a bed that
             // really became theirs counts: they fell asleep in it, or it is now their respawn point.
             net.minecraft.core.BlockPos bed = event.getPos().immutable();
+            net.minecraft.core.BlockPos spawnBefore = p.getRespawnPosition();
             var server = p.server;
             server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
                 boolean theirs = p.isSleeping() && p.getSleepingPos().map(bed::equals).orElse(false)
-                        || bed.equals(p.getRespawnPosition()) && p.getRespawnDimension() == p.level().dimension();
+                        // (or this click just made it their spawn: clicking the bed that already was does not count)
+                        || bed.equals(p.getRespawnPosition()) && !bed.equals(spawnBefore)
+                        && p.getRespawnDimension() == p.level().dimension();
                 if (!p.hasDisconnected() && theirs) {
                     FogLurkerSavedData data = FogLurkerSavedData.get(server);
                     data.profile(p.getUUID()).sleptAt(p.level().dimension().location().toString(), bed);
@@ -361,5 +364,15 @@ public final class BehaviorTracker {
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         WINDOWS.remove(event.getEntity().getUUID());
+        // Seen today, even after a visit too short to finish a learning window.
+        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)) {
+            FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
+            PlayerBehaviorProfile prof = data.profileOrNull(p.getUUID());
+            if (prof != null) {
+                prof.lastSeenMillis = System.currentTimeMillis();
+                prof.lastKnownName = p.getGameProfile().getName();
+                data.setDirty();
+            }
+        }
     }
 }

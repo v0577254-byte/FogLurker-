@@ -39,10 +39,21 @@ public final class EntityBehaviorStats {
             return t;
         }
 
-        static Stats load(CompoundTag t) {
-            Stats s = new Stats(t.getFloat("move"), t.getFloat("speed"), t.getFloat("idle"), t.getFloat("look"));
-            s.samples = t.getInt("n");
+        static Stats load(String type, CompoundTag t) {
+            // Missing or damaged values (NaN would stick forever through the averaging) fall back to the defaults.
+            Stats d = defaults(type);
+            Stats s = new Stats(value(t, "move", d.moveFraction), value(t, "speed", d.moveSpeed),
+                    value(t, "idle", d.idleSeconds), value(t, "look", d.lookAtPlayer));
+            s.samples = Math.max(0, t.getInt("n"));
             return s;
+        }
+
+        private static float value(CompoundTag t, String key, float fallback) {
+            if (!t.contains(key, net.minecraft.nbt.Tag.TAG_ANY_NUMERIC)) {
+                return fallback;
+            }
+            float v = t.getFloat(key);
+            return Float.isFinite(v) ? v : fallback;
         }
     }
 
@@ -91,7 +102,7 @@ public final class EntityBehaviorStats {
     public static EntityBehaviorStats load(CompoundTag t) {
         EntityBehaviorStats e = new EntityBehaviorStats();
         for (String k : t.getAllKeys()) {
-            e.byType.put(k, Stats.load(t.getCompound(k)));
+            e.byType.put(k, Stats.load(k, t.getCompound(k)));
         }
         return e;
     }
