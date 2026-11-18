@@ -209,9 +209,18 @@ public final class FogLurkerSavedData extends SavedData {
         }
         // Someone not seen for a year is forgotten (their name, habits and chat), so the file cannot grow forever.
         // Never anyone who opted out of chat learning: forgetting them would forget that choice too.
+        // (Profiles from older saves, with no date, get one now, so their year starts counting too. Anyone online
+        // right now is never forgotten, whatever their date says.)
         long nowMillis = System.currentTimeMillis();
-        profiles.values().removeIf(p -> p.lastSeenMillis != 0 && !p.chatLearningOff
-                && nowMillis - p.lastSeenMillis > 365L * 24 * 60 * 60 * 1000);
+        MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        profiles.entrySet().removeIf(e -> {
+            PlayerBehaviorProfile p = e.getValue();
+            if (p.lastSeenMillis == 0) {
+                p.lastSeenMillis = nowMillis;
+            }
+            boolean online = server != null && server.getPlayerList().getPlayer(e.getKey()) != null;
+            return !online && !p.chatLearningOff && nowMillis - p.lastSeenMillis > 365L * 24 * 60 * 60 * 1000;
+        });
         if (!keepChat) {
             // learnChat off means nothing typed is kept: lines stored before it was switched off go too.
             profiles.values().forEach(p -> p.chatSamples.clear());

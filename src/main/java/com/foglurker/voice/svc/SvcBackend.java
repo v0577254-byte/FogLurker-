@@ -188,7 +188,9 @@ final class SvcBackend implements VoiceBridge.Backend {
                 return;
             }
             if (size + pcm.length > buffer.length) {
-                buffer = Arrays.copyOf(buffer, Math.max(buffer.length * 2, size + pcm.length));
+                short[] old = buffer;
+                buffer = Arrays.copyOf(old, Math.max(old.length * 2, size + pcm.length));
+                Arrays.fill(old, (short) 0); // the outgrown copy is zeroed too, not left in memory
             }
             System.arraycopy(pcm, 0, buffer, size, pcm.length);
             size += pcm.length;

@@ -301,7 +301,8 @@ public final class GeminiClient {
             }
             if (r.status() == 429) {
                 // Free-tier limits are per model: the next model may still have quota.
-                if (c.key().equals(ApiKeyStore.get())) { // (an answer for a key replaced meanwhile says nothing about the new one)
+                String current = ApiKeyStore.get(); // (null while the key store is busy: then it is still this key)
+                if (current == null || c.key().equals(current)) { // an answer for a replaced key says nothing about the new one
                     MODEL_LIMITED_UNTIL.put(model, System.currentTimeMillis() + rateLimitMillis(r));
                 }
                 return tryModels(c, index + 1, r, false);

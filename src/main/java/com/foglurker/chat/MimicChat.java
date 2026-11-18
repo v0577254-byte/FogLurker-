@@ -100,9 +100,8 @@ public final class MimicChat {
     }
 
     /** A chat line as quoted data for the prompt: one line, no formatting codes, no quotes of its own to break out of. */
-    private static String quoted(String line) {
-        String t = cleanText(line).replace('"', '\'');
-        return "\"" + (t.length() > 200 ? t.substring(0, 200) : t) + "\"";
+    public static String quoted(String line) {
+        return "\"" + clip(cleanText(line).replace('"', '\''), 200) + "\""; // (clip never splits an emoji)
     }
 
     private static String userPrompt(Context ctx, Intent intent, @Nullable String heard) {
