@@ -190,7 +190,7 @@ So a long render distance cannot push the fog out of sight, and a short one stil
 
 ## Night
 
-**The fog is thicker at night:** +10% on Very Easy, +15% Easy, +25% Medium, +35% Hard, +50% Deathwish.
+**The fog is thicker at night:** +10% on Very Easy, +15% Easy, +25% Medium, +35% Hard, +50% Deathwish. (Once it attacks, the fog is already close to as thick as it gets, so at night it can only thicken up to that limit.)
 
 **Deathwish only: the night meeting.** On Deathwish, at night, out in the open, about 3 in 10 of its appearances are a meeting: you walk straight into it. It stands a few steps in front of you, stares, and says:
 

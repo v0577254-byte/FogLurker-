@@ -39,6 +39,11 @@ public class MauledEffect extends MobEffect {
                 v = v.add(net.minecraft.util.Mth.sin(f) * 0.2F, 0.0, -net.minecraft.util.Mth.cos(f) * 0.2F);
             }
             e.setDeltaMovement(v.x, 0.0, v.z);
+            if (e instanceof net.minecraft.server.level.ServerPlayer sp) {
+                // Say why the jump failed (above the hotbar, so it never fills the chat).
+                sp.displayClientMessage(net.minecraft.network.chat.Component.translatable("effect.foglurker.mauled.description")
+                        .withStyle(net.minecraft.ChatFormatting.DARK_RED), true);
+            }
         }
     }
 

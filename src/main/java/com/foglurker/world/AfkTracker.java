@@ -48,6 +48,8 @@ public final class AfkTracker {
         boolean afk;
         boolean manual;
         long afkSince;
+        /** When "went afk" was last told to everyone (so /afk spam cannot flood the chat). */
+        long announcedAt = Long.MIN_VALUE / 2;
         float yaw;
         float pitch;
         double x;
@@ -164,9 +166,12 @@ public final class AfkTracker {
         s.afkSince = now;
         p.refreshTabListName();
         if (afk) {
-            // Everyone on the server sees it, like a join message.
-            p.server.getPlayerList().broadcastSystemMessage(Component.literal(p.getGameProfile().getName() + " went afk")
-                    .withStyle(ChatFormatting.GRAY), false);
+            // Everyone on the server sees it, like a join message (at most once a minute per player).
+            if (now - s.announcedAt >= 1200) {
+                s.announcedAt = now;
+                p.server.getPlayerList().broadcastSystemMessage(Component.literal(p.getGameProfile().getName() + " went afk")
+                        .withStyle(ChatFormatting.GRAY), false);
+            }
             p.sendSystemMessage(Component.literal(manual
                     ? "It will leave you alone until you move or look around. (/afk again to come back)"
                     : "You did nothing for " + FogLurkerConfig.COMMON.afkMinutes.get()

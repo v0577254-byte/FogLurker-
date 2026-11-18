@@ -1,11 +1,9 @@
 {
   "entity.foglurker.fog_lurker": "Fog Lurker",
   "death.attack.foglurker.lurker": "%1$s was taken into the fog",
-  "death.attack.foglurker.lurker.player": "%1$s was taken into the fog by %2$s",
-  "death.attack.foglurker.lurker.item": "%1$s was taken into the fog by %2$s",
+  "death.attack.foglurker.lurker.item": "%1$s was taken into the fog",
   "death.attack.foglurker.lurker_oneshot": "%1$s followed the wrong friend",
-  "death.attack.foglurker.lurker_oneshot.player": "%1$s followed %2$s into the woods",
-  "death.attack.foglurker.lurker_oneshot.item": "%1$s followed %2$s into the woods",
+  "death.attack.foglurker.lurker_oneshot.item": "%1$s followed the wrong friend",
   "subtitles.foglurker.lurker.scream": "Something screams",
   "subtitles.foglurker.lurker.reveal": "Something sheds its skin",
   "subtitles.foglurker.lurker.whisper": "Whispers in the fog",
@@ -21,6 +19,5 @@
   "item.foglurker.foggy_stick": "Foggy Stick",
   "item.foglurker.protector_of_the_fog": "The Protector of the Fog",
   "death.attack.foglurker.protector": "%1$s was cut down by %2$s",
-  "death.attack.foglurker.protector.player": "%1$s was cut down by %2$s",
   "death.attack.foglurker.protector.item": "%1$s was cut down by %2$s using %3$s"
 }

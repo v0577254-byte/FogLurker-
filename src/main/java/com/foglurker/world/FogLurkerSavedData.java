@@ -207,6 +207,11 @@ public final class FogLurkerSavedData extends SavedData {
         } catch (IllegalStateException notLoaded) {
             keepChat = false; // when unsure, keep nothing anyone typed
         }
+        // Someone not seen for a year is forgotten (their name, habits and chat), so the file cannot grow forever.
+        // Never anyone who opted out of chat learning: forgetting them would forget that choice too.
+        long nowMillis = System.currentTimeMillis();
+        profiles.values().removeIf(p -> p.lastSeenMillis != 0 && !p.chatLearningOff
+                && nowMillis - p.lastSeenMillis > 365L * 24 * 60 * 60 * 1000);
         if (!keepChat) {
             // learnChat off means nothing typed is kept: lines stored before it was switched off go too.
             profiles.values().forEach(p -> p.chatSamples.clear());

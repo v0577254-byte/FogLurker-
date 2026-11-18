@@ -307,7 +307,8 @@ public final class BehaviorTracker {
         // Chat can be decorated off-thread; do all bookkeeping on the server thread.
         p.server.execute(() -> {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
-            boolean optedOut = data.profile(p.getUUID()).chatLearningOff;
+            var known = data.profileOrNull(p.getUUID()); // chatting alone never creates a profile
+            boolean optedOut = known != null && known.chatLearningOff;
             if (!optedOut && FogLurkerConfig.COMMON.learnChat.get()) {
                 RecentChat.add(p.getGameProfile().getName(), text); // what it shows Gemini as "recent chat"
             }

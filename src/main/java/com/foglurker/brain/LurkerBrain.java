@@ -864,6 +864,8 @@ public final class LurkerBrain {
             windupUntil = age + DEATHWISH_WINDUP; // a new victim gets the same warning before a Deathwish bite
             bestAttackDist = Double.MAX_VALUE;
             attackStall = 0;
+            clearBreaking(); // the wall it was clawing toward the last victim: no cracks left, no half-dug block
+            pushTicks = 0;
             mob.playSound(ModSounds.ATTACK.get(), 1.4F, 0.6F);
             ModNetwork.send(easier, new ScarePacket(40));
             t = easier;
