@@ -138,7 +138,8 @@ public final class ChatStyle {
                 s += end;
             }
         } else {
-            s = text.trim().endsWith("?") && random.nextBoolean() ? core + "?" : core;
+            // ("?" on its own stays "?": dropping its only character would leave nothing to say)
+            s = core.isBlank() ? text.trim() : text.trim().endsWith("?") && random.nextBoolean() ? core + "?" : core;
         }
         if (allCaps) {
             s = s.toUpperCase(Locale.ROOT);

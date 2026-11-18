@@ -301,7 +301,9 @@ public final class GeminiClient {
             }
             if (r.status() == 429) {
                 // Free-tier limits are per model: the next model may still have quota.
-                MODEL_LIMITED_UNTIL.put(model, System.currentTimeMillis() + rateLimitMillis(r));
+                if (c.key().equals(ApiKeyStore.get())) { // (an answer for a key replaced meanwhile says nothing about the new one)
+                    MODEL_LIMITED_UNTIL.put(model, System.currentTimeMillis() + rateLimitMillis(r));
+                }
                 return tryModels(c, index + 1, r, false);
             }
             if (r.status() == 400 || r.status() == 404 || (r.status() >= 500 && r.status() < 600)) {
@@ -420,13 +422,69 @@ public final class GeminiClient {
             // Never include the exception text: it can quote the header value (the key).
             return CompletableFuture.completedFuture(Result.fail(0, "Could not build the request for model " + model));
         }
-        return HTTP.sendAsync(req, HttpResponse.BodyHandlers.ofString())
+        return HTTP.sendAsync(req, cappedBody())
                 .thenApply(resp -> scrubKey(withRetryAfter(parse(resp.statusCode(), resp.body()),
                         resp.headers().firstValue("Retry-After").orElse(null)), key))
                 .exceptionally(t -> {
                     FogLurkerMod.LOGGER.debug("Gemini request to {} failed: {}", model, rootMessage(t));
                     return Result.fail(0, "Could not reach Gemini: " + rootMessage(t));
                 });
+    }
+
+    /** Replies bigger than this are refused unread: a real answer is a few kilobytes. */
+    private static final int MAX_REPLY_BYTES = 256 * 1024;
+
+    /** Reads the reply as text, but gives up (without buffering the rest) once it passes {@link #MAX_REPLY_BYTES}. */
+    private static HttpResponse.BodyHandler<String> cappedBody() {
+        return info -> new HttpResponse.BodySubscriber<>() {
+            private final CompletableFuture<String> result = new CompletableFuture<>();
+            private final java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+            private java.util.concurrent.Flow.Subscription subscription;
+            private boolean done;
+
+            @Override
+            public java.util.concurrent.CompletionStage<String> getBody() {
+                return result;
+            }
+
+            @Override
+            public void onSubscribe(java.util.concurrent.Flow.Subscription s) {
+                subscription = s;
+                s.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(List<java.nio.ByteBuffer> items) {
+                if (done) {
+                    return;
+                }
+                for (java.nio.ByteBuffer b : items) {
+                    if (buf.size() + b.remaining() > MAX_REPLY_BYTES) {
+                        done = true;
+                        subscription.cancel();
+                        result.completeExceptionally(new java.io.IOException("the reply was too large"));
+                        return;
+                    }
+                    byte[] bytes = new byte[b.remaining()];
+                    b.get(bytes);
+                    buf.write(bytes, 0, bytes.length);
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                done = true;
+                result.completeExceptionally(t);
+            }
+
+            @Override
+            public void onComplete() {
+                if (!done) {
+                    done = true;
+                    result.complete(buf.toString(java.nio.charset.StandardCharsets.UTF_8));
+                }
+            }
+        };
     }
 
     private static JsonArray parts(String text) {
@@ -479,6 +537,9 @@ public final class GeminiClient {
                 }
             }
             String text = sb.toString().trim();
+            if (text.length() > 4000) {
+                text = text.substring(0, 4000); // every use is far shorter; this keeps the clean-up cheap
+            }
             if (!text.isEmpty()) {
                 return Result.ok(text);
             }

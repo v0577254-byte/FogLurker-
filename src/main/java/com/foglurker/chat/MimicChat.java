@@ -163,9 +163,20 @@ public final class MimicChat {
         if (nl >= 0) {
             s = s.substring(0, nl).strip();
         }
+        if (s.length() > 1000) {
+            s = s.substring(0, 1000); // it only ever needs 120 characters
+        }
         s = cleanText(s);
-        // Markdown it sometimes wraps a line in: **hey**, `hey`
-        s = s.replaceAll("^[*_`]+|[*_`]+$", "").strip();
+        // Markdown it sometimes wraps a line in: **hey**, `hey` (a plain scan: a regex here is slow on long runs)
+        int from = 0;
+        int to = s.length();
+        while (from < to && "*_`".indexOf(s.charAt(from)) >= 0) {
+            from++;
+        }
+        while (to > from && "*_`".indexOf(s.charAt(to - 1)) >= 0) {
+            to--;
+        }
+        s = s.substring(from, to).strip();
         String lowerName = ctx.copiedName().toLowerCase(Locale.ROOT);
         String lower = s.toLowerCase(Locale.ROOT);
         if (lower.startsWith("<" + lowerName + ">")) {
@@ -189,12 +200,16 @@ public final class MimicChat {
         s.codePoints().forEach(cp -> {
             int type = Character.getType(cp);
             if (cp == '§' || cp == '\uFFFD' || type == Character.CONTROL || type == Character.FORMAT
-                    || type == Character.SURROGATE || type == Character.PRIVATE_USE || type == Character.UNASSIGNED) {
-                return;
+                    || type == Character.SURROGATE || type == Character.PRIVATE_USE || type == Character.UNASSIGNED
+                    || cp == 0x115F || cp == 0x1160 || cp == 0x3164 || cp == 0xFFA0 || cp == 0x2800) {
+                return; // (the last ones are "letters" that draw nothing: Hangul fillers and the blank braille cell)
             }
-            sb.appendCodePoint(Character.isWhitespace(cp) ? ' ' : cp);
+            sb.appendCodePoint(Character.isWhitespace(cp) || type == Character.SPACE_SEPARATOR ? ' ' : cp);
         });
-        return sb.toString().replaceAll(" {2,}", " ").strip();
+        String out = sb.toString().replaceAll(" {2,}", " ").strip();
+        // Nothing anyone could see (only spaces of other kinds): nothing at all, so it is never sent as a blank line.
+        return out.codePoints().anyMatch(cp -> !Character.isWhitespace(cp) && Character.getType(cp) != Character.SPACE_SEPARATOR)
+                ? out : "";
     }
 
     /** Cuts to at most {@code max} characters without splitting an emoji or other two-part character. */
