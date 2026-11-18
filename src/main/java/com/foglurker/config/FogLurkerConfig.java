@@ -157,7 +157,6 @@ public final class FogLurkerConfig {
         public final ForgeConfigSpec.BooleanValue fogEffects;
         public final ForgeConfigSpec.BooleanValue screenEffects;
         public final ForgeConfigSpec.BooleanValue fogOverlay;
-        public final ForgeConfigSpec.BooleanValue discordRichPresence;
 
         Client(ForgeConfigSpec.Builder b) {
             fogEffects = b.comment("Thick fog rolls in while the creature is hunting you.")
@@ -169,10 +168,6 @@ public final class FogLurkerConfig {
             fogOverlay = b.comment("Also draw the fog as a see-through layer over the screen. This shows even when a shader pack",
                             "or another mod replaces Minecraft's own fog.")
                     .define("fogOverlay", true);
-            discordRichPresence = b.comment("Show \"Playing Fog Lurker\" on your Discord profile while the game runs (Discord or Vesktop",
-                            "must be running on this computer). It only says whether you are in the menus, in single- or",
-                            "multiplayer, and when you are being hunted: never a server address, world name or anyone's name.")
-                    .define("discordRichPresence", true);
         }
     }
 }
