@@ -231,7 +231,8 @@ public final class MimicChat {
     private static boolean saidBefore(Context ctx, String line) {
         String want = normalise(line);
         for (String s : ctx.alreadySaid()) {
-            if (normalise(s).equals(want)) {
+            // With nothing left after normalising (no plain letters), only an exact repeat counts.
+            if (want.isEmpty() ? s.trim().equals(line.trim()) : normalise(s).equals(want)) {
                 return true;
             }
         }
@@ -251,7 +252,7 @@ public final class MimicChat {
             return REPLY_WHERE;
         }
         if (h.contains(" who ") || h.contains(" real ") || h.contains(" fake ") || h.contains(" bot ")
-                || h.contains("not you") || h.contains("are you") || h.contains(" imposter ") || h.contains(" impostor ")) {
+                || h.contains(" not you ") || h.contains(" are you ") || h.contains(" imposter ") || h.contains(" impostor ")) {
             return REPLY_DOUBT;
         }
         if (h.contains(" why ") || h.contains(" what ")) {

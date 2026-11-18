@@ -51,6 +51,9 @@ public final class Apparitions {
         double vfov = Math.toRadians(mc.options.fov().get());
         double aspect = (double) mc.getWindow().getWidth() / Math.max(1, mc.getWindow().getHeight());
         double halfH = Math.atan(Math.tan(vfov / 2) * aspect);
+        // Prefer a spot you could actually see (behind a hill it never gets the "look and it is gone" moment),
+        // but if the woods or hills hide every spot, any good spot beats showing nothing.
+        double[] fallback = null;
         for (int attempt = 0; attempt < 12; attempt++) {
             double side = (attempt % 2 == 0 ? 1 : -1) * halfH * (0.8 + player.getRandom().nextDouble() * 0.1);
             double yaw = Math.toRadians(player.getYRot()) + side;
@@ -61,31 +64,37 @@ public final class Apparitions {
             if (ground == null) {
                 continue;
             }
-            // Only where you could actually see it: behind a hill it would never get the "look and it is gone" moment.
             Vec3 chest = new Vec3(x, ground.getY() + 0.9, z);
             if (level.clip(new net.minecraft.world.level.ClipContext(player.getEyePosition(), chest,
                     net.minecraft.world.level.ClipContext.Block.VISUAL, net.minecraft.world.level.ClipContext.Fluid.NONE, player))
                     .getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+                if (fallback == null) {
+                    fallback = new double[]{x, ground.getY(), z};
+                }
                 continue;
             }
-            FogLurkerEntity e = ModEntities.FOG_LURKER.get().create(level);
-            if (e == null) {
-                return false;
-            }
-            int id = nextId--;
-            e.setId(id);
-            float face = (float) (Mth.atan2(player.getZ() - z, player.getX() - x) * Mth.RAD_TO_DEG) - 90F;
-            e.moveTo(x, ground.getY(), z, face, 0F);
-            e.setYHeadRot(face);
-            e.setYBodyRot(face);
-            e.yBodyRotO = face;
-            e.yHeadRotO = face;
-            e.setSilent(true);
-            level.putNonPlayerEntity(id, e);
-            ACTIVE.add(e);
-            return true;
+            return place(level, player, x, ground.getY(), z);
         }
-        return false;
+        return fallback != null && place(level, player, fallback[0], fallback[1], fallback[2]);
+    }
+
+    private static boolean place(ClientLevel level, LocalPlayer player, double x, double y, double z) {
+        FogLurkerEntity e = ModEntities.FOG_LURKER.get().create(level);
+        if (e == null) {
+            return false;
+        }
+        int id = nextId--;
+        e.setId(id);
+        float face = (float) (Mth.atan2(player.getZ() - z, player.getX() - x) * Mth.RAD_TO_DEG) - 90F;
+        e.moveTo(x, y, z, face, 0F);
+        e.setYHeadRot(face);
+        e.setYBodyRot(face);
+        e.yBodyRotO = face;
+        e.yHeadRotO = face;
+        e.setSilent(true);
+        level.putNonPlayerEntity(id, e);
+        ACTIVE.add(e);
+        return true;
     }
 
     private static BlockPos standable(ClientLevel level, BlockPos near) {
