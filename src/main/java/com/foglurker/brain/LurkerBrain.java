@@ -1356,10 +1356,10 @@ public final class LurkerBrain {
         return !mob.isInWater() && !SpotFinder.isInOrOnWater(t) && !isWarded(t);
     }
 
-    /** Is the target standing by soul fire? Checked once a second. */
     /** Per player: [age checked, 1 if warded]. Checking a bystander does not throw away the target's answer. */
     private final java.util.Map<UUID, int[]> wardCache = new java.util.HashMap<>();
 
+    /** Is the target standing by soul fire? Checked once a second. */
     private boolean isWarded(ServerPlayer t) {
         int[] c = wardCache.get(t.getUUID());
         if (c == null || age - c[0] >= 20) {
