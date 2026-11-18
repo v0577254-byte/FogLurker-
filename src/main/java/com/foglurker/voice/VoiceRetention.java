@@ -41,7 +41,8 @@ public final class VoiceRetention {
             last = readStampStrict();
         } catch (IOException e) {
             // Cannot tell when it last ran: neither wipe nor overwrite the stamp (that would lose the 30-day rule).
-            FogLurkerMod.LOGGER.warn("Could not read when Fog Lurker last ran ({}); checking again next start", e.getMessage());
+            FogLurkerMod.LOGGER.error("Could not read when Fog Lurker last ran ({}); the 30-day clean-up is checked again next "
+                    + "start (if this keeps happening, check foglurker_secure/last_active.txt)", e.getMessage());
             last = null;
             stampReadable = false;
         }

@@ -721,10 +721,10 @@ public final class FogLurkerGameTests {
                     check(h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area).isEmpty(),
                             "nothing should drop when a player did not land the killing blow");
                     // ...while a player's killing blow does drop its loot through the real death path. On Deathwish
-                    // three kills without a single drop is about a 1 in 10,000 chance.
+                    // five kills without a single drop is about a 1 in 5,000,000 chance.
                     data.setDifficulty(LurkerDifficulty.DEATHWISH);
                     int drops = 0;
-                    for (int k = 0; k < 3; k++) {
+                    for (int k = 0; k < 5; k++) {
                         data.setRestUntil(0);
                         FogLurkerEntity prey = hunter(h, p, 1.5 + k * 4, 19.5);
                         var spot = prey.getBoundingBox().inflate(4);
@@ -733,7 +733,7 @@ public final class FogLurkerGameTests {
                         check(prey.isDeadOrDying(), "a huge player hit should kill it");
                         drops += h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, spot).size();
                     }
-                    check(drops > 0, "three Deathwish kills by a player dropped nothing");
+                    check(drops > 0, "five Deathwish kills by a player dropped nothing");
                     data.setDifficulty(LurkerDifficulty.MEDIUM);
                     // Flopping away or dancing, nothing hurts it, not even a creative player.
                     data.setRestUntil(0);
@@ -956,6 +956,9 @@ public final class FogLurkerGameTests {
                 p.teleportTo(p.getX() + 40, p.getY(), p.getZ());
                 com.foglurker.world.AfkTracker.check(p, now + wait + 50);
                 check(com.foglurker.world.AfkTracker.isAfk(p), "a 40 block jump (respawn, /tp) must not end AFK");
+                com.foglurker.world.AfkTracker.onRespawn(new net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent(p, false));
+                com.foglurker.world.AfkTracker.check(p, now + wait + 60);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "respawning must not end AFK");
                 // Looking around is.
                 p.setYRot(p.getYRot() + 40F);
                 com.foglurker.world.AfkTracker.check(p, now + wait + 60);
@@ -1330,6 +1333,11 @@ public final class FogLurkerGameTests {
                     status = 502;
                     reply = "<html><body>Bad Gateway</body></html>";
                 }
+                case "picky" -> {
+                    status = 400;
+                    reply = "{\"error\":{\"code\":400,\"message\":\"Developer instruction is not enabled for this model\","
+                            + "\"status\":\"INVALID_ARGUMENT\"}}";
+                }
                 case "safety" -> reply = "{\"candidates\":[{\"finishReason\":\"SAFETY\",\"index\":0}]}";
                 case "blocked" -> reply = "{\"promptFeedback\":{\"blockReason\":\"PROHIBITED_CONTENT\"}}";
                 case "overthink" -> reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hmm\",\"thought\":true}]},"
@@ -1387,6 +1395,20 @@ public final class FogLurkerGameTests {
             check(gem(List.of("private", "flaky", "ok-model"), key).text().isPresent() && seen.size() == 3,
                     "403 and 502 should fall through to the next model");
             check(com.foglurker.chat.GeminiClient.available(List.of("ok-model")), "a model-specific 403 must not disable the key");
+            // A model that refuses this kind of request (a plain 400) is skipped too.
+            seen.clear();
+            check(gem(List.of("picky", "ok-model"), key).text().isPresent() && seen.size() == 2,
+                    "a plain 400 should fall through to the next model, saw " + seen.size());
+            // One busy model, then one the project cannot use: that is not "the key is refused", so no pause.
+            seen.clear();
+            check(gem(List.of("flaky", "private"), key).text().isEmpty(), "both models failed, so no text");
+            check(com.foglurker.chat.GeminiClient.available(List.of("ok-model")),
+                    "a 403 after an unrelated failure must not pause a key that may be fine");
+            // Every model refusing the key does pause it.
+            seen.clear();
+            check(gem(List.of("private", "private"), key).text().isEmpty(), "every model refused");
+            check(!com.foglurker.chat.GeminiClient.available(List.of("ok-model")), "every model refusing the key should pause it");
+            com.foglurker.chat.GeminiClient.clearBackoff();
 
             // Rate limit: tries the next model, and skips the limited one for as long as Google asked.
             seen.clear();
@@ -1520,7 +1542,7 @@ public final class FogLurkerGameTests {
                     check(b.doHurtTarget(hard), "the hard bite did not land");
                     check(Math.abs(hard.getHealth() - 8F) < 0.01F, "hard bite should still deal 6 hearts, health " + hard.getHealth());
                     var s2 = hard.getEffect(slow);
-                    check(s2 != null && s2.getAmplifier() == 0 && s2.getDuration() > 190, "hard: no Slowness I (" + s2 + ")");
+                    check(s2 != null && s2.getAmplifier() == 0 && s2.getDuration() > 190, "hard: the bite should give Slowness I for 10 s (" + s2 + ")");
                     var m = hard.getEffect(mauled);
                     check(m != null && m.getDuration() > 190 && m.getDuration() <= 200, "hard: no 10 s Mauled (" + m + ")");
                     hard.setDeltaMovement(Vec3.ZERO);
@@ -2144,6 +2166,12 @@ public final class FogLurkerGameTests {
                 check(expired >= 1 && SnippetStore.count(gone) == 0 && !VoiceConsent.isOptedIn(gone),
                         "31 days unseen: snippets must be deleted");
                 check(SnippetStore.count(active) == 1 && VoiceConsent.isOptedIn(active), "seen yesterday: snippets must stay");
+                // The same expiry runs while the server sits empty (nobody online to trigger the usual check).
+                UUID away = UUID.randomUUID();
+                VoiceConsent.optIn(away);
+                VoiceConsent.touch(away, now - 31 * day);
+                com.foglurker.voice.VoiceRetention.emptyHeartbeat(now);
+                check(!VoiceConsent.isOptedIn(away), "an empty server must still expire someone unseen for 30 days");
 
                 // The whole mod unused for 31 days: everything is wiped when it next starts.
                 com.foglurker.voice.VoiceRetention.stamp(now - 31 * day);

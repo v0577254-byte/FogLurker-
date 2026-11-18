@@ -541,6 +541,11 @@ public final class FogLurkerCommands {
     private static int geminiStatus(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         String key = ApiKeyStore.get();
+        if (key == null && ApiKeyStore.storedKeyBusy()) {
+            reply(src, Component.literal("The saved Gemini API key cannot be opened right now (another program may have "
+                    + "it open). Try again in a minute; nothing needs to be set again.").withStyle(ChatFormatting.GOLD));
+            return 0;
+        }
         if (key == null && ApiKeyStore.storedKeyUnreadable()) {
             reply(src, Component.literal("A Gemini API key is saved but cannot be read (the secure folder's key changed or the "
                     + "file is damaged). Set it again with /foglurker setgeminiapikey <key>.").withStyle(ChatFormatting.GOLD));
@@ -572,11 +577,14 @@ public final class FogLurkerCommands {
                 String why = err != null ? "request failed" : result == null ? "no answer" : result.error();
                 int status = result == null ? 0 : result.status();
                 // Advice that fits the failure: only a refusal points at the key.
-                String advice = status == 0 ? "Could not reach Google (network or timeout); the key may be fine, try again later."
+                boolean local = why != null && (why.contains("set it again") || why.contains("model names"));
+                String advice = local ? "Fix that, then test again with /foglurker geministatus."
+                        : status == 0 ? "Could not reach Google (network or timeout); the key may be fine, try again later."
                         : status == 429 ? "Google is rate limiting this key for now; it waits and tries again by itself."
                         : status >= 500 ? "Google's side is having trouble; try again later."
-                        : status == 401 || status == 403 || status == 400
+                        : GeminiClient.isKeyRefusal(result)
                         ? "Check the key, and that the Generative Language API, billing and your region are allowed for it."
+                        : status == 400 ? "Google refused the request for these models; try other model names in the config."
                         : "The key is kept; check it and set it again if needed.";
                 reply(src, Component.literal("Gemini test failed: " + why + ". " + advice).withStyle(ChatFormatting.RED));
             }
@@ -746,6 +754,12 @@ public final class FogLurkerCommands {
 
     private static int voiceStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer p = ctx.getSource().getPlayerOrException();
+        if (!VoiceConsent.isReadable()) {
+            p.sendSystemMessage(PREFIX.copy().append(Component.literal("The voice consent list cannot be opened right now "
+                    + "(another program may have it open). Nothing is recorded or played meanwhile; try again in a minute.")
+                    .withStyle(ChatFormatting.GOLD)));
+            return 0;
+        }
         boolean in = VoiceConsent.isOptedIn(p.getUUID());
         int count = in ? SnippetStore.count(p.getUUID()) : 0;
         p.sendSystemMessage(PREFIX.copy().append(Component.literal(in

@@ -323,6 +323,11 @@ public final class GeminiClient {
         return e.contains("think") || e.contains("budget");
     }
 
+    /** For messages: did Google refuse because of the key or project (rather than the request or a model)? */
+    public static boolean isKeyRefusal(Result r) {
+        return r != null && isKeyProblem(r);
+    }
+
     /** Errors that will not go away by themselves: a bad, disabled or restricted key, or an unsupported location. */
     private static boolean isKeyProblem(Result r) {
         if (r.status() == 401 || r.status() == 403) {

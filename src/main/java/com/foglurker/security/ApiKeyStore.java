@@ -20,6 +20,13 @@ public final class ApiKeyStore {
     /** A saved key file exists but could not be decrypted (told to the operator by /foglurker geministatus). */
     private static volatile boolean unreadable;
 
+    /** The last attempt to open the saved key found it locked (not damaged). */
+    private static volatile boolean busy;
+
+    public static boolean storedKeyBusy() {
+        return busy && !loaded;
+    }
+
     public static boolean storedKeyUnreadable() {
         return unreadable && cached == null;
     }
@@ -52,7 +59,9 @@ public final class ApiKeyStore {
                     try {
                         cached = load();
                         loaded = true;
+                        busy = false;
                     } catch (SecureStorage.Unavailable e) {
+                        busy = true;
                         // Locked for a moment (a virus scanner, a backup): not cached, so the next call tries again.
                         // No falling back to the environment key either: that may be a different key.
                         return null;
@@ -103,12 +112,21 @@ public final class ApiKeyStore {
 
     private static String load() throws SecureStorage.Unavailable {
         Path f = file();
-        if (!Files.isRegularFile(f)) {
+        try {
+            // Only "definitely not there" means no key; trouble looking at the file means "try again later".
+            if (!Files.readAttributes(f, java.nio.file.attribute.BasicFileAttributes.class).isRegularFile()) {
+                return null;
+            }
+        } catch (java.nio.file.NoSuchFileException none) {
             return null;
+        } catch (IOException e) {
+            throw new SecureStorage.Unavailable("Cannot look at the saved Gemini key right now", e);
         }
         try {
             String k = new String(SecureStorage.readEncrypted(f), StandardCharsets.UTF_8).trim();
             return k.isEmpty() ? null : k;
+        } catch (java.nio.file.NoSuchFileException gone) {
+            return null;
         } catch (SecureStorage.Unavailable e) {
             throw e;
         } catch (IOException e) {

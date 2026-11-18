@@ -38,13 +38,26 @@ public final class PlayerEvents {
             // ring it). The click is handled first; the bell's state is checked right after.
             net.minecraft.core.BlockPos pos = event.getPos().immutable();
             ServerPlayer ringer = event.getEntity() instanceof ServerPlayer sp ? sp : null;
-            level.getServer().execute(() -> {
-                if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity bell
-                        && bell.shaking && bell.ticks <= 5) {
-                    com.foglurker.brain.LurkerDirector.onBell(level, pos, ringer);
-                }
-            });
+            checkRungAfter(level, pos, ringer);
         }
+    }
+
+    /**
+     * The click (or hit) event comes before the bell rings, so the bell is checked once this has been handled:
+     * it counts only if it really rang just now (it started shaking, or its swing restarted).
+     * {@code tell} always queues; {@code execute} would run at once on the server thread, before the ring.
+     */
+    private static void checkRungAfter(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos,
+                                       @javax.annotation.Nullable ServerPlayer ringer) {
+        int before = level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity b && b.shaking
+                ? b.ticks : -1;
+        var server = level.getServer();
+        server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
+            if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity bell
+                    && bell.shaking && bell.ticks <= 5 && (before < 0 || bell.ticks < before)) {
+                com.foglurker.brain.LurkerDirector.onBell(level, pos, ringer);
+            }
+        }));
     }
 
     /** A bell rung by an arrow or trident counts too (its shooter is the ringer). */
@@ -55,12 +68,7 @@ public final class PlayerEvents {
                 && level.getBlockState(hit.getBlockPos()).getBlock() instanceof net.minecraft.world.level.block.BellBlock) {
             net.minecraft.core.BlockPos pos = hit.getBlockPos().immutable();
             ServerPlayer ringer = event.getProjectile().getOwner() instanceof ServerPlayer sp ? sp : null;
-            level.getServer().execute(() -> {
-                if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity bell
-                        && bell.shaking && bell.ticks <= 5) {
-                    com.foglurker.brain.LurkerDirector.onBell(level, pos, ringer);
-                }
-            });
+            checkRungAfter(level, pos, ringer);
         }
     }
 
@@ -72,6 +80,7 @@ public final class PlayerEvents {
         }
         VoiceConsent.touch(player.getUUID(), System.currentTimeMillis());
         if (!VoiceBridge.isActive() || !FogLurkerConfig.COMMON.showVoiceNoticeOnJoin.get()
+                || !VoiceConsent.isReadable() // cannot tell whether they opted in: try at the next join
                 || VoiceConsent.isOptedIn(player.getUUID())) {
             return;
         }

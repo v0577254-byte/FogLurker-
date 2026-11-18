@@ -405,7 +405,8 @@ public final class Hauntings {
         prof.lastBookAt = now;
         String name = p.getGameProfile().getName();
         List<String> pages = new ArrayList<>();
-        List<String> said = prof.recentChat(12);
+        // Their own words only while the server keeps chat at all (learnChat); opted-out players have none stored.
+        List<String> said = FogLurkerConfig.COMMON.learnChat.get() ? prof.recentChat(12) : List.of();
         if (said.size() >= 2) {
             pages.add("you said\n\n\"" + clip(said.get(r.nextInt(said.size()))) + "\"\n\n\"" + clip(said.get(r.nextInt(said.size()))) + "\"");
         } else {

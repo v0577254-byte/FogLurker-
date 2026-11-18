@@ -74,6 +74,8 @@ public final class VoiceConsent {
         } catch (java.nio.file.NoSuchFileException missing) {
             return ABSENT;
         } catch (IOException | RuntimeException e) {
+            FogLurkerMod.LOGGER.warn("The voice consent file {} cannot be looked at right now ({}); nobody is recorded "
+                    + "until it can (if this keeps happening, check the folder's permissions)", f.getFileName(), e.toString());
             return BUSY; // there, but cannot even be looked at right now
         }
         try {
@@ -159,6 +161,7 @@ public final class VoiceConsent {
                 return true;
             }
             Copy current = next.version() > main.version() ? next : main;
+            loadPendingOptOuts(); // opt-outs from a run where the list stayed locked
             OPTED_IN.addAll(current.optedIn());
             LAST_SEEN.putAll(current.lastSeen());
             version = Math.max(main.version(), next.version());
@@ -180,6 +183,13 @@ public final class VoiceConsent {
             if (removed) {
                 save(true);
             }
+            if (!hasUnsavedChanges()) {
+                try {
+                    Files.deleteIfExists(pendingFile()); // applied and saved
+                } catch (IOException | RuntimeException ignored) {
+                    // applying it again next time is harmless
+                }
+            }
             loaded = true; // published last: nobody sees the list before it is final
             return true;
         }
@@ -187,6 +197,48 @@ public final class VoiceConsent {
 
     public static boolean isOptedIn(UUID player) {
         return ensureLoaded() && OPTED_IN.contains(player);
+    }
+
+    /** False while the consent list cannot be opened (then everyone counts as opted out). */
+    public static boolean isReadable() {
+        return ensureLoaded();
+    }
+
+    /** Opt-outs made while the list could not be opened, kept in their own small file until it can be. */
+    private static Path pendingFile() {
+        return SecureStorage.root().resolve("voice_optouts.pending");
+    }
+
+    private static void savePendingOptOuts() {
+        JsonObject root = new JsonObject();
+        JsonArray arr = new JsonArray();
+        PENDING_OUT.forEach(id -> arr.add(id.toString()));
+        root.add("optedOut", arr);
+        root.addProperty("wipe", pendingWipe);
+        try {
+            SecureStorage.writeEncrypted(pendingFile(), root.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException | RuntimeException e) {
+            FogLurkerMod.LOGGER.error("Could not save an opt-out while the voice consent list is locked; it applies until "
+                    + "the server stops and is retried when the list opens", e);
+        }
+    }
+
+    /** Reads opt-outs saved while the list was locked (from an earlier run) into PENDING_OUT. */
+    private static void loadPendingOptOuts() {
+        try {
+            JsonObject root = JsonParser.parseString(new String(SecureStorage.readEncrypted(pendingFile()),
+                    StandardCharsets.UTF_8)).getAsJsonObject();
+            for (JsonElement e : root.getAsJsonArray("optedOut")) {
+                PENDING_OUT.add(UUID.fromString(e.getAsString()));
+            }
+            if (root.has("wipe") && root.get("wipe").getAsBoolean()) {
+                pendingWipe = true;
+            }
+        } catch (java.nio.file.NoSuchFileException none) {
+            // nothing pending
+        } catch (Exception e) {
+            FogLurkerMod.LOGGER.error("Could not read the opt-outs saved while the consent list was locked", e);
+        }
     }
 
     /** @return false if the list cannot be opened right now (nothing changed; try again in a minute) */
@@ -278,7 +330,17 @@ public final class VoiceConsent {
     /** Forgets every opt-in and deletes every snippet (used when the mod was unused for too long). */
     public static int wipeEverything() {
         if (!ensureLoaded()) {
-            pendingWipe = true; // forgets every opt-in as soon as the list can be opened
+            synchronized (VoiceConsent.class) {
+                if (!loaded) {
+                    pendingWipe = true; // forgets every opt-in as soon as the list can be opened
+                    savePendingOptOuts();
+                }
+            }
+            if (loaded) {
+                OPTED_IN.clear();
+                LAST_SEEN.clear();
+                save(true);
+            }
             return SnippetStore.deleteEveryone();
         }
         OPTED_IN.clear();
@@ -295,7 +357,18 @@ public final class VoiceConsent {
     public static int optOut(UUID player) {
         if (!ensureLoaded()) {
             // The list cannot be opened right now: recording stops and the clips go now; the list catches up later.
-            PENDING_OUT.add(player);
+            synchronized (VoiceConsent.class) {
+                if (!loaded) {
+                    PENDING_OUT.add(player);
+                    savePendingOptOuts(); // so a restart before the list opens cannot undo it
+                }
+            }
+            if (loaded) {
+                // It opened in the meantime: apply it the normal way (removing them twice is harmless).
+                OPTED_IN.remove(player);
+                LAST_SEEN.remove(player);
+                save(true);
+            }
             VoiceBridge.forget(player);
             return SnippetStore.deleteAll(player);
         }

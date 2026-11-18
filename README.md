@@ -70,7 +70,7 @@ It can be killed. Its health depends on the mode:
 | Hard | 125 hearts |
 | Deathwish | 175 hearts |
 
-It has 4 armour points (2 armour icons), and it does not take fall, suffocation, drowning, fire, lava, cactus or freezing damage. Swords, arrows, tridents, explosions and Harming potions hurt it normally (it is not undead, so Healing heals it). A raised shield stops one bite, then its teeth wrench the shield aside for 5 seconds, like an axe. When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears on its own and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long; admin spawn commands still work). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
+It has 4 armour points (2 armour icons), and it does not take fall, suffocation, drowning, fire, lava, cactus or freezing damage. Swords, arrows, tridents, explosions and Harming potions hurt it normally (it is not undead, so Healing heals it). A raised shield stops one bite, then its teeth wrench the shield aside for 5 seconds, like an axe (the Deathwish bite goes straight through shields). When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears on its own and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long; admin spawn commands still work). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
 
 ### What it drops (only when a player lands the killing blow)
 
@@ -135,7 +135,7 @@ Protection IV adds 5% only on diamond and netherite; lower Protection levels, an
 | **Deepslate and obsidian** | It cannot break them. |
 | **Totem of Undying** | Still works, even on Deathwish. |
 
-**Every escape makes it angrier.** Each time you get away from an attack (water, soul fire, a bell) it becomes 10% more likely to attack you the next time it appears, up to +30%. The grudge resets the moment it lands a bite on you.
+**Every escape makes it angrier.** Each time you get away from an attack (water, soul fire, a bell, or logging out mid-attack) it becomes 10% more likely to attack you the next time it appears, up to +30%. The grudge resets the moment it lands a bite on you.
 
 ![The screen closes in as it gets near](docs/images/vignette.jpg)
 
@@ -147,7 +147,7 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 - **It follows you down.** It takes no fall damage, so it drops straight into the hole you dug.
 - **It breaks in.** If you wall yourself in or seal the hole above you, it claws through: forward (two blocks high), down or up toward you. You see crack marks while it works, and harder blocks take longer (dirt about 1 s, stone about 1.7 s, iron about 4 s).
 - **Except protected blocks.** It never breaks anything in the `foglurker:unbreakable` block tag: all deepslate (bricks, tiles, ores, stairs and so on), obsidian, crying obsidian, bedrock, reinforced deepslate, netherite blocks, ancient debris, respawn anchors, portals and portal frames, spawners, barriers and command blocks. It also skips anything as hard as obsidian or harder, and anything with an inventory or other data (chests, furnaces, beds, shulker boxes...). **A deepslate or obsidian bunker keeps it out.** Server owners can add blocks to the tag with a data pack.
-- It respects the `mobGriefing` gamerule and the `breakBlocks` config option, plus claim/protection mods that use Forge's block-breaking event.
+- It respects the `mobGriefing` gamerule and the `breakBlocks` config option, plus claim/protection mods that block mobs from breaking blocks through Forge's `LivingDestroyBlockEvent`.
 
 ## Water is its weakness
 
@@ -198,12 +198,12 @@ So a long render distance cannot push the fog out of sight, and a short one stil
 > fogstalker: please dont run
 > fogstalker: i will not hurt you
 
-It is a coin flip whether it means it. If it does, it sinks flat into the ground and is gone. If not:
+It is a coin flip whether it means it (less likely if it fears you after a scare burst, and it never means it on Peaceful). If it does, it sinks flat into the ground and is gone. If not:
 
 > fogstalker: just kidding
 > fogstalker: **RUN!**
 
-**RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, you die instantly**. If you get away (outrun it, water, soul fire, a bell, a scare burst from the Protector, or through a portal), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Like the scare-burst fear and the bell cooldown, this is saved with the world, so quitting and coming back does not reset it. Try it with `/foglurker force meet [player]`.
+**RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, the bite takes a whole health bar** (good armour leaves you a little; a Totem of Undying saves you). If you get away (outrun it, water, soul fire, a bell, a scare burst from the Protector, or through a portal), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Like the scare-burst fear and the bell cooldown, this is saved with the world, so quitting and coming back does not reset it. Try it with `/foglurker force meet [player]`.
 
 ## The five modes
 
@@ -240,12 +240,12 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 |---|---|---|
 | `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `crawler` (itself), `random` |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
-| `/foglurker endgrace` | cheats / op | Ends the grace period right now (stays ended even if you switch to a mode with a longer one). The first spawn roll comes 5 minutes later |
+| `/foglurker endgrace` | cheats / op | Ends the grace period right now (stays ended even if you switch to a mode with a longer one). The first spawn roll comes `spawnRollMinutes` (5 by default) later |
 | `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
 | `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
 | `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
 | `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
-| `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. `on` starts a fresh 5-minute countdown |
+| `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. Turning it back `on` starts a fresh 5-minute countdown |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
@@ -308,7 +308,7 @@ You can also set the `FOGLURKER_GEMINI_API_KEY` environment variable on a server
 How the key is handled:
 - It is stored AES-256-GCM encrypted in `foglurker_secure/`, never in a world save, never sent to players, and never logged. Chat only ever shows a masked preview (`AIza…k3Fq`).
 - It is sent only to Google, in the `x-goog-api-key` header (never in a URL), over HTTPS.
-- If Google rejects the key it stops asking for 10 minutes (or until you set a key again) and uses the built-in phrases, so a bad key never slows the game down or spams requests. If a model is rate limited it skips that model for as long as Google asks (up to 10 minutes) and uses the next one.
+- If every model rejects the key it stops asking for 10 minutes (or until you set a key again) and uses the built-in phrases, so a bad key never slows the game down or spams requests. If a model is rate limited it skips that model for as long as Google asks (up to 10 minutes, from the reply or its Retry-After header) and uses the next one; a model that is missing, broken or refuses the request is skipped too.
 - Every request has a time limit; if Google is slow or unreachable the creature simply uses a built-in phrase.
 - Models are configurable (default `gemini-flash-latest`, falling back to `gemini-2.5-flash` and `gemini-flash-lite-latest`). Names like `models/gemini-2.5-flash` work too; anything that is not a valid model id is ignored with a warning.
 
@@ -335,7 +335,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.2.2.jar` (built as `foglurker-1.2.2.jar`) in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.2.3.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -375,7 +375,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.1.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.3.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -387,7 +387,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/foglurker-1.2.2.jar
+./gradlew build               # -> build/libs/FogLurker-1.2.3.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
@@ -403,7 +403,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50; a 0% chance never spawns; `/foglurker naturalspawning off|on` is op-only, survives a save and restarts the countdown
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
-- AFK: 5 minutes of nothing makes you AFK (4:58 does not), knockback does not end it but looking around does, /afk and /AFK work at once and survive the jiggle of closing chat, /afk is refused mid-hunt, an AFK player is never picked, a creature already attacking leaves without a hit, and force commands refuse AFK players
+- AFK: 5 minutes of nothing makes you AFK (4:58 does not), knockback does not end it but looking around does, /afk and /AFK work at once and survive the jiggle of closing chat, /afk is refused mid-hunt, an AFK player is never picked, force commands refuse AFK players, and respawning does not end AFK
 - the fog at every render distance from 2 to 32 chunks: always visibly closer than your normal view, never further for thicker fog, attack fog within about 12 blocks, and it eases in without popping
 - a summoned creature stays the pale crawler, a flopped one has a flat hitbox, looking for dry ground never loads a chunk, a grace period that has run out stays over, and voice snippets with no opt-in on record are deleted at start-up
 - the bite: Slowness I for 10 s on Easy; on Hard also Mauled, which cancels jumps, refuses boats and drags you out of the one you sit in, and both work again once it wears off
@@ -415,7 +415,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - killing it: 50/75/100/125/175 hearts per mode; ordinary hits are softened by its hide; the Protector does exactly 10 (15 on a critical hit), even through Protection armour it copied; a kill sends every other creature away and rests it for 30 minutes, which survives a restart; nothing drops unless a player lands the killing blow; while it flops away not even a creative player can hurt it; each mode's drop rates come out as listed (the stick never rarer than the ingot, the Deathwish ingot 1.5x Hard, the fog matching day or night) and none passes 75%
 - the Protector: hits like a wooden sword and never wears out from hitting; a scare burst uses one charge, reaches the creature hunting you, and either scares it off or weakens it; you and friends next to you are feared, a far player is not; an empty sword cannot burst; recharging works one fog item at a time, only with the sword in the middle, and never takes more fog than it is missing; it cannot be enchanted or merged on an anvil (renaming works); the 3x3 sword recipe is exact
 - `/fglurk chatlearning off` forgets your messages, drops them from the Gemini context, stops learning, and survives a restart
-- the Gemini client against a fake Gemini server: falls back past missing (404), forbidden (403), broken (502) and rate-limited (429) models; retries without the thinking budget once and remembers it; stops at once on an invalid key and pauses (10 minutes, or until a key is set again); waits as long as Google asks after a rate limit (body or Retry-After header, up to 10 minutes); reports safety blocks and empty replies; never sends a malformed key; times out on a hung server; the key is only ever in the header; replies are cleaned of formatting codes, invisible characters and split emoji
+- the Gemini client against a fake Gemini server: falls back past missing (404), forbidden (403), refusing (400), broken (502) and rate-limited (429) models; only pauses the key when every model refuses it; retries without the thinking budget once and remembers it; stops at once on an invalid key and pauses (10 minutes, or until a key is set again); waits as long as Google asks after a rate limit; reports safety blocks and empty replies; never sends a malformed key; times out on a hung server; the key is only ever in the header; replies are cleaned of formatting codes, invisible characters and split emoji
 - hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests
 - indoors at home the watcher appears outside your roof; spotted in its real shape it flops flat
 - `/foglurker endgrace` and `/foglurker force hide|stalk|attack` work and are cheats-only; it finds tall grass, lies down with a low hitbox, drops flat when looked at while stalking, and attacks on command

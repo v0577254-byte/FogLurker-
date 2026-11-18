@@ -337,7 +337,15 @@ public final class LurkerBrain {
         ServerPlayer t = target();
         if (huntId != null && (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator()
                 || t.isCreative() || com.foglurker.world.AfkTracker.isAfk(t))) {
+            UUID lost = huntId;
+            if (t == null && phase == Phase.ATTACK && FogLurkerConfig.COMMON.escapeEscalation.get()) {
+                // the one it switched to logged out mid-attack: that counts as getting away, for them
+                PlayerBehaviorProfile gone = savedData().profile(lost);
+                gone.escapes = Math.min(gone.escapes + 1, 10);
+                savedData().setDirty();
+            }
             huntId = null; // the one it switched to is gone: back to the first target...
+            forgetChatForVictimChange();
             t = target();
             if (LurkerDirector.isHuntedByAnother(enc.targetId(), this)) {
                 vanish(false); // ...unless another one has them by now: never two at once
@@ -355,6 +363,9 @@ public final class LurkerBrain {
         }
         // Creative counts as gone, like spectator: nothing comes for a player it could never hurt.
         if (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator() || t.isCreative()) {
+            if (t != null && (t.isSpectator() || t.isCreative())) {
+                meetingChase = false; // switching game mode is not outrunning it: no 15-minute pass
+            }
             vanish(false);
             return;
         }
@@ -837,10 +848,8 @@ public final class LurkerBrain {
         ServerPlayer easier = easierPrey(t, dist);
         if (easier != null) {
             LurkerDirector.noteLeft(t.getUUID()); // it left this one: no new creature straight back to them
-            pendingChat = null;
-            queuedIntent = null;
-            heardPending = null;
-            chatGen++;
+            forgetChatForVictimChange();
+            directChase = false; // a straight line that worked for the last victim means nothing for this one
             leftId = t.getUUID();
             leftAt = age;
             huntId = easier.getUUID();
@@ -928,7 +937,8 @@ public final class LurkerBrain {
         // Claws still reach you from the shore if you only waded in.
         double reachSqr = 2.3 * 2.3;
         if (!warded && !windingUp && mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
-            boolean shielded = t.isBlocking();
+            // Raised and facing it (not just raised while a bite bounces off a moment of damage immunity).
+            boolean shielded = t.isBlocking() && t.isDamageSourceBlocked(mob.damageSources().mobAttack(mob));
             boolean bit = mob.doHurtTarget(t);
             if (!bit && shielded) {
                 // Teeth on a raised shield: it wrenches the shield aside like an axe does (5 s), so a shield buys
@@ -1370,6 +1380,14 @@ public final class LurkerBrain {
         return p.getViewVector(1F).dot(to.scale(1 / len)) > 0.85 && p.hasLineOfSight(mob);
     }
 
+    /** A line written for one victim is never said to another (it quotes them and uses their name). */
+    private void forgetChatForVictimChange() {
+        pendingChat = null;
+        queuedIntent = null;
+        heardPending = null;
+        chatGen++;
+    }
+
     /** Sent away by an admin command: it leaves, but nobody "got away" from it. */
     public void dismiss() {
         dismiss(false);
@@ -1773,7 +1791,8 @@ public final class LurkerBrain {
         }
     }
 
-    /** The victim it last switched away from, and when: it does not switch straight back for a minute. */
+    /** The victim it last switched away from, and when: it does not choose to switch straight back for a minute
+     * (if the one it switched to disappears, it does go back to its first victim). */
     @Nullable
     private UUID leftId;
     private int leftAt;

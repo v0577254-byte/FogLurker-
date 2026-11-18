@@ -72,8 +72,7 @@ public final class DisguiseCache {
     private static final Map<UUID, GameProfile> KNOWN_PROFILES = new HashMap<>();
 
     public static void clear() {
-        CACHE.clear();
-        KNOWN_PROFILES.clear();
+        CACHE.clear(); // (KNOWN_PROFILES stays for the whole game session: skins are the same in every world)
     }
 
     public static void cleanup(ClientLevel level) {

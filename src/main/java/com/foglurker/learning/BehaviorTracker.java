@@ -249,10 +249,19 @@ public final class BehaviorTracker {
                 // A remembered dog not seen with them for a whole day (dead, given away) gives way to the one here.
                 // Not just "not loaded": a dog left at home in another dimension must not flip back and forth.
                 long dayClock = p.server.overworld().getGameTime();
+                if (prof.dogSeenAt == 0) {
+                    prof.dogSeenAt = dayClock; // a save from before this was tracked: start the clock now
+                }
                 boolean rememberedGone = prof.dogUuid != null && !prof.dogUuid.equals(wolf.getUUID())
                         && !(((net.minecraft.server.level.ServerLevel) wolf.level()).getEntity(prof.dogUuid) instanceof Wolf)
                         && dayClock - prof.dogSeenAt > 24000;
-                if (prof.dogUuid == null || prof.dogUuid.equals(wolf.getUUID()) || named || prof.dogName == null || rememberedGone) {
+                // Replace only when there is no dog yet, it is the same dog, the old one is gone, or a named dog
+                // turns up while the remembered one has no name (named dogs win; two dogs never swap back and forth).
+                boolean same = wolf.getUUID().equals(prof.dogUuid);
+                if (same) {
+                    prof.dogSeenAt = dayClock;
+                }
+                if (prof.dogUuid == null || same || rememberedGone || (named && prof.dogName == null)) {
                     prof.dogSeenAt = dayClock;
                     prof.dogUuid = wolf.getUUID();
                     prof.dogName = named ? wolf.getCustomName().getString() : null;

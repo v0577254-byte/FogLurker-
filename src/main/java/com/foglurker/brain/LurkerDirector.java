@@ -148,9 +148,13 @@ public final class LurkerDirector {
             LAST_VISIT.put(lurker.brain().targetId(), lurker.getServer().overworld().getGameTime());
             FogLurkerSavedData.get(lurker.getServer()).setDirty();
         }
-        if (was && ACTIVE.isEmpty() && lurker.getServer() != null) {
+        if (was && lurker.getServer() != null) {
+            // The next roll comes (at least) 5 minutes after any appearance ends, even with another still out,
+            // so it never lands inside the "just visited" wait.
             FogLurkerSavedData data = FogLurkerSavedData.get(lurker.getServer());
-            data.setNextSpawnTicks(rollInterval()); // next roll 5 minutes after it leaves
+            if (ACTIVE.isEmpty() || data.nextSpawnTicks() < rollInterval()) {
+                data.setNextSpawnTicks(rollInterval());
+            }
         }
     }
 
@@ -172,6 +176,13 @@ public final class LurkerDirector {
         boolean ignored = false;
         long now = level.getServer().overworld().getGameTime();
         long cooldown = FogLurkerConfig.COMMON.bellCooldownMinutes.get() * 60L * 20L;
+        // Who was already immune before this ring: one ring drives off every creature after the same player.
+        java.util.Set<java.util.UUID> immuneBefore = new java.util.HashSet<>();
+        BELL_IMMUNE_UNTIL.forEach((id, until) -> {
+            if (now < until) {
+                immuneBefore.add(id);
+            }
+        });
         for (FogLurkerEntity lurker : active()) {
             LurkerBrain brain = lurker.brain();
             if (brain == null || brain.isEnded() || lurker.level() != level || !lurker.blockPosition().closerThan(bell, 32)
@@ -179,7 +190,7 @@ public final class LurkerDirector {
                 continue;
             }
             java.util.UUID target = brain.targetId();
-            if (cooldown > 0 && now < BELL_IMMUNE_UNTIL.getOrDefault(target, Long.MIN_VALUE)) {
+            if (cooldown > 0 && immuneBefore.contains(target)) {
                 ignored = true; // it has heard that bell before
                 continue;
             }
@@ -272,7 +283,7 @@ public final class LurkerDirector {
         t.put("fear", writeTimes(FEAR_UNTIL, now));
         t.put("bell", writeTimes(BELL_IMMUNE_UNTIL, now));
         // A visit only matters for half a roll; keep a day of them.
-        t.put("lastVisit", writeTimes(LAST_VISIT, server == null ? Long.MIN_VALUE : now - 24000L));
+        t.put("lastVisit", writeTimes(LAST_VISIT, server == null ? Long.MIN_VALUE : now - Math.max(24000L, rollInterval() / 2L)));
         return t;
     }
 
