@@ -202,8 +202,10 @@ public final class AfkTracker {
         double climbedUp = Math.abs(p.getY() - s.y);
         // Elytra flight can cover far more than 12 blocks a second; it is still the player flying.
         // invulnerableTime is above 0 for a second after any hit, so knockback earlier in the window does not count.
-        boolean ownPace = (p.isFallFlying() || (moved <= 12.0 && climbedUp <= 12.0)) && p.hurtTime == 0 && p.invulnerableTime == 0;
+        // So can a horse at full gallop (about 14 blocks a second) or a boat on ice; a teleport throws you off it.
         net.minecraft.world.entity.Entity vehicle = p.getVehicle();
+        double cap = vehicle != null && vehicle.getControllingPassenger() == p ? 100.0 : 12.0;
+        boolean ownPace = (p.isFallFlying() || (moved <= cap && climbedUp <= 12.0)) && p.hurtTime == 0 && p.invulnerableTime == 0;
         boolean walked = ownPace && moved > 0.3 && !p.isPassenger()
                 && (p.onGround() || p.isFallFlying() || p.isSwimming() || p.getAbilities().flying)
                 && (!p.isInWater() || p.isSwimming());

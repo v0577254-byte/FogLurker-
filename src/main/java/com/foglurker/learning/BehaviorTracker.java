@@ -324,10 +324,21 @@ public final class BehaviorTracker {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onSleep(net.minecraftforge.event.entity.player.PlayerSleepInBedEvent event) {
-        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer) && event.getPos() != null) {
-            FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
-            data.profile(p.getUUID()).sleptAt(p.level().dimension().location().toString(), event.getPos());
-            data.setDirty();
+        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer) && event.getPos() != null
+                && event.getResultStatus() == null) {
+            // This event comes before vanilla's own checks (too far, blocked, monsters, daytime). Only a bed that
+            // really became theirs counts: they fell asleep in it, or it is now their respawn point.
+            net.minecraft.core.BlockPos bed = event.getPos().immutable();
+            var server = p.server;
+            server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
+                boolean theirs = p.isSleeping() && p.getSleepingPos().map(bed::equals).orElse(false)
+                        || bed.equals(p.getRespawnPosition()) && p.getRespawnDimension() == p.level().dimension();
+                if (!p.hasDisconnected() && theirs) {
+                    FogLurkerSavedData data = FogLurkerSavedData.get(server);
+                    data.profile(p.getUUID()).sleptAt(p.level().dimension().location().toString(), bed);
+                    data.setDirty();
+                }
+            }));
         }
     }
 

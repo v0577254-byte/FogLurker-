@@ -89,7 +89,7 @@ public final class LurkerDirector {
         }
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         data.tickGrace();
-        Hauntings.tick(server, data);
+        safely("the hauntings", () -> Hauntings.tick(server, data));
         if (server.getTickCount() % 12000 == 0) { // every 10 minutes
             List<java.util.UUID> online = new ArrayList<>();
             server.getPlayerList().getPlayers().forEach(p -> online.add(p.getUUID()));
@@ -250,8 +250,23 @@ public final class LurkerDirector {
 
     /** Attack chance after escalation: +10% per escape, up to +30%. */
     public static double attackChance(LurkerDifficulty diff, PlayerBehaviorProfile profile) {
-        double bonus = FogLurkerConfig.COMMON.escapeEscalation.get() ? Math.min(0.3, profile.escapes * 0.1) : 0.0;
-        return Math.min(1.0, diff.attackChance() + bonus);
+        return Math.min(1.0, diff.attackChance() + escalation(profile));
+    }
+
+    /** +10% per escape, up to +30% (0 with escapeEscalation off). */
+    public static double escalation(PlayerBehaviorProfile profile) {
+        return FogLurkerConfig.COMMON.escapeEscalation.get() ? Math.min(0.3, profile.escapes * 0.1) : 0.0;
+    }
+
+    /** True if another live creature is still sending its fog to this player. */
+    public static boolean foggedByAnother(java.util.UUID player, LurkerBrain except) {
+        for (FogLurkerEntity l : active()) {
+            LurkerBrain b = l.brain();
+            if (b != null && b != except && !b.isEnded() && player.equals(b.targetId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ killed, and scared
@@ -363,7 +378,7 @@ public final class LurkerDirector {
             return 1.0;
         }
         for (ServerPlayer o : target.server.getPlayerList().getPlayers()) {
-            if (o != target && !o.isSpectator() && !com.foglurker.world.AfkTracker.isAfk(o)
+            if (o != target && o.isAlive() && !o.isSpectator() && !com.foglurker.world.AfkTracker.isAfk(o)
                     && o.level() == target.level() && o.distanceTo(target) <= 16) {
                 return 0.1;
             }
@@ -462,7 +477,17 @@ public final class LurkerDirector {
         if (group.size() > 1) {
             target = pickInGroup(group, r);
         }
-        return spawn(target, null, null) != null;
+        if (spawn(target, null, null) != null) {
+            return true;
+        }
+        // Nowhere to appear near them (up a 30-block pillar, say): anyone else free gets the visit instead,
+        // rather than the same player being tried again every 30 seconds while everyone else waits.
+        for (ServerPlayer other : candidates) {
+            if (other != target && spawn(other, null, null) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Players this close to each other count as a group. */
@@ -663,8 +688,10 @@ public final class LurkerDirector {
         // Deathwish, at night, out in the open: sometimes you simply walk into it.
         if (forced == null && forcedAttack == null && diff == LurkerDifficulty.DEATHWISH && level.isNight()
                 && SpotFinder.placeOf(level, target, null) == SpotFinder.Place.SURFACE && r.nextFloat() < NIGHT_MEETING_CHANCE) {
-            // A 50/50 whether it means it, made less likely by a scare burst's fear like any other attack.
-            return nightMeeting(target, diff, !peaceful && r.nextDouble() < 0.5 * fearFactor(target));
+            // A 50/50 whether it means it, plus the grudge from earlier escapes and less after a scare burst's
+            // fear, like any other attack.
+            return nightMeeting(target, diff, !peaceful
+                    && r.nextDouble() < Math.min(1.0, 0.5 + escalation(targetProfile)) * fearFactor(target));
         }
         boolean willAttack = forcedAttack != null ? forcedAttack : !peaceful && r.nextDouble() < attackChance(diff, targetProfile, target);
 

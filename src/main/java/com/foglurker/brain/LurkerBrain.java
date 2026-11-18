@@ -93,6 +93,8 @@ public final class LurkerBrain {
 
     private Vec3 woods;
     private String woodsDir = "north";
+    /** False where there are no trees at all (a desert): then it never talks about "the woods". */
+    private boolean woodsHasTrees = true;
     private double woodsStartDistance = 40;
     @Nullable
     private PlayerBehaviorProfile copiedProfile;
@@ -264,6 +266,7 @@ public final class LurkerBrain {
         SpotFinder.Woods w = SpotFinder.findWoods(level(), origin, avoid, random);
         woods = w.pos();
         woodsDir = w.direction();
+        woodsHasTrees = w.canopy() > 0;
         woodsStartDistance = Math.max(8, origin.distanceTo(woods));
 
         int maxTicks = FogLurkerConfig.COMMON.encounterMaxMinutes.get() * 60 * 20;
@@ -332,12 +335,14 @@ public final class LurkerBrain {
         if (ended) {
             return;
         }
+        boolean switchedBack = false;
         age++;
         phaseAge++;
         ServerPlayer t = target();
         if (huntId != null && (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator()
                 || t.isCreative() || com.foglurker.world.AfkTracker.isAfk(t))) {
             UUID lost = huntId;
+            switchedBack = true;
             if (t == null && phase == Phase.ATTACK && FogLurkerConfig.COMMON.escapeEscalation.get()
                     && !lost.equals(enc.targetId())) { // (its first victim's logout is counted just below)
                 // the one it switched to logged out mid-attack: that counts as getting away, for them
@@ -353,7 +358,8 @@ public final class LurkerBrain {
                 return;
             }
         }
-        if (t == null && (phase == Phase.ATTACK || phase == Phase.TRANSFORM || meetingChase)
+        // (Not right after a switch back: that first victim was not being hunted when they left.)
+        if (t == null && !switchedBack && (phase == Phase.ATTACK || phase == Phase.TRANSFORM || meetingChase)
                 && FogLurkerConfig.COMMON.escapeEscalation.get() && !escaped) {
             // Logged out with its teeth almost in them: that counts as getting away (it comes back angrier),
             // but it is not the night meeting's earned peace.
@@ -1071,6 +1077,11 @@ public final class LurkerBrain {
         if (s.isAir() || s.is(ModTags.UNBREAKABLE) || !s.getFluidState().isEmpty()) {
             return false;
         }
+        for (Direction d : Direction.values()) {
+            if (!level.getFluidState(pos.relative(d)).isEmpty()) {
+                return false; // breaking it would let lava or water pour in on you
+            }
+        }
         float hardness = s.getDestroySpeed(level, pos);
         if (hardness < 0 || hardness >= 50.0F || level.getBlockEntity(pos) != null) {
             return false;
@@ -1281,6 +1292,7 @@ public final class LurkerBrain {
             return;
         }
         ended = true;
+        LurkerDirector.noteLeft(targetId()); // at once: a flop lies there a moment, and nothing else may roll onto them
         if (meetingChase) {
             ServerPlayer survivor = target();
             // Only someone it could really have caught got away: not after a switch to Peaceful, Creative or AFK.
@@ -1480,7 +1492,7 @@ public final class LurkerBrain {
         if (ended || phase == Phase.FLEE) {
             return;
         }
-        if (phase == Phase.ATTACK || phase == Phase.TRANSFORM) {
+        if (phase == Phase.ATTACK || phase == Phase.TRANSFORM || meetingChase) { // (a bell in the RUN! head start too)
             noteEscape(target());
         }
         mob.playSound(ModSounds.SCREAM.get(), 2.0F, 1.3F);
@@ -1546,6 +1558,7 @@ public final class LurkerBrain {
         double bestScore = Double.MAX_VALUE;
         for (ServerPlayer p : level().players()) {
             if (p == t || !canAttack(p) || p.isCreative() || p.distanceTo(t) > 16
+                    || p.getUUID().equals(enc.copiedId()) // never the friend whose face it is wearing
                     || SpotFinder.isInOrOnWater(p) || isWarded(p)
                     || LurkerDirector.isHunted(p.getUUID()) // another one already has them: never two at once
                     || LurkerDirector.leftAloneTicks(p) > 0 // they earned 15 minutes of peace
@@ -1706,11 +1719,11 @@ public final class LurkerBrain {
         }
     }
 
-    /** Clears the fog for everyone it hunted this time. */
+    /** Clears the fog for everyone it hunted this time (not for anyone another creature is still fogging). */
     private void clearFog() {
         for (UUID id : fogged) {
             ServerPlayer p = server().getPlayerList().getPlayer(id);
-            if (p != null) {
+            if (p != null && !LurkerDirector.foggedByAnother(id, this)) {
                 ModNetwork.send(p, new FogPacket(0F));
             }
         }
@@ -1840,7 +1853,7 @@ public final class LurkerBrain {
         chatInFlight = true;
         int gen = chatGen;
         MimicChat.Context ctx = new MimicChat.Context(enc.copiedName(), t.getGameProfile().getName(), copiedProfile,
-                woodsDir, mob.level().isNight(), List.copyOf(said));
+                woodsDir, woodsHasTrees, mob.level().isNight(), List.copyOf(said));
         MinecraftServer server = server();
         // Their words go to Gemini only if the server keeps chat at all (learnChat) and they did not opt out.
         boolean shareHeard = heard == null

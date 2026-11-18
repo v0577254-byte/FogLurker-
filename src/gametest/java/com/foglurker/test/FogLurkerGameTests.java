@@ -2439,4 +2439,54 @@ public final class FogLurkerGameTests {
             }));
         });
     }
+
+    @GameTest(template = "empty", batch = "digsafe", timeoutTicks = 200)
+    public static void neverDigsIntoLavaOrWater(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(40, () -> logged(h, () -> {
+                FogLurkerEntity l = hunter(h, p, 8.5, 1.5);
+                ServerLevel level = h.getLevel();
+                var stone = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+                net.minecraft.core.BlockPos dry = h.absolutePos(new net.minecraft.core.BlockPos(5, 1, 6));
+                net.minecraft.core.BlockPos byLava = h.absolutePos(new net.minecraft.core.BlockPos(5, 1, 10));
+                net.minecraft.core.BlockPos byWater = h.absolutePos(new net.minecraft.core.BlockPos(5, 1, 14));
+                for (net.minecraft.core.BlockPos b : List.of(dry, byLava, byWater)) {
+                    level.setBlock(b, stone, 2);
+                }
+                level.setBlock(byLava.east(), net.minecraft.world.level.block.Blocks.LAVA.defaultBlockState(), 2);
+                level.setBlock(byWater.above(), net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 2);
+                check(l.brain().canBreak(dry), "plain stone should be breakable");
+                check(!l.brain().canBreak(byLava), "stone holding back lava must never be broken");
+                check(!l.brain().canBreak(byWater), "stone holding back water must never be broken");
+                level.setBlock(byLava.east(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
+                level.setBlock(byWater.above(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
+                l.brain().vanish(true);
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "chat", timeoutTicks = 100)
+    public static void noWoodsTalkWithoutTrees(GameTestHelper h) {
+        logged(h, () -> {
+            if (com.foglurker.chat.GeminiClient.available()) {
+                h.succeed(); // the written lines come from Gemini then; this checks the built-in ones
+                return;
+            }
+            MimicChat.Context ctx = new MimicChat.Context("Alex", "Steve", null, "east", false, false, List.of());
+            for (int i = 0; i < 200; i++) {
+                for (MimicChat.Intent intent : MimicChat.Intent.values()) {
+                    String said = MimicChat.compose(ctx, intent, intent == MimicChat.Intent.REPLY ? "where are you" : null,
+                            RandomSource.create(i * 31L + intent.ordinal())).get(5, TimeUnit.SECONDS);
+                    check(!said.contains("wood") && !said.contains("forest") && !said.contains("tree"),
+                            "with no trees around it must not talk about woods: " + said);
+                }
+            }
+            h.succeed();
+        });
+    }
 }

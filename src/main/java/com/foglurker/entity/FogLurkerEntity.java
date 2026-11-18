@@ -798,6 +798,12 @@ public class FogLurkerEntity extends PathfinderMob {
         return false;
     }
 
+    /** Flopped or dancing it cannot be hurt, and a blast must not send the pancake (or the dancer) flying either. */
+    @Override
+    public boolean ignoreExplosion() {
+        return isFlopped() || isDancing() || super.ignoreExplosion();
+    }
+
     @Override
     public boolean canChangeDimensions() {
         return false;

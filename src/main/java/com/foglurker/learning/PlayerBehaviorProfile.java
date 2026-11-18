@@ -61,6 +61,8 @@ public final class PlayerBehaviorProfile {
     public int homeY;
     public int homeZ;
     public String homeDim = "";
+    /** The home is where they really sleep (false: worked out from the chests they open). */
+    public boolean homeFromBed;
 
     /** Times this player got away from an attack (water, soul fire, a bell) since it last landed a hit. */
     public int escapes;
@@ -84,6 +86,7 @@ public final class PlayerBehaviorProfile {
     /** A bed is a strong signal: this is home. */
     public void sleptAt(String dimension, net.minecraft.core.BlockPos pos) {
         setHome(dimension, pos);
+        homeFromBed = true;
         homeHits += 10;
         awayHits = 0;
     }
@@ -92,11 +95,13 @@ public final class PlayerBehaviorProfile {
     public void usedContainerAt(String dimension, net.minecraft.core.BlockPos pos) {
         if (!homeKnown) {
             setHome(dimension, pos);
+            homeFromBed = false;
             homeHits = 1;
         } else if (isNearHome(dimension, pos, 32)) {
             homeHits++;
         } else if (++awayHits > homeHits) {
             setHome(dimension, pos);
+            homeFromBed = false;
             homeHits = 1;
             awayHits = 0;
         }
@@ -205,6 +210,7 @@ public final class PlayerBehaviorProfile {
         if (homeKnown) {
             t.putIntArray("home", new int[]{homeX, homeY, homeZ, homeHits, awayHits});
             t.putString("homeDim", homeDim);
+            t.putBoolean("homeBed", homeFromBed);
         }
         return t;
     }
@@ -253,6 +259,7 @@ public final class PlayerBehaviorProfile {
             p.homeHits = home[3];
             p.awayHits = home[4];
             p.homeDim = t.getString("homeDim");
+            p.homeFromBed = t.getBoolean("homeBed"); // (older saves: not known, so it never claims a bed)
         }
         return p;
     }

@@ -66,9 +66,20 @@ public class MimicDummyPlayer extends RemotePlayer {
         if (info != null) {
             return info.getSkinLocation();
         }
-        // Not in the player list (they logged off): ask Mojang for their skin like a player head does.
-        return Minecraft.getInstance().getSkinManager().getInsecureSkinLocation(profileForSkin());
+        // Not in the player list (they logged off): ask Mojang for their skin like a player head does. Looked up
+        // once per profile, not every frame (the lookup hashes and allocates).
+        GameProfile profile = profileForSkin();
+        if (profile != cachedSkinFor || cachedSkin == null) {
+            cachedSkin = Minecraft.getInstance().getSkinManager().getInsecureSkinLocation(profile);
+            cachedSkinFor = profile;
+        }
+        return cachedSkin;
     }
+
+    @Nullable
+    private GameProfile cachedSkinFor;
+    @Nullable
+    private ResourceLocation cachedSkin;
 
     @Override
     public String getModelName() {

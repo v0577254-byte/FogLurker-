@@ -71,8 +71,10 @@ public final class SpotFinder {
             }
             int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
             BlockPos g = new BlockPos(x, surface, z);
-            if (Math.abs(surface - origin.y) > 5 || !isStandable(level, g) || !isDry(level, g)) {
-                continue; // must be outside, on open ground at about your level
+            // Outside, on open ground at about your level. Never much higher: indoors, the top of a roof 4 blocks
+            // over your head is also "the surface", and it would stand on your own roof.
+            if (surface - origin.y > 2 || origin.y - surface > 5 || !isStandable(level, g) || !isDry(level, g)) {
+                continue;
             }
             Vec3 spot = Vec3.atBottomCenterOf(g);
             boolean visible = canSee(target, spot.add(0, 1.0, 0));

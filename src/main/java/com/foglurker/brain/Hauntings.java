@@ -207,7 +207,11 @@ public final class Hauntings {
     // =================================================================== sounds only you can hear
 
     private static void play(ServerPlayer p, SoundEvent sound, SoundSource source, Vec3 at, float volume, float pitch) {
-        if (p.hasDisconnected()) {
+        // The later steps of a sound check again: gone AFK, being hunted, switched game mode or world meanwhile, or
+        // the hauntings were switched off: the rest of it is not played.
+        if (p.hasDisconnected() || !p.isAlive() || p.isSpectator() || p.isCreative() || com.foglurker.world.AfkTracker.isAfk(p)
+                || isBeingHunted(p) || !FogLurkerConfig.COMMON.hauntings.get()
+                || p.position().distanceToSqr(at) > 48 * 48) {
             return;
         }
         p.connection.send(new ClientboundSoundPacket(BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound), source,
@@ -307,6 +311,14 @@ public final class Hauntings {
         if (found.isEmpty()) {
             return false;
         }
+        // Claim and protection mods get their say first: the same block-break event a player would cause, from a
+        // fake player (which claim mods keep out of claims). Torches they protect are left burning.
+        net.minecraftforge.common.util.FakePlayer fake = net.minecraftforge.common.util.FakePlayerFactory.getMinecraft(level);
+        found.removeIf(pos -> net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
+                new net.minecraftforge.event.level.BlockEvent.BreakEvent(level, pos, level.getBlockState(pos), fake)));
+        if (found.isEmpty()) {
+            return false;
+        }
         BlockPos pick = found.get(r.nextInt(found.size()));
         level.destroyBlock(pick, true);
         level.playSound(null, pick, SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.35F, 1.7F);
@@ -333,9 +345,9 @@ public final class Hauntings {
         String name = pick.getValue().lastKnownName;
         p.sendSystemMessage(Component.translatable("multiplayer.player.joined", name).withStyle(ChatFormatting.YELLOW));
         // The direction of the leafiest dry ground nearby (the same pick a real lure uses), not a made-up one.
-        String woods = SpotFinder.findWoods(p.serverLevel(), p.position(), null, r).direction();
-        MimicChat.Context ctx = new MimicChat.Context(name, p.getGameProfile().getName(), pick.getValue(), woods,
-                p.level().isNight(), List.of());
+        SpotFinder.Woods found = SpotFinder.findWoods(p.serverLevel(), p.position(), null, r);
+        MimicChat.Context ctx = new MimicChat.Context(name, p.getGameProfile().getName(), pick.getValue(), found.direction(),
+                found.canopy() > 0, p.level().isNight(), List.of());
         MimicChat.Intent intent = r.nextBoolean() ? MimicChat.Intent.GREET : MimicChat.Intent.LURE;
         later(server, 60 + r.nextInt(60), () -> MimicChat.compose(ctx, intent, null, r)
                 .whenComplete((text, err) -> server.execute(() -> {
@@ -423,7 +435,9 @@ public final class Hauntings {
         } else {
             pages.add("i have been\nlistening,\n" + name);
         }
-        pages.add("you sleep at\n" + prof.homeX + " " + prof.homeY + " " + prof.homeZ + "\n\ni have been\nin your house");
+        // "sleep" only if it is where they really slept; a home worked out from their chests is where they live.
+        pages.add((prof.homeFromBed ? "you sleep at\n" : "you live at\n") + prof.homeX + " " + prof.homeY + " " + prof.homeZ
+                + "\n\ni have been\nin your house");
         String friend = friendName(data, p.getUUID(), r);
         String last = friend != null ? "when " + friend + "\ncomes back\n\nlook at the eyes" : "look behind you";
         if (GeminiClient.available()) {

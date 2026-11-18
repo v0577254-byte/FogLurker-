@@ -250,6 +250,11 @@ public final class FogLurkerCommands {
 
     private static int endGrace(CommandContext<CommandSourceStack> ctx) {
         FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
+        if (!data.inGrace()) {
+            // Already over: ending it again would throw away the time already counted toward the next roll.
+            reply(ctx.getSource(), Component.literal("The grace period is already over.").withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
         data.endGrace();
         String rest = LurkerDirector.isResting(ctx.getSource().getServer())
                 ? " (it was killed: the clock only starts after its rest, in " + time(LurkerDirector.restTicksLeft(ctx.getSource().getServer())) + ")"
@@ -391,7 +396,8 @@ public final class FogLurkerCommands {
         String as = switch (enc.mode()) {
             case MIMIC -> "wearing " + enc.copiedName() + "'s face";
             case DOPPELGANGER -> "wearing their own face";
-            case DOG -> "as their dog" + (enc.dogName() != null ? " \"" + enc.dogName() + "\"" : "");
+            case DOG -> (FogLurkerSavedData.get(src.getServer()).profile(target.getUUID()).dogUuid != null ? "as their dog" : "as a dog")
+                    + (enc.dogName() != null ? " \"" + enc.dogName() + "\"" : "");
             case WATCHER -> "as itself, the pale crawler, watching from the fog";
             default -> "hiding as a " + enc.disguise().id();
         };
@@ -412,10 +418,9 @@ public final class FogLurkerCommands {
                     .append(Component.literal(" left (" + data.difficulty().displayName()
                             + " mode). It is still learning how you play.").withStyle(ChatFormatting.GRAY)));
         } else {
-            // Only "out there" when it is (this command is for everyone, so no roll times here).
+            // This command is for everyone: nothing about hunts or roll times, only what everyone was already told.
             var server = ctx.getSource().getServer();
-            String now = !LurkerDirector.active().isEmpty() ? "It is out there."
-                    : LurkerDirector.isResting(server) ? "It was killed; the fog lifts for another " + time(LurkerDirector.restTicksLeft(server)) + "."
+            String now = LurkerDirector.isResting(server) ? "It was killed; the fog lifts for another " + time(LurkerDirector.restTicksLeft(server)) + "."
                     : !data.naturalSpawning() ? "Natural spawning is off: it only comes when summoned."
                     : "It can come at any time.";
             reply(ctx.getSource(), Component.literal("The grace period is over. " + now).withStyle(ChatFormatting.DARK_RED));
@@ -495,10 +500,12 @@ public final class FogLurkerCommands {
             reply(src, Component.literal("The spawn timer is about to start.").withStyle(ChatFormatting.GRAY));
             return 0;
         }
+        boolean empty = src.getServer().getPlayerList().getPlayerCount() == 0;
         boolean paused = !LurkerDirector.rollsRunning(src.getServer());
         reply(src, Component.literal("Next spawn roll in: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(time(next)).withStyle(ChatFormatting.WHITE))
-                .append(paused ? Component.literal(" (paused: everyone it could visit is AFK or being hunted)").withStyle(ChatFormatting.GRAY)
+                .append(empty ? Component.literal(" (paused: nobody is online)").withStyle(ChatFormatting.GRAY)
+                        : paused ? Component.literal(" (paused: everyone it could visit is AFK or being hunted)").withStyle(ChatFormatting.GRAY)
                         : Component.empty())
                 .append(data.nextIsGuaranteed()
                         ? Component.literal(" (guaranteed: the last roll did not bring it)").withStyle(ChatFormatting.RED)

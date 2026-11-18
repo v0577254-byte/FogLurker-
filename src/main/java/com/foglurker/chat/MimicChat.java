@@ -22,7 +22,17 @@ public final class MimicChat {
 
     /** Everything needed to write one message. Built on the server thread. */
     public record Context(String copiedName, String targetName, @Nullable PlayerBehaviorProfile copiedProfile,
-                          String woodsDirection, boolean night, List<String> alreadySaid) {
+                          String woodsDirection, boolean trees, boolean night, List<String> alreadySaid) {
+        /** Somewhere with trees. */
+        public Context(String copiedName, String targetName, @Nullable PlayerBehaviorProfile copiedProfile,
+                       String woodsDirection, boolean night, List<String> alreadySaid) {
+            this(copiedName, targetName, copiedProfile, woodsDirection, true, night, alreadySaid);
+        }
+    }
+
+    /** Lines about woods, forests or trees, which make no sense where there are none. */
+    private static boolean aboutTrees(String line) {
+        return line.contains("wood") || line.contains("forest") || line.contains("tree");
     }
 
     private static final String[] GREET = {"hey", "yo", "hi", "there you are", "oh hey", "yo {t}", "hey {t}", "sup"};
@@ -114,16 +124,22 @@ public final class MimicChat {
         if (!ctx.alreadySaid().isEmpty()) {
             sb.append("\nYou already said (do not repeat): ").append(String.join(" | ", ctx.alreadySaid())).append('\n');
         }
-        sb.append("\nThe woods are to the ").append(ctx.woodsDirection()).append(" of ").append(ctx.targetName())
-                .append(". It is ").append(ctx.night() ? "night" : "daytime").append(".\nSituation: ");
+        if (ctx.trees()) {
+            sb.append("\nThe woods are to the ").append(ctx.woodsDirection()).append(" of ").append(ctx.targetName());
+        } else {
+            sb.append("\nThe place you are leading them to is to the ").append(ctx.woodsDirection()).append(" of ")
+                    .append(ctx.targetName()).append(" (open ground with no trees: never mention woods, a forest or trees)");
+        }
+        sb.append(". It is ").append(ctx.night() ? "night" : "daytime").append(".\nSituation: ");
         String t = ctx.targetName();
         switch (intent) {
             case GREET -> sb.append("You just walked up to ").append(t).append(". Greet them casually.");
-            case LURE -> sb.append("Convince ").append(t).append(" to follow you toward the woods. Give a believable "
+            case LURE -> sb.append("Convince ").append(t).append(ctx.trees() ? " to follow you toward the woods. Give a believable "
+                    : " to follow you that way. Give a believable "
                     + "reason (something cool you found, a cave, diamonds, a village, a weird structure).");
             case WAIT -> sb.append(t).append(" is following but lagging behind. Tell them to keep coming.");
             case IMPATIENT -> sb.append(t).append(" stopped following you. Get them to come, a bit impatient.");
-            case ARRIVED -> sb.append("You are in the woods and ").append(t)
+            case ARRIVED -> sb.append(ctx.trees() ? "You are in the woods and " : "You are at the spot and ").append(t)
                     .append(" is close. Get them to come the last few steps.");
             case REPLY -> sb.append(t).append(" just said something to you. Answer naturally and keep luring them.");
             case CREEPY -> sb.append("Your disguise is slipping. Write something short and unsettling, still in the same style.");
@@ -224,6 +240,10 @@ public final class MimicChat {
             case CREEPY -> CREEPY;
             case REPLY -> replyPool(heard);
         };
+        if (!ctx.trees()) {
+            String[] treeless = java.util.Arrays.stream(pool).filter(l -> !aboutTrees(l)).toArray(String[]::new);
+            pool = treeless.length > 0 ? treeless : pool;
+        }
         String pick = pool[random.nextInt(pool.length)];
         for (int tries = 0; tries < 4 && saidBefore(ctx, fill(pick, ctx)); tries++) {
             pick = pool[random.nextInt(pool.length)];

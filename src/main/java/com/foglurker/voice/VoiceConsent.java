@@ -306,6 +306,18 @@ public final class VoiceConsent {
         OPTED_IN.add(player);
         LAST_SEEN.put(player, System.currentTimeMillis());
         save(false);
+        // An old opt-out marker of theirs still waiting for a save would undo this opt-in at the next start.
+        synchronized (VoiceConsent.class) {
+            Path marker = markerDir().resolve(player.toString());
+            if (appliedMarkers != null) {
+                appliedMarkers.remove(marker);
+            }
+            try {
+                Files.deleteIfExists(marker);
+            } catch (IOException | RuntimeException ignored) {
+                // at worst they are opted out again after a restart (never the other way round)
+            }
+        }
         return true;
     }
 

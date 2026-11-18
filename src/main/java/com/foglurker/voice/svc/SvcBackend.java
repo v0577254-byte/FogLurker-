@@ -292,7 +292,7 @@ final class SvcBackend implements VoiceBridge.Backend {
                 }
                 playingOwner.put(player, voiceOwner);
                 playing.put(entityId, player);
-                if (cancelled.contains(entityId)) {
+                if (cancelled.contains(entityId) || stopped) { // (or voice chat shut down in that instant)
                     playing.remove(entityId, player); // stopped in the instant before it would have started
                     playingOwner.remove(player);
                     encoder.close();

@@ -147,7 +147,7 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 - **It follows you down.** It takes no fall damage, so it drops straight into the hole you dug.
 - **It breaks in.** If you wall yourself in or seal the hole above you, it claws through: forward (two blocks high), down or up toward you. You see crack marks while it works, and harder blocks take longer (dirt about 1 s, stone about 1.7 s, iron about 4 s).
 - **Except protected blocks.** It never breaks anything in the `foglurker:unbreakable` block tag: all deepslate (bricks, tiles, ores, stairs and so on), obsidian, crying obsidian, bedrock, reinforced deepslate, netherite blocks, ancient debris, respawn anchors, portals and portal frames, spawners, barriers and command blocks. It also skips anything as hard as obsidian or harder, and anything with an inventory or other data (chests, furnaces, beds, shulker boxes...). **A deepslate or obsidian bunker keeps it out.** Server owners can add blocks to the tag with a data pack.
-- It respects the `mobGriefing` gamerule and the `breakBlocks` config option, plus claim/protection mods that block mobs from breaking blocks through Forge's `LivingDestroyBlockEvent`.
+- It respects the `mobGriefing` gamerule and the `breakBlocks` config option, plus claim/protection mods that block mobs from breaking blocks through Forge's `LivingDestroyBlockEvent` (the torch-snuffing haunting asks them with a block-break event from a fake player, which claim mods keep out too).
 
 ## Water is its weakness
 
@@ -198,7 +198,7 @@ So a long render distance cannot push the fog out of sight, and a short one stil
 > fogstalker: please dont run
 > fogstalker: i will not hurt you
 
-It is a coin flip whether it means it (less likely if it fears you after a scare burst, and it never means it on Peaceful). If it does, it sinks flat into the ground and is gone. If not:
+It is a coin flip whether it means it. It is less likely to mean it for each time you got away from it before (+10% per escape, up to +30%, like any attack), more likely if it fears you after a scare burst, and on Peaceful it always means it. If it does, it sinks flat into the ground and is gone. If not:
 
 > fogstalker: just kidding
 > fogstalker: **RUN!**

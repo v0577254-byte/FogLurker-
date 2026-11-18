@@ -38,6 +38,10 @@
       "required": false
     },
     {
+      "id": "minecraft:infested_deepslate",
+      "required": false
+    },
+    {
       "id": "minecraft:cobbled_deepslate_stairs",
       "required": false
     },
