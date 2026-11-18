@@ -456,7 +456,7 @@ public final class FogLurkerCommands {
                 : LurkerDirector.isResting(src.getServer()) ? "It was killed: the clock starts again after its rest, in "
                 + time(LurkerDirector.restTicksLeft(src.getServer())) + "."
                 : data.nextSpawnTicks() >= 0 ? "The next roll is in " + time(data.nextSpawnTicks())
-                + (LurkerDirector.rollsRunning(src.getServer()) ? "" : " (the clock is paused while nobody it could visit is free)") + "."
+                + (LurkerDirector.rollsRunning(src.getServer()) ? "" : " (paused: everyone is AFK, being hunted, in their 15-minute peace or outside the Overworld)") + "."
                 : "The first roll is in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes.")
                 : "Natural spawning is now OFF. It will only come when summoned with /foglurker spawn or /foglurker force. "
                 + "Anything already out there stays until it leaves (/foglurker despawn sends it away).")
@@ -510,7 +510,7 @@ public final class FogLurkerCommands {
         reply(src, Component.literal("Next spawn roll in: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(time(next)).withStyle(ChatFormatting.WHITE))
                 .append(empty ? Component.literal(" (paused: nobody is online)").withStyle(ChatFormatting.GRAY)
-                        : paused ? Component.literal(" (paused: everyone it could visit is AFK or being hunted)").withStyle(ChatFormatting.GRAY)
+                        : paused ? Component.literal(" (paused: nobody it could visit right now: everyone is AFK, being hunted, in their 15-minute peace or outside the Overworld)").withStyle(ChatFormatting.GRAY)
                         : Component.empty())
                 .append(data.nextIsGuaranteed()
                         ? Component.literal(" (guaranteed: the last roll did not bring it)").withStyle(ChatFormatting.RED)

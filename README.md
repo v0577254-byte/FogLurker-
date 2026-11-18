@@ -226,7 +226,7 @@ It is a coin flip whether it means it. It is less likely to mean it for each tim
   2. If it did **not** appear, it is **guaranteed** to appear at the next roll 5 minutes later.
   3. If it **did** appear, the next roll is a normal 50/50 again.
 
-  On a multiplayer server it can be after up to two players at once (`maxConcurrent`), but never two at once for the same player, and never straight back to someone it just left. With one player online the timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
+  On a multiplayer server it can be after up to two players at once (`maxConcurrent`), but never two at once for the same player, and never straight back to someone it just left. With one player online the timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. It also pauses while nobody it could visit is free (everyone AFK, being hunted, in their 15-minute peace, or outside the Overworld). `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
 - On vanilla Peaceful difficulty it never attacks, it only watches.
 - `/foglurker naturalspawning off` stops it appearing on its own in that world, and stops the hauntings too; it then only comes when summoned.
 
@@ -335,7 +335,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.2.4.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.2.5.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -375,7 +375,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.4.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.5.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -387,7 +387,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.2.4.jar
+./gradlew build               # -> build/libs/FogLurker-1.2.5.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
