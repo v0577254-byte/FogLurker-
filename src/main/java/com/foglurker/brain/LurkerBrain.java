@@ -353,8 +353,9 @@ public final class LurkerBrain {
             huntId = null; // the one it switched to is gone: back to the first target...
             forgetChatForVictimChange();
             t = target();
-            if (LurkerDirector.isHuntedByAnother(enc.targetId(), this)) {
-                vanish(false); // ...unless another one has them by now: never two at once
+            if (LurkerDirector.isHuntedByAnother(enc.targetId(), this)
+                    || t != null && LurkerDirector.leftAloneTicks(t) > 0) {
+                vanish(false); // ...unless another one has them by now (never two at once), or they earned their peace
                 return;
             }
         }
@@ -1585,7 +1586,9 @@ public final class LurkerBrain {
 
     private boolean isolated(ServerPlayer t) {
         for (Player other : mob.level().players()) {
-            if (other != t && !other.isSpectator() && other.distanceTo(t) < 24) {
+            // (an AFK player or a fake player is no company)
+            if (other != t && !other.isSpectator() && !(other instanceof net.minecraftforge.common.util.FakePlayer)
+                    && !(other instanceof ServerPlayer sp && com.foglurker.world.AfkTracker.isAfk(sp)) && other.distanceTo(t) < 24) {
                 return false;
             }
         }

@@ -1955,6 +1955,8 @@ public final class FogLurkerGameTests {
             mine.sleptAt(level.dimension().location().toString(), chestPos);
             mine.addChat("anyone seen my pickaxe");
             mine.addChat("brb getting wood");
+            check(!com.foglurker.brain.Hauntings.leaveBook(p, data, r), "never a book in a chest they have not opened themselves");
+            mine.openedContainer(chestPos);
             check(com.foglurker.brain.Hauntings.leaveBook(p, data, r), "it should leave a book in the chest");
             var chest = (net.minecraft.world.Container) level.getBlockEntity(chestPos);
             ItemStack book = chest.getItem(0);
@@ -2155,8 +2157,8 @@ public final class FogLurkerGameTests {
             UUID active = UUID.randomUUID();
             VoiceConsent.optIn(gone);
             VoiceConsent.optIn(active);
-            SnippetStore.saveAsync(gone, pcm);
-            SnippetStore.saveAsync(active, pcm);
+            SnippetStore.saveAsync(gone, pcm.clone());
+            SnippetStore.saveAsync(active, pcm.clone());
             h.runAfterDelay(30, () -> logged(h, () -> {
                 check(SnippetStore.count(gone) == 1 && SnippetStore.count(active) == 1, "snippets were not saved");
                 // "gone" removed the mod 31 days ago and never came back; "active" played yesterday.
@@ -2253,12 +2255,13 @@ public final class FogLurkerGameTests {
         for (int i = 0; i < pcm.length; i++) {
             pcm[i] = (short) (Math.sin(i / 20.0) * 8000);
         }
+        short[] original = pcm.clone(); // saveAsync owns (and zeroes) the array it is given
         SnippetStore.saveAsync(id, pcm);
         h.runAfterDelay(40, () -> {
             check(SnippetStore.count(id) == 1, "expected exactly 1 snippet (the pre-opt-in one must be dropped), got "
                     + SnippetStore.count(id));
             short[] back = SnippetStore.loadRandom(id);
-            check(back != null && Arrays.equals(back, pcm), "snippet did not round-trip");
+            check(back != null && Arrays.equals(back, original), "snippet did not round-trip");
             int deleted = VoiceConsent.optOut(id);
             check(deleted == 1 && SnippetStore.count(id) == 0, "opt-out must delete every snippet");
             check(!VoiceConsent.isOptedIn(id), "opt-out did not stick");

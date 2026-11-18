@@ -332,11 +332,12 @@ public final class BehaviorTracker {
             // really became theirs counts: they fell asleep in it, or it is now their respawn point.
             net.minecraft.core.BlockPos bed = event.getPos().immutable();
             net.minecraft.core.BlockPos spawnBefore = p.getRespawnPosition();
+            var spawnDimBefore = p.getRespawnDimension();
             var server = p.server;
             server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
                 boolean theirs = p.isSleeping() && p.getSleepingPos().map(bed::equals).orElse(false)
                         // (or this click just made it their spawn: clicking the bed that already was does not count)
-                        || bed.equals(p.getRespawnPosition()) && !bed.equals(spawnBefore)
+                        || bed.equals(p.getRespawnPosition()) && !(bed.equals(spawnBefore) && spawnDimBefore == p.level().dimension())
                         && p.getRespawnDimension() == p.level().dimension();
                 if (!p.hasDisconnected() && theirs) {
                     FogLurkerSavedData data = FogLurkerSavedData.get(server);
@@ -344,6 +345,17 @@ public final class BehaviorTracker {
                     data.setDirty();
                 }
             }));
+        }
+    }
+
+    /** Remembers which storage blocks a player opens with their own hands (a book only ever goes in one of those). */
+    @SubscribeEvent
+    public static void onUseBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
+        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)
+                && p.level().getBlockEntity(event.getPos()) instanceof net.minecraft.world.Container) {
+            FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
+            data.profile(p.getUUID()).openedContainer(event.getPos());
+            data.setDirty();
         }
     }
 

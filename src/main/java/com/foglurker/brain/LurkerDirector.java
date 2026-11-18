@@ -495,7 +495,7 @@ public final class LurkerDirector {
 
     /**
      * Who it goes for in a group: usually the one with the least health (45%), otherwise usually the
-     * one on the edge of the group, furthest from the others and so closest to the dark it comes from
+     * one on the edge of the group, furthest from the others
      * (40%), and now and then anyone (15%).
      */
     public static ServerPlayer pickInGroup(List<ServerPlayer> group, RandomSource r) {
@@ -535,7 +535,8 @@ public final class LurkerDirector {
     private static double loneliness(ServerPlayer p) {
         double nearest = 512;
         for (ServerPlayer o : p.server.getPlayerList().getPlayers()) {
-            if (o != p && !o.isSpectator() && o.level() == p.level()) {
+            if (o != p && !o.isSpectator() && o.level() == p.level() && !(o instanceof net.minecraftforge.common.util.FakePlayer)
+                    && !com.foglurker.world.AfkTracker.isAfk(o)) { // an AFK alt standing next to you is no company
                 nearest = Math.min(nearest, o.distanceTo(p));
             }
         }

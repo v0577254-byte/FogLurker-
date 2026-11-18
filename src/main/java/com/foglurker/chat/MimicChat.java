@@ -31,9 +31,23 @@ public final class MimicChat {
     }
 
     /** Lines about woods, forests or trees, which make no sense where there are none. */
+    private static final java.util.regex.Pattern TREE_WORDS =
+            java.util.regex.Pattern.compile("\\b(woods?|forests?|trees?)\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    /** Whole words only ("street" or a player called Treeboy is not about trees). */
     private static boolean aboutTrees(String line) {
-        String l = line.toLowerCase(Locale.ROOT);
-        return l.contains("wood") || l.contains("forest") || l.contains("tree");
+        return TREE_WORDS.matcher(line).find();
+    }
+
+    /** The same, ignoring the two names in it (someone called Woodsy is not a forest either). */
+    private static boolean aboutTrees(String line, Context ctx) {
+        String l = line;
+        for (String name : new String[]{ctx.copiedName(), ctx.targetName()}) {
+            if (name != null && !name.isEmpty()) {
+                l = l.replace(name, " ").replace(name.toLowerCase(Locale.ROOT), " ");
+            }
+        }
+        return aboutTrees(l);
     }
 
     private static final String[] GREET = {"hey", "yo", "hi", "there you are", "oh hey", "yo {t}", "hey {t}", "sup"};
@@ -86,7 +100,7 @@ public final class MimicChat {
         // generate() always completes (with a failed result at worst) within its own time limit.
         return GeminiClient.generate(system, user, 1.0F)
                 .thenApply(r -> r.text().map(t -> sanitize(t, ctx))
-                        .filter(t -> !t.isEmpty() && (ctx.trees() || !aboutTrees(t))) // no "woods" where there are none
+                        .filter(t -> !t.isEmpty() && (ctx.trees() || !aboutTrees(t, ctx))) // no "woods" where there are none
                         .orElse(fallback))
                 .exceptionally(t -> fallback);
     }
@@ -94,7 +108,8 @@ public final class MimicChat {
     private static String systemPrompt(Context ctx) {
         return "You write exactly one Minecraft multiplayer chat message. You are secretly a shapeshifting creature "
                 + "impersonating the player \"" + ctx.copiedName() + "\" to lure the player \"" + ctx.targetName()
-                + "\" into the woods. Never admit you are not " + ctx.copiedName() + " and never mention AI, bots or "
+                + (ctx.trees() ? "\" into the woods." : "\" somewhere away from the others (there are no trees there).")
+                + " Never admit you are not " + ctx.copiedName() + " and never mention AI, bots or "
                 + "being a creature. Copy " + ctx.copiedName() + "'s typing style exactly: capitalisation, punctuation, "
                 + "slang, emoticons, typos and message length. Keep it short, usually under 8 words. "
                 + "Output only the message text: no quotes, no name prefix, no explanations. "
@@ -247,7 +262,7 @@ public final class MimicChat {
                 }
                 String l = s.toLowerCase(Locale.ROOT);
                 for (String w : LURE_WORDS) {
-                    if (l.contains(w) && s.length() < 60 && !saidBefore(ctx, s) && (ctx.trees() || !aboutTrees(s))) {
+                    if (l.contains(w) && s.length() < 60 && !saidBefore(ctx, s) && (ctx.trees() || !aboutTrees(s, ctx))) {
                         fitting.add(s);
                         break;
                     }

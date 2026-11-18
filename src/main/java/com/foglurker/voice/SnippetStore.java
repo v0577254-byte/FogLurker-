@@ -37,6 +37,7 @@ public final class SnippetStore {
         return SecureStorage.voiceRoot().resolve(player.toString());
     }
 
+    /** Stores a clip (encrypted). Takes ownership of {@code pcm}: it is zeroed once stored. */
     public static void saveAsync(UUID player, short[] pcm) {
         if (!VoiceConsent.isOptedIn(player)) {
             return; // never store anything for someone who has not opted in
@@ -52,7 +53,10 @@ public final class SnippetStore {
                 SecureStorage.ensurePrivateDir(d);
                 String name = System.currentTimeMillis() + "-" + Integer.toHexString(ThreadLocalRandom.current().nextInt()) + ".snip";
                 Path file = d.resolve(name);
-                SecureStorage.writeEncrypted(file, toBytes(pcm));
+                byte[] bytes = toBytes(pcm);
+                SecureStorage.writeEncrypted(file, bytes);
+                java.util.Arrays.fill(pcm, (short) 0); // stored (encrypted): the plain copies in memory are zeroed
+                java.util.Arrays.fill(bytes, (byte) 0);
                 if (!VoiceConsent.isOptedIn(player) || VoiceConsent.generation(player) != recordedUnder) {
                     Files.deleteIfExists(file); // they opted out while this was being written
                     return;

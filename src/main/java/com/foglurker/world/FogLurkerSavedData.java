@@ -213,7 +213,15 @@ public final class FogLurkerSavedData extends SavedData {
         // right now is never forgotten, whatever their date says.)
         long nowMillis = System.currentTimeMillis();
         MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
-        profiles.entrySet().removeIf(e -> {
+        // A clock that jumped years ahead would make everyone look gone: never forget more than a quarter at once.
+        long dueCount = profiles.entrySet().stream().filter(e -> e.getValue().lastSeenMillis != 0 && !e.getValue().chatLearningOff
+                && nowMillis - e.getValue().lastSeenMillis > 365L * 24 * 60 * 60 * 1000).count();
+        boolean pruneOk = dueCount <= Math.max(2, profiles.size() / 4);
+        if (!pruneOk) {
+            com.foglurker.FogLurkerMod.LOGGER.warn("Fog Lurker: {} of {} player profiles look unseen for a year; not forgetting "
+                    + "them (has the system clock jumped?)", dueCount, profiles.size());
+        }
+        if (pruneOk) profiles.entrySet().removeIf(e -> {
             PlayerBehaviorProfile p = e.getValue();
             if (p.lastSeenMillis == 0) {
                 p.lastSeenMillis = nowMillis;

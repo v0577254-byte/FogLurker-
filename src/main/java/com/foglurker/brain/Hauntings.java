@@ -378,10 +378,17 @@ public final class Hauntings {
     /** A container near {@code center} with a free slot. Never touches unopened loot chests. */
     @Nullable
     private static BlockPos nearestContainer(ServerLevel level, BlockPos center, int range, boolean needFreeSlot) {
+        return nearestContainer(level, center, range, needFreeSlot, null);
+    }
+
+    /** @param onlyThese if not null, only these positions (BlockPos.asLong) count */
+    @Nullable
+    private static BlockPos nearestContainer(ServerLevel level, BlockPos center, int range, boolean needFreeSlot,
+                                             @Nullable java.util.Collection<Long> onlyThese) {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (BlockPos pos : BlockPos.betweenClosed(center.offset(-range, -4, -range), center.offset(range, 4, range))) {
-            if (!level.isLoaded(pos)) {
+            if (!level.isLoaded(pos) || onlyThese != null && !onlyThese.contains(pos.asLong())) {
                 continue;
             }
             BlockEntity be = level.getBlockEntity(pos);
@@ -422,7 +429,8 @@ public final class Hauntings {
                 || now - prof.lastBookAt < 20L * 60 * 20) {
             return false; // only at your own base, and at most one every 20 minutes
         }
-        BlockPos chest = nearestContainer(level, prof.home(), 8, true);
+        // Only a chest they opened themselves: never one a neighbour (or a griefer) put next to their bed.
+        BlockPos chest = nearestContainer(level, prof.home(), 8, true, prof.openedContainers);
         if (chest == null) {
             return false;
         }

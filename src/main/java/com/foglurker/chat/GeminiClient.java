@@ -67,6 +67,12 @@ public final class GeminiClient {
     /** Request timeout override for the game tests (seconds), or 0 to use the config. */
     private static volatile int testTimeoutSeconds;
     private static volatile long keyRejectedUntil;
+    private static final long START_NANOS = System.nanoTime();
+
+    /** Milliseconds on a clock that never jumps (a wall-clock change cannot stretch a pause); always above 0. */
+    private static long monoMillis() {
+        return (System.nanoTime() - START_NANOS) / 1_000_000L + 1;
+    }
     /** The key Google rejected (compared by value, so setting a different key works straight away). */
     private static volatile String rejectedKey;
     private static volatile String lastProblem;
@@ -101,7 +107,7 @@ public final class GeminiClient {
         if (key == null || models.isEmpty()) {
             return false;
         }
-        long now = System.currentTimeMillis();
+        long now = monoMillis();
         if (now < keyRejectedUntil && key.equals(rejectedKey)) {
             return false;
         }
@@ -126,7 +132,7 @@ public final class GeminiClient {
 
     @Nullable
     public static String pausedReason(List<String> models) {
-        long now = System.currentTimeMillis();
+        long now = monoMillis();
         String key = ApiKeyStore.get();
         if (key != null && now < keyRejectedUntil && key.equals(rejectedKey)) {
             return "Google rejected the key (" + lastProblem + "); retrying in " + ((keyRejectedUntil - now) / 1000 + 1)
@@ -271,7 +277,7 @@ public final class GeminiClient {
             return CompletableFuture.completedFuture(r);
         }
         String model = c.models().get(index);
-        if (!c.ignoreLimits() && isLimited(model, System.currentTimeMillis())) {
+        if (!c.ignoreLimits() && isLimited(model, monoMillis())) {
             // Still waiting out this model's rate limit: do not even ask.
             return tryModels(c, index + 1,
                     Result.fail(429, "Gemini model " + model + " is rate limited; waiting as Google asked", "RATE_LIMITED"), false);
@@ -303,7 +309,7 @@ public final class GeminiClient {
                 // Free-tier limits are per model: the next model may still have quota.
                 String current = ApiKeyStore.get(); // (null while the key store is busy: then it is still this key)
                 if (current == null || c.key().equals(current)) { // an answer for a replaced key says nothing about the new one
-                    MODEL_LIMITED_UNTIL.put(model, System.currentTimeMillis() + rateLimitMillis(r));
+                    MODEL_LIMITED_UNTIL.put(model, monoMillis() + rateLimitMillis(r));
                 }
                 return tryModels(c, index + 1, r, false);
             }
@@ -317,7 +323,7 @@ public final class GeminiClient {
 
     private static void rejectKey(String key, Result r) {
         rejectedKey = key;
-        keyRejectedUntil = System.currentTimeMillis() + KEY_REJECTED_MILLIS;
+        keyRejectedUntil = monoMillis() + KEY_REJECTED_MILLIS;
         lastProblem = r.error();
         FogLurkerMod.LOGGER.warn("Gemini refused the API key ({}). Using built-in phrases; retrying in 10 minutes "
                 + "or when a key is set again.", r.error());
@@ -463,7 +469,11 @@ public final class GeminiClient {
                     if (buf.size() + b.remaining() > MAX_REPLY_BYTES) {
                         done = true;
                         subscription.cancel();
-                        result.completeExceptionally(new java.io.IOException("the reply was too large"));
+                        if (info.statusCode() != 200) {
+                            result.complete(""); // an oversized error page: keep its status, so 403/429/5xx are handled as usual
+                        } else {
+                            result.completeExceptionally(new java.io.IOException("the reply was too large"));
+                        }
                         return;
                     }
                     byte[] bytes = new byte[b.remaining()];

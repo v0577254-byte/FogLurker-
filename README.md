@@ -17,7 +17,7 @@ Something in the fog has been watching you play. It learns how you move and how 
 - **It kills time like them.** While it waits for you it holds the tool they use most and "mines" a block, cracks and all. Then it stops halfway, goes completely still, and stares. Before you can even see it, you may hear their voice calling from the trees.
 - **It behaves like them.** It copies their crouch-spam greeting, bunny hopping, sprint habits, idle swings, how far they stand from friends and how much they look around. All of this is learned by quietly watching each player.
 - **It lures you into the woods.** It finds the thickest tree cover nearby (away from the real friend), walks you there and waits when you fall behind. If you stop following, it gets impatient in chat.
-- **It hides among animals.** It can be a cow, sheep, pig, chicken, wolf or zombie in a real herd. It wanders the way the real animals around you wander (it learns that too), but stares at you a little too often and creeps closer when you look away.
+- **It hides among animals.** It can be a cow, sheep, pig or chicken in a real herd (or a wolf in a forest pack), or a zombie on its own. It wanders the way the real animals around you wander (it learns that too), but stares at you a little too often and creeps closer when you look away.
 - **It can be your dog.** It copies your tamed wolf's collar colour and name tag. It runs up to you, whines, then runs toward the trees and looks back, the way a dog that "found something" would.
 - **It watches.** Sometimes it is just itself, the pale crawler, crouched at the edge of your vision and staring. Look at it too long and it is gone.
 - **The fog rolls in** while it hunts you. When it reveals itself the screen shakes and you hear a heartbeat.
@@ -42,7 +42,7 @@ Between appearances (after the grace period) one player gets a small scare every
 - **The edge of your vision.** It crouches at the edge of your screen. The moment you turn to look straight at it, it is gone without a sound. (It only ever exists on your own screen.)
 - **A torch goes out.** An ordinary torch you are not looking at is put out and drops as an item. Never a soul torch.
 - **A friend who is not online.** "Alex joined the game", a line of chat in Alex's typing style, and later "Alex left the game". Alex was never there. (Check the player list.) Off when the server sets `impersonateInChat = false`.
-- **A book in your chest.** Signed with your own name, quoting things you said in chat, and telling you where you sleep. With a Gemini key its last page is written in your own typing style. At most one every 20 minutes, only at your base.
+- **A book in your chest** (only a chest or barrel you have opened yourself, so nobody else can plant one by your bed to read it). Signed with your own name, quoting things you said in chat, and telling you where you sleep. With a Gemini key its last page is written in your own typing style. At most one every 20 minutes, only at your base.
 
 ![At the edge of your vision](docs/images/apparition_edge.jpg)
 
@@ -160,7 +160,7 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 
 ## Groups
 
-When players are together (within 24 blocks of each other) it picks its victim inside the group: usually the one with the **least health** (about half the time), otherwise usually the one on the **edge of the group**, furthest from the others and closest to the dark it comes from (about 40%), and now and then anyone.
+When players are together (within 24 blocks of each other) it picks its victim inside the group: usually the one with the **least health** (about half the time), otherwise usually the one on the **edge of the group**, furthest from the others (about 40%), and now and then anyone.
 
 Once it is attacking, most of the time it switches to whoever is easiest: someone **much closer** to it than its target, or someone **3+ hearts weaker** who is not much further away. It only switches to players it could actually reach (not in water, not inside a soul-fire ward). A few are fixated and never switch.
 

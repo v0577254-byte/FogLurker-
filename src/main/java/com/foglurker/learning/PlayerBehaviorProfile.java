@@ -76,6 +76,17 @@ public final class PlayerBehaviorProfile {
     public long dogSeenAt;
     /** When they were last seen playing (System.currentTimeMillis), 0 if not known (older saves). */
     public long lastSeenMillis;
+    /** Storage blocks they opened themselves (newest last, at most 16): the only places a book is left. */
+    public final java.util.ArrayDeque<Long> openedContainers = new java.util.ArrayDeque<>();
+
+    public void openedContainer(net.minecraft.core.BlockPos pos) {
+        long key = pos.asLong();
+        openedContainers.remove(key);
+        openedContainers.addLast(key);
+        while (openedContainers.size() > 16) {
+            openedContainers.removeFirst();
+        }
+    }
 
     /** Seen in the last 30 days (or not known): someone a fake "friend" line can name. */
     public boolean recentlySeen(long nowMillis) {
@@ -214,6 +225,7 @@ public final class PlayerBehaviorProfile {
         t.putInt("escapes", escapes);
         t.putLong("lastBook", lastBookAt);
         t.putLong("lastSeen", lastSeenMillis);
+        t.putLongArray("opened", openedContainers.stream().mapToLong(Long::longValue).toArray());
         t.putBoolean("noChatLearn", chatLearningOff);
         if (homeKnown) {
             t.putIntArray("home", new int[]{homeX, homeY, homeZ, homeHits, awayHits});
@@ -270,6 +282,10 @@ public final class PlayerBehaviorProfile {
             p.heldItems.remove(p.heldItems.keySet().iterator().next());
         }
         p.lastSeenMillis = t.getLong("lastSeen");
+        long[] opened = t.getLongArray("opened");
+        for (int i = Math.max(0, opened.length - 16); i < opened.length; i++) {
+            p.openedContainers.addLast(opened[i]);
+        }
         p.sanitize();
         if (t.hasUUID("dog")) {
             p.dogUuid = t.getUUID("dog");
