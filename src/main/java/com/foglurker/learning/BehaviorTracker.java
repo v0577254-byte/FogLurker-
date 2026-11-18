@@ -110,7 +110,7 @@ public final class BehaviorTracker {
         if (w.lastOnGround && !p.onGround() && dy > 0.2 && moving) {
             w.jumps++;
         }
-        if (p.swinging && !w.lastSwinging) {
+        if (p.swinging && !w.lastSwinging && !moving) { // idle swings: standing about, not running and hitting
             w.swings++;
         }
 
@@ -210,6 +210,9 @@ public final class BehaviorTracker {
         long now = level.getGameTime();
         List<Mob> mobs = level.getEntitiesOfClass(Mob.class, p.getBoundingBox().inflate(24),
                 m -> m.isAlive() && Disguise.of(m) != null);
+        // Their own dogs first, so a dog in a crowded farm is never crowded out of the 8 it looks at.
+        mobs = new java.util.ArrayList<>(mobs);
+        mobs.sort(java.util.Comparator.comparing(m -> !(m instanceof Wolf w && w.isTame() && p.getUUID().equals(w.getOwnerUUID()))));
         int n = 0;
         for (Mob m : mobs) {
             if (n++ >= 8) {

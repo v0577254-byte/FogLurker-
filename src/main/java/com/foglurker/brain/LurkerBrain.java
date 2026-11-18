@@ -338,7 +338,8 @@ public final class LurkerBrain {
         if (huntId != null && (t == null || !t.isAlive() || t.level() != mob.level() || t.isSpectator()
                 || t.isCreative() || com.foglurker.world.AfkTracker.isAfk(t))) {
             UUID lost = huntId;
-            if (t == null && phase == Phase.ATTACK && FogLurkerConfig.COMMON.escapeEscalation.get()) {
+            if (t == null && phase == Phase.ATTACK && FogLurkerConfig.COMMON.escapeEscalation.get()
+                    && !lost.equals(enc.targetId())) { // (its first victim's logout is counted just below)
                 // the one it switched to logged out mid-attack: that counts as getting away, for them
                 PlayerBehaviorProfile gone = savedData().profile(lost);
                 gone.escapes = Math.min(gone.escapes + 1, 10);
@@ -938,7 +939,8 @@ public final class LurkerBrain {
         double reachSqr = 2.3 * 2.3;
         if (!warded && !windingUp && mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
             // Raised and facing it (not just raised while a bite bounces off a moment of damage immunity).
-            boolean shielded = t.isBlocking() && t.isDamageSourceBlocked(mob.damageSources().mobAttack(mob));
+            boolean shielded = t.isBlocking() && t.invulnerableTime <= 10
+                    && t.isDamageSourceBlocked(mob.damageSources().mobAttack(mob));
             boolean bit = mob.doHurtTarget(t);
             if (!bit && shielded) {
                 // Teeth on a raised shield: it wrenches the shield aside like an axe does (5 s), so a shield buys
@@ -1233,7 +1235,7 @@ public final class LurkerBrain {
             return true;
         }
         if (player.getUUID().equals(enc.targetId()) && enc.willAttack() && canAttack(player) && canRevealNow(player)
-                && phase != Phase.TRANSFORM && phase != Phase.ATTACK) {
+                && phase != Phase.TRANSFORM && phase != Phase.ATTACK && phase != Phase.FLEE) {
             setPhase(Phase.TRANSFORM);
             return true;
         }
@@ -1261,7 +1263,8 @@ public final class LurkerBrain {
         ended = true;
         if (meetingChase) {
             ServerPlayer survivor = target();
-            if (survivor != null && survivor.isAlive()) {
+            // Only someone it could really have caught got away: not after a switch to Peaceful, Creative or AFK.
+            if (survivor != null && survivor.isAlive() && canAttack(survivor)) {
                 LurkerDirector.leaveAlone(survivor, MEETING_IMMUNITY_TICKS); // you outran it
                 survivor.displayClientMessage(Component.literal("You got away. It will leave you alone... for now.")
                         .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC), true);

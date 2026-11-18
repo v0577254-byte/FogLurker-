@@ -163,7 +163,7 @@ public final class SpotFinder {
             return 4;
         }
         if (s.is(BlockTags.LEAVES)) {
-            return 3; // bushes, azaleas, low branches
+            return 3; // bushes, azaleas, low branches (it hides beside them: a leaf block itself is solid)
         }
         if (s.is(Blocks.GRASS) || s.is(Blocks.FERN)) {
             return 1;

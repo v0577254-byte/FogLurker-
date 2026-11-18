@@ -130,7 +130,7 @@ Protection IV adds 5% only on diamond and netherite; lower Protection levels, an
 |---|---|
 | **Water** | It cannot swim. Get in water or a boat and it can only pace the shore; after 20 seconds it gives up. |
 | **Soul fire** | A soul torch, soul lantern or lit soul campfire protects everyone within 6 blocks. It will not shed its disguise there, will not come inside the circle, and cannot hit you. It circles outside and gives up after 20 seconds. (Soul sand comes from the Nether, so this is something you earn.) |
-| **Bells** | Ring a bell (by hand, or with an arrow) and anything within 32 blocks flees. **It learns:** for 15 minutes after a bell drives it away from you, bells do nothing against it ("The bell rings out... nothing runs this time."). |
+| **Bells** | Ring a bell (by hand, or by hitting it with an arrow, snowball or other projectile) and anything within 32 blocks flees. **It learns:** for 15 minutes after a bell drives it away from you, bells do nothing against it ("The bell rings out... nothing runs this time."). |
 | **Do not look at it** | While it hunts you, looking at it makes it charge 25% faster. Looking away slows it to walking pace (a fast walk on Deathwish), so you can outrun it, if you can stand running blind and listening to it behind you. |
 | **Deepslate and obsidian** | It cannot break them. |
 | **Totem of Undying** | Still works, even on Deathwish. |

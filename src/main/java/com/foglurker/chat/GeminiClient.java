@@ -146,6 +146,11 @@ public final class GeminiClient {
     /** Forget a rejected key or rate limits (a key was just set, or tests). */
     public static void clearBackoff() {
         MODEL_LIMITED_UNTIL.clear();
+        clearKeyRejection();
+    }
+
+    /** Lifts only the "key refused" pause; models waiting out a rate limit keep waiting. */
+    private static void clearKeyRejection() {
         keyRejectedUntil = 0;
         rejectedKey = null;
         lastProblem = null;
@@ -282,7 +287,7 @@ public final class GeminiClient {
         }).thenCompose(r -> {
             if (r.text().isPresent()) {
                 if (key.equals(rejectedKey)) {
-                    clearBackoff(); // the key works after all (an API was enabled, billing fixed...)
+                    clearKeyRejection(); // the key works after all (an API was enabled, billing fixed...)
                 }
                 return CompletableFuture.completedFuture(r);
             }
@@ -361,6 +366,14 @@ public final class GeminiClient {
         return header > body ? Result.fail(429, r.error(), (header / 1000) + "s") : r;
     }
 
+    /** Google's error text is shown to operators and logged: never let it carry the key, should it ever quote it. */
+    private static Result scrubKey(Result r, String key) {
+        if (r.error() != null && key != null && !key.isEmpty() && r.error().contains(key)) {
+            return new Result(r.text(), r.status(), r.error().replace(key, ApiKeyStore.masked(key)), r.reason());
+        }
+        return r;
+    }
+
     private static long rateLimitMillis(Result r) {
         // Google says how long to wait ("retryDelay": "37s") in the error details; parse() puts it in reason.
         if (r.reason() != null) {
@@ -408,8 +421,8 @@ public final class GeminiClient {
             return CompletableFuture.completedFuture(Result.fail(0, "Could not build the request for model " + model));
         }
         return HTTP.sendAsync(req, HttpResponse.BodyHandlers.ofString())
-                .thenApply(resp -> withRetryAfter(parse(resp.statusCode(), resp.body()),
-                        resp.headers().firstValue("Retry-After").orElse(null)))
+                .thenApply(resp -> scrubKey(withRetryAfter(parse(resp.statusCode(), resp.body()),
+                        resp.headers().firstValue("Retry-After").orElse(null)), key))
                 .exceptionally(t -> {
                     FogLurkerMod.LOGGER.debug("Gemini request to {} failed: {}", model, rootMessage(t));
                     return Result.fail(0, "Could not reach Gemini: " + rootMessage(t));

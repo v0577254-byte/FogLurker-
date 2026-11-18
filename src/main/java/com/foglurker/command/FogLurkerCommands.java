@@ -103,7 +103,7 @@ public final class FogLurkerCommands {
                 .then(Commands.literal("setgeminiapikey")
                         .requires(FogLurkerCommands::isAdmin)
                         .then(Commands.argument("key", StringArgumentType.greedyString())
-                                .executes(ctx -> setKey(ctx, StringArgumentType.getString(ctx, "key")))))
+                                .executes(ctx -> safeSetKey(ctx, StringArgumentType.getString(ctx, "key")))))
                 .then(Commands.literal("geministatus")
                         .requires(FogLurkerCommands::isAdmin)
                         .executes(FogLurkerCommands::geminiStatus))
@@ -495,6 +495,17 @@ public final class FogLurkerCommands {
                         : Component.literal(" (" + Math.round(FogLurkerConfig.COMMON.spawnChance.get() * 100) + "% chance)")
                         .withStyle(ChatFormatting.GRAY)));
         return next / 20;
+    }
+
+    /** Nothing may escape this command: Minecraft would log the whole command line, key included. */
+    private static int safeSetKey(CommandContext<CommandSourceStack> ctx, String raw) {
+        try {
+            return setKey(ctx, raw);
+        } catch (RuntimeException e) {
+            FogLurkerMod.LOGGER.error("Setting the Gemini API key failed ({})", e.getClass().getSimpleName());
+            ctx.getSource().sendFailure(Component.literal("Could not set the key (" + e.getClass().getSimpleName() + ")."));
+            return 0;
+        }
     }
 
     private static int setKey(CommandContext<CommandSourceStack> ctx, String raw) {

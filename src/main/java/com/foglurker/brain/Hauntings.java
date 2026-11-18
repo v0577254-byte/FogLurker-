@@ -275,7 +275,8 @@ public final class Hauntings {
     /** Puts out one ordinary torch near the player that they are not looking at. Never soul torches. */
     public static boolean snuffTorch(ServerPlayer p, RandomSource r) {
         ServerLevel level = p.serverLevel();
-        if (!FogLurkerConfig.COMMON.sabotage.get() || !level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
+        if (!FogLurkerConfig.COMMON.sabotage.get() || !FogLurkerConfig.COMMON.breakBlocks.get()
+                || !level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
             return false;
         }
         Vec3 eye = p.getEyePosition();
@@ -326,7 +327,9 @@ public final class Hauntings {
         Map.Entry<UUID, PlayerBehaviorProfile> pick = offline.get(r.nextInt(offline.size()));
         String name = pick.getValue().lastKnownName;
         p.sendSystemMessage(Component.translatable("multiplayer.player.joined", name).withStyle(ChatFormatting.YELLOW));
-        MimicChat.Context ctx = new MimicChat.Context(name, p.getGameProfile().getName(), pick.getValue(), "north",
+        // The real direction of the nearest woods, so "meet me in the woods to the ..." points somewhere true.
+        String woods = SpotFinder.findWoods(p.serverLevel(), p.position(), null, r).direction();
+        MimicChat.Context ctx = new MimicChat.Context(name, p.getGameProfile().getName(), pick.getValue(), woods,
                 p.level().isNight(), List.of());
         MimicChat.Intent intent = r.nextBoolean() ? MimicChat.Intent.GREET : MimicChat.Intent.LURE;
         later(server, 60 + r.nextInt(60), () -> MimicChat.compose(ctx, intent, null, r)

@@ -127,7 +127,14 @@ public final class DisguiseCache {
             GameProfile bare = new GameProfile(id != null ? id : UUID.randomUUID(), name.isEmpty() ? "Player" : name);
             MimicDummyPlayer dummy = new MimicDummyPlayer(level, bare);
             if (!name.isEmpty()) {
-                net.minecraft.world.level.block.entity.SkullBlockEntity.updateGameprofile(bare, dummy::setSkinProfile);
+                UUID fetchedId = bare.getId();
+                net.minecraft.world.level.block.entity.SkullBlockEntity.updateGameprofile(bare, filled -> {
+                    // (called back on the main thread) remembered, so the next world does not fetch and flash again
+                    if (filled != null && filled.getProperties().containsKey("textures")) {
+                        KNOWN_PROFILES.put(fetchedId, filled);
+                    }
+                    dummy.setSkinProfile(filled);
+                });
             }
             return dummy;
         }

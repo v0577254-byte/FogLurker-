@@ -212,7 +212,7 @@ public final class LurkerDirector {
         return onBell(level, bell, null);
     }
 
-    /** Forget bell immunity (tests and /foglurker despawn). */
+    /** Forget bell immunity (game tests only). */
     public static void resetBells() {
         BELL_IMMUNE_UNTIL.clear();
     }
@@ -604,7 +604,8 @@ public final class LurkerDirector {
         double best = 96 * 96;
         for (ServerPlayer p : level.players()) {
             double d = p.distanceToSqr(lurker);
-            if (!p.isSpectator() && !com.foglurker.world.AfkTracker.isAfk(p) && d < best) {
+            if (!p.isSpectator() && p.isAlive() && !p.isCreative() && !(p instanceof net.minecraftforge.common.util.FakePlayer)
+                    && !com.foglurker.world.AfkTracker.isAfk(p) && d < best) {
                 best = d;
                 nearest = p;
             }

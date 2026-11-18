@@ -586,13 +586,15 @@ public class FogLurkerEntity extends PathfinderMob {
             this.setFlag(FLAG_TRANSFORMING | FLAG_ANGRY | FLAG_SITTING | FLAG_LYING, false); // no shaking or hidden corpse
             this.clearEquipment();
             killedByPlayer = source.getEntity() instanceof Player;
-            if (brain != null) {
-                brain.onDeath();
-                com.foglurker.brain.LurkerDirector.onKilled(this,
-                        source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null);
-            }
         }
+        boolean wasDead = this.dead;
         super.die(source);
+        // Only once it really died (another mod can cancel the death): then the rest, the broadcast and the rest.
+        if (!this.level().isClientSide && !wasDead && this.dead && brain != null) {
+            brain.onDeath();
+            com.foglurker.brain.LurkerDirector.onKilled(this,
+                    source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null);
+        }
     }
 
     @Override

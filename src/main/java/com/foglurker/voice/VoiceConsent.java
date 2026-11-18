@@ -136,7 +136,8 @@ public final class VoiceConsent {
             }
             Copy main = read(file());
             Copy next = read(newerFile());
-            if (main == BUSY || next == BUSY) {
+            java.util.List<Path> markers = main == BUSY || next == BUSY ? null : readMarkers();
+            if (markers == null) {
                 retryAt = System.nanoTime() + 30_000_000_000L; // nanoTime: a clock change cannot stretch the wait
                 return false;
             }
@@ -157,11 +158,13 @@ public final class VoiceConsent {
                 PENDING_OUT.clear();
                 pendingWipe = false;
                 save(true); // an empty list, newer than anything left on disk
+                if (!unsaved) {
+                    deleteMarkers(markers); // everyone is opted out anyway
+                }
                 loaded = true; // published last: nobody sees the list before it is final
                 return true;
             }
             Copy current = next.version() > main.version() ? next : main;
-            loadPendingOptOuts(); // opt-outs from a run where the list stayed locked
             OPTED_IN.addAll(current.optedIn());
             LAST_SEEN.putAll(current.lastSeen());
             version = Math.max(main.version(), next.version());
@@ -183,12 +186,8 @@ public final class VoiceConsent {
             if (removed) {
                 save(true);
             }
-            if (!hasUnsavedChanges()) {
-                try {
-                    Files.deleteIfExists(pendingFile()); // applied and saved
-                } catch (IOException | RuntimeException ignored) {
-                    // applying it again next time is harmless
-                }
+            if (!unsaved) {
+                deleteMarkers(markers); // applied and saved: the markers are no longer needed
             }
             loaded = true; // published last: nobody sees the list before it is final
             return true;
@@ -204,29 +203,64 @@ public final class VoiceConsent {
         return ensureLoaded();
     }
 
-    /** Opt-outs made while the list could not be opened, kept in their own small file until it can be. */
-    private static Path pendingFile() {
-        return SecureStorage.root().resolve("voice_optouts.pending");
+    /**
+     * Opt-outs (and a 30-day wipe) made while the list could not be opened. Each is an empty marker file named
+     * after the player (or "wipe") in its own folder: only ever added, never rewritten, needs no encryption key,
+     * and removed only after the change is safely in the list. So a restart, or a second opt-out while the list
+     * is still locked, can never lose one.
+     */
+    private static Path markerDir() {
+        return SecureStorage.root().resolve("voice_optouts");
     }
 
-    private static void savePendingOptOuts() {
-        JsonObject root = new JsonObject();
-        JsonArray arr = new JsonArray();
-        PENDING_OUT.forEach(id -> arr.add(id.toString()));
-        root.add("optedOut", arr);
-        root.addProperty("wipe", pendingWipe);
+    /** Set when a marker could not be written: the opt-out then only lasts until the server stops. */
+    private static volatile boolean markerUnsaved;
+
+    private static void writeMarker(String name) {
         try {
-            SecureStorage.writeEncrypted(pendingFile(), root.toString().getBytes(StandardCharsets.UTF_8));
+            Files.createDirectories(markerDir());
+            Path f = markerDir().resolve(name);
+            if (!Files.exists(f)) {
+                Files.write(f, new byte[0]);
+            }
         } catch (IOException | RuntimeException e) {
-            FogLurkerMod.LOGGER.error("Could not save an opt-out while the voice consent list is locked; it applies until "
-                    + "the server stops and is retried when the list opens", e);
+            markerUnsaved = true;
+            FogLurkerMod.LOGGER.error("Could not save an opt-out while the voice consent list is locked; it applies now "
+                    + "but would be lost if the server stopped before the list can be opened", e);
         }
     }
 
-    /** Reads opt-outs saved while the list was locked (from an earlier run) into PENDING_OUT. */
-    private static void loadPendingOptOuts() {
+    /**
+     * Reads every marker into PENDING_OUT / pendingWipe. @return the files read, or null if the folder is there
+     * but cannot be read right now (then nothing may be loaded yet).
+     */
+    @javax.annotation.Nullable
+    private static java.util.List<Path> readMarkers() {
+        java.util.List<Path> read = new java.util.ArrayList<>();
+        try (java.util.stream.Stream<Path> files = Files.list(markerDir())) {
+            for (Path f : files.toList()) {
+                String n = f.getFileName().toString();
+                if (n.equals("wipe")) {
+                    pendingWipe = true;
+                    read.add(f);
+                } else {
+                    try {
+                        PENDING_OUT.add(UUID.fromString(n));
+                        read.add(f);
+                    } catch (IllegalArgumentException notAMarker) {
+                        // leave anything else alone
+                    }
+                }
+            }
+        } catch (java.nio.file.NoSuchFileException none) {
+            // nothing pending
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+        // 1.2.3 kept them in one encrypted file: apply that too if it is still there.
+        Path legacy = SecureStorage.root().resolve("voice_optouts.pending");
         try {
-            JsonObject root = JsonParser.parseString(new String(SecureStorage.readEncrypted(pendingFile()),
+            JsonObject root = JsonParser.parseString(new String(SecureStorage.readEncrypted(legacy),
                     StandardCharsets.UTF_8)).getAsJsonObject();
             for (JsonElement e : root.getAsJsonArray("optedOut")) {
                 PENDING_OUT.add(UUID.fromString(e.getAsString()));
@@ -234,10 +268,31 @@ public final class VoiceConsent {
             if (root.has("wipe") && root.get("wipe").getAsBoolean()) {
                 pendingWipe = true;
             }
+            read.add(legacy);
         } catch (java.nio.file.NoSuchFileException none) {
-            // nothing pending
-        } catch (Exception e) {
-            FogLurkerMod.LOGGER.error("Could not read the opt-outs saved while the consent list was locked", e);
+            // not there
+        } catch (SecureStorage.Unavailable busy) {
+            return null;
+        } catch (Exception damaged) {
+            // unreadable for good: it named people who opted out, so nobody is trusted to be opted in
+            pendingWipe = true;
+            read.add(legacy);
+        }
+        return read;
+    }
+
+    private static void deleteMarkers(java.util.List<Path> applied) {
+        for (Path f : applied) {
+            try {
+                Files.deleteIfExists(f);
+            } catch (IOException | RuntimeException ignored) {
+                // applying it again next time is harmless
+            }
+        }
+        try {
+            Files.deleteIfExists(markerDir()); // only succeeds when empty
+        } catch (IOException | RuntimeException ignored) {
+            // more markers arrived, or it is in use: fine
         }
     }
 
@@ -268,7 +323,7 @@ public final class VoiceConsent {
 
     /** True while a consent change is only in memory because the disk write failed. */
     public static boolean hasUnsavedChanges() {
-        return unsaved;
+        return unsaved || markerUnsaved;
     }
 
     /** Tries again to write a change that could not be saved. */
@@ -333,7 +388,7 @@ public final class VoiceConsent {
             synchronized (VoiceConsent.class) {
                 if (!loaded) {
                     pendingWipe = true; // forgets every opt-in as soon as the list can be opened
-                    savePendingOptOuts();
+                    writeMarker("wipe");
                 }
             }
             if (loaded) {
@@ -360,7 +415,7 @@ public final class VoiceConsent {
             synchronized (VoiceConsent.class) {
                 if (!loaded) {
                     PENDING_OUT.add(player);
-                    savePendingOptOuts(); // so a restart before the list opens cannot undo it
+                    writeMarker(player.toString()); // so a restart before the list opens cannot undo it
                 }
             }
             if (loaded) {
@@ -410,7 +465,7 @@ public final class VoiceConsent {
                 // harmless for the same reason
             }
             return true;
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             unsaved = true;
             unsavedRemoval |= removal;
             FogLurkerMod.LOGGER.error("Could not save the voice consent list; it will be tried again", e);

@@ -188,7 +188,9 @@ public final class MimicChat {
     }
 
     private static String template(Context ctx, Intent intent, @Nullable String heard, RandomSource random) {
-        PlayerBehaviorProfile prof = ctx.copiedProfile();
+        // Stored chat is only used while the server keeps chat at all (learnChat) and the player has not opted out.
+        PlayerBehaviorProfile prof = com.foglurker.config.FogLurkerConfig.COMMON.learnChat.get()
+                && ctx.copiedProfile() != null && !ctx.copiedProfile().chatLearningOff ? ctx.copiedProfile() : null;
         ChatStyle style = prof == null ? ChatStyle.casualDefault() : ChatStyle.analyze(prof.chatSamples);
 
         // Sometimes reuse something they really said that fits: the creepiest kind of copying.
