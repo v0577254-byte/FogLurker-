@@ -437,7 +437,9 @@ public final class FogLurkerCommands {
         FogLurkerSavedData data = FogLurkerSavedData.get(src.getServer());
         if (on == null) {
             reply(src, Component.literal(data.naturalSpawning()
-                    ? "Natural spawning is ON: it appears on its own (a roll every " + FogLurkerConfig.COMMON.spawnRollMinutes.get()
+                    ? FogLurkerConfig.COMMON.spawnChance.get() <= 0
+                    ? "Natural spawning is ON, but spawnChance is 0 in the config, so it never appears on its own; only summons work."
+                    : "Natural spawning is ON: it appears on its own (a roll every " + FogLurkerConfig.COMMON.spawnRollMinutes.get()
                     + " minutes after the grace period)."
                     : "Natural spawning is OFF: it only comes when summoned with /foglurker spawn or /foglurker force.")
                     .withStyle(ChatFormatting.GRAY));

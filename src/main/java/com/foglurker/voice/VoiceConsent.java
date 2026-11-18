@@ -83,12 +83,21 @@ public final class VoiceConsent {
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
             java.util.Set<UUID> in = new java.util.HashSet<>();
             for (JsonElement e : root.getAsJsonArray("optedIn")) {
-                in.add(UUID.fromString(e.getAsString()));
+                try {
+                    in.add(UUID.fromString(e.getAsString()));
+                } catch (RuntimeException damaged) {
+                    // skipped: that one entry counts as opted out (never the other way round)
+                }
             }
             java.util.Map<UUID, Long> seen = new java.util.HashMap<>();
             if (root.has("lastSeen")) {
-                root.getAsJsonObject("lastSeen").entrySet().forEach(en ->
-                        seen.put(UUID.fromString(en.getKey()), en.getValue().getAsLong()));
+                root.getAsJsonObject("lastSeen").entrySet().forEach(en -> {
+                    try {
+                        seen.put(UUID.fromString(en.getKey()), en.getValue().getAsLong());
+                    } catch (RuntimeException damaged) {
+                        // skipped: the 30-day clock starts again for them
+                    }
+                });
             }
             long v = root.has("version") ? root.get("version").getAsLong() : 0L;
             return new Copy(f, v, in, seen);

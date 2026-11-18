@@ -2489,4 +2489,38 @@ public final class FogLurkerGameTests {
             h.succeed();
         });
     }
+
+    @GameTest(template = "empty", batch = "damagedsave", timeoutTicks = 100)
+    public static void damagedSaveKeepsTheRest(GameTestHelper h) {
+        logged(h, () -> {
+            UUID good = UUID.randomUUID();
+            net.minecraft.nbt.CompoundTag prof = new net.minecraft.nbt.CompoundTag();
+            prof.putString("name", "Alex");
+            prof.putFloat("sprint", Float.NaN);
+            net.minecraft.nbt.ListTag chat = new net.minecraft.nbt.ListTag();
+            for (int i = 0; i < 500; i++) {
+                chat.add(net.minecraft.nbt.StringTag.valueOf("line " + i));
+            }
+            chat.add(net.minecraft.nbt.StringTag.valueOf("x".repeat(500)));
+            prof.put("chat", chat);
+            net.minecraft.nbt.CompoundTag profiles = new net.minecraft.nbt.CompoundTag();
+            profiles.put(good.toString(), prof);
+            profiles.put("not-a-uuid", new net.minecraft.nbt.CompoundTag());
+            net.minecraft.nbt.CompoundTag root = new net.minecraft.nbt.CompoundTag();
+            root.put("profiles", profiles);
+            root.putLong("restUntil", 1234L);
+            net.minecraft.nbt.ListTag notice = new net.minecraft.nbt.ListTag();
+            notice.add(new net.minecraft.nbt.IntArrayTag(new int[]{1, 2})); // a damaged entry
+            notice.add(net.minecraft.nbt.NbtUtils.createUUID(good));
+            root.put("voiceNotice", notice);
+            FogLurkerSavedData d = FogLurkerSavedData.load(root);
+            check(d.restUntil() == 1234L, "the rest of the file must survive one damaged entry");
+            var p = d.profileOrNull(good);
+            check(p != null && "Alex".equals(p.lastKnownName), "the good profile must survive");
+            check(Float.isFinite(p.sprintRatio), "a NaN must be replaced by the default");
+            check(p.chatSamples.size() == 40 && p.chatSamples.peekLast().equals("line 499"),
+                    "chat must be capped to the newest 40 valid lines, got " + p.chatSamples.size());
+            h.succeed();
+        });
+    }
 }

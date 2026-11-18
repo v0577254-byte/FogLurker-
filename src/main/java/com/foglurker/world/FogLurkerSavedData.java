@@ -201,6 +201,16 @@ public final class FogLurkerSavedData extends SavedData {
 
     @Override
     public CompoundTag save(CompoundTag tag) {
+        boolean keepChat;
+        try {
+            keepChat = FogLurkerConfig.COMMON.learnChat.get();
+        } catch (IllegalStateException notLoaded) {
+            keepChat = false; // when unsure, keep nothing anyone typed
+        }
+        if (!keepChat) {
+            // learnChat off means nothing typed is kept: lines stored before it was switched off go too.
+            profiles.values().forEach(p -> p.chatSamples.clear());
+        }
         if (difficulty != null) {
             tag.putString("difficulty", difficulty.id());
         }
@@ -238,13 +248,18 @@ public final class FogLurkerSavedData extends SavedData {
         for (String k : prof.getAllKeys()) {
             try {
                 d.profiles.put(UUID.fromString(k), PlayerBehaviorProfile.load(prof.getCompound(k)));
-            } catch (IllegalArgumentException ignored) {
+            } catch (RuntimeException damaged) {
+                // one damaged profile is skipped; it must never cost everyone else's (Minecraft would drop the whole file)
             }
         }
         d.entityStats = EntityBehaviorStats.load(tag.getCompound("entityStats"));
         ListTag notice = tag.getList("voiceNotice", Tag.TAG_INT_ARRAY);
         for (Tag t : notice) {
-            d.voiceNoticeShown.add(NbtUtils.loadUUID(t));
+            try {
+                d.voiceNoticeShown.add(NbtUtils.loadUUID(t));
+            } catch (RuntimeException damaged) {
+                // a damaged entry: at worst that player sees the notice once more
+            }
         }
         com.foglurker.brain.LurkerDirector.loadTimers(tag.getCompound("timers"));
         return d;

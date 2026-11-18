@@ -62,6 +62,19 @@ public final class SnippetStore {
         });
     }
 
+    /** Trims everyone's clips to maxSnippetsPerPlayer, so lowering it also applies to people who stopped talking. */
+    public static void pruneAllAsync() {
+        io().execute(() -> {
+            try (java.util.stream.Stream<Path> dirs = Files.list(SecureStorage.voiceRoot())) {
+                for (Path d : dirs.filter(Files::isDirectory).toList()) {
+                    prune(d);
+                }
+            } catch (IOException | RuntimeException e) {
+                FogLurkerMod.LOGGER.warn("Could not trim the stored voice snippets: {}", e.toString());
+            }
+        });
+    }
+
     private static void prune(Path d) throws IOException {
         List<Path> files = list(d);
         int max = FogLurkerConfig.COMMON.maxSnippetsPerPlayer.get();

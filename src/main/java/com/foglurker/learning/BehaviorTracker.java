@@ -201,6 +201,7 @@ public final class BehaviorTracker {
         prof.idleSwingRate = ema(prof.idleSwingRate, Math.min(2F, w.swings / seconds), a);
         prof.chatRate = ema(prof.chatRate, w.chats / (seconds / 60F), a);
         prof.windows++;
+        prof.lastSeenMillis = System.currentTimeMillis();
         data.setDirty();
     }
 

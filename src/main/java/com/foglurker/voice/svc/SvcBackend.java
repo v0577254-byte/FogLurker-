@@ -203,6 +203,14 @@ final class SvcBackend implements VoiceBridge.Backend {
             }
         }
 
+        /** Nothing of theirs is kept, not even in memory: the samples are zeroed, not just forgotten. */
+        private void wipe() {
+            if (buffer != null) {
+                Arrays.fill(buffer, 0, Math.min(size, buffer.length), (short) 0);
+            }
+            size = 0;
+        }
+
         synchronized void finish() {
             if (capturing && size >= MIN_SAMPLES) {
                 short[] clip = AudioFx.trimSilence(Arrays.copyOf(buffer, size), 300);
@@ -214,14 +222,14 @@ final class SvcBackend implements VoiceBridge.Backend {
         }
 
         synchronized void discard() {
-            size = 0;
+            wipe();
             active = false;
             capturing = false;
         }
 
         synchronized void close() {
             closed = true;
-            size = 0;
+            wipe();
             active = false;
             capturing = false;
             if (decoder != null && !decoder.isClosed()) {

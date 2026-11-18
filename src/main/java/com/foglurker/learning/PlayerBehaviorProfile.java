@@ -74,6 +74,13 @@ public final class PlayerBehaviorProfile {
     public long lastBookAt = Long.MIN_VALUE / 2;
     /** Game time the remembered dog was last seen with them (a dog unseen for a whole day may be gone). */
     public long dogSeenAt;
+    /** When they were last seen playing (System.currentTimeMillis), 0 if not known (older saves). */
+    public long lastSeenMillis;
+
+    /** Seen in the last 30 days (or not known): someone a fake "friend" line can name. */
+    public boolean recentlySeen(long nowMillis) {
+        return lastSeenMillis == 0 || nowMillis - lastSeenMillis < 30L * 24 * 60 * 60 * 1000;
+    }
 
     public net.minecraft.core.BlockPos home() {
         return new net.minecraft.core.BlockPos(homeX, homeY, homeZ);
@@ -206,6 +213,7 @@ public final class PlayerBehaviorProfile {
         t.putLong("dogSeen", dogSeenAt);
         t.putInt("escapes", escapes);
         t.putLong("lastBook", lastBookAt);
+        t.putLong("lastSeen", lastSeenMillis);
         t.putBoolean("noChatLearn", chatLearningOff);
         if (homeKnown) {
             t.putIntArray("home", new int[]{homeX, homeY, homeZ, homeHits, awayHits});
@@ -213,6 +221,21 @@ public final class PlayerBehaviorProfile {
             t.putBoolean("homeBed", homeFromBed);
         }
         return t;
+    }
+
+    /** A damaged value (NaN, infinite) would stick forever through the averaging: back to the default instead. */
+    private void sanitize() {
+        PlayerBehaviorProfile d = new PlayerBehaviorProfile();
+        sprintRatio = Float.isFinite(sprintRatio) ? sprintRatio : d.sprintRatio;
+        sneakRatio = Float.isFinite(sneakRatio) ? sneakRatio : d.sneakRatio;
+        jumpRate = Float.isFinite(jumpRate) ? jumpRate : d.jumpRate;
+        crouchSpamRate = Float.isFinite(crouchSpamRate) ? crouchSpamRate : d.crouchSpamRate;
+        lookJitter = Float.isFinite(lookJitter) ? lookJitter : d.lookJitter;
+        idleSwingRate = Float.isFinite(idleSwingRate) ? idleSwingRate : d.idleSwingRate;
+        friendDistance = Float.isFinite(friendDistance) ? friendDistance : d.friendDistance;
+        chatRate = Float.isFinite(chatRate) ? chatRate : d.chatRate;
+        idleRatio = Float.isFinite(idleRatio) ? idleRatio : d.idleRatio;
+        dogSitRatio = Float.isFinite(dogSitRatio) ? dogSitRatio : d.dogSitRatio;
     }
 
     public static PlayerBehaviorProfile load(CompoundTag t) {
@@ -234,8 +257,20 @@ public final class PlayerBehaviorProfile {
         }
         ListTag chat = t.getList("chat", Tag.TAG_STRING);
         for (int i = 0; i < chat.size(); i++) {
-            p.chatSamples.add(chat.getString(i));
+            String line = chat.getString(i).strip();
+            if (!line.isEmpty() && line.length() <= 200) { // the same rules as addChat, for a hand-edited file
+                p.chatSamples.addLast(line);
+            }
         }
+        while (p.chatSamples.size() > MAX_CHAT_SAMPLES) {
+            p.chatSamples.removeFirst();
+        }
+        p.heldItems.values().removeIf(v -> !Float.isFinite(v));
+        while (p.heldItems.size() > MAX_ITEMS) {
+            p.heldItems.remove(p.heldItems.keySet().iterator().next());
+        }
+        p.lastSeenMillis = t.getLong("lastSeen");
+        p.sanitize();
         if (t.hasUUID("dog")) {
             p.dogUuid = t.getUUID("dog");
         }

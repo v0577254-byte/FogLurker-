@@ -333,7 +333,9 @@ public final class Hauntings {
         List<Map.Entry<UUID, PlayerBehaviorProfile>> offline = new ArrayList<>();
         for (Map.Entry<UUID, PlayerBehaviorProfile> e : data.profiles().entrySet()) {
             String name = e.getValue().lastKnownName;
+            // Someone who really plays here, just not right now (not a name from a year ago).
             if (!e.getKey().equals(p.getUUID()) && name != null && !name.isEmpty()
+                    && e.getValue().recentlySeen(System.currentTimeMillis())
                     && server.getPlayerList().getPlayer(e.getKey()) == null) {
                 offline.add(e);
             }
@@ -426,10 +428,11 @@ public final class Hauntings {
         // Claimed now so two hauntings cannot both start a book; given back if no book ends up in the chest.
         long previousBook = prof.lastBookAt;
         prof.lastBookAt = now;
+        data.setDirty(); // the 20-minute limit survives a restart
         String name = p.getGameProfile().getName();
         List<String> pages = new ArrayList<>();
         // Their own words only while the server keeps chat at all (learnChat); opted-out players have none stored.
-        List<String> said = FogLurkerConfig.COMMON.learnChat.get() ? prof.recentChat(12) : List.of();
+        List<String> said = FogLurkerConfig.COMMON.learnChat.get() && !prof.chatLearningOff ? prof.recentChat(12) : List.of();
         if (said.size() >= 2) {
             pages.add("you said\n\n\"" + clip(said.get(r.nextInt(said.size()))) + "\"\n\n\"" + clip(said.get(r.nextInt(said.size()))) + "\"");
         } else {
@@ -456,7 +459,10 @@ public final class Hauntings {
                         String text = err == null && res != null ? res.text().map(Hauntings::clip).filter(t -> !t.isEmpty())
                                 .orElse(last) : last;
                         pages.add(text);
-                        if (LurkerDirector.isResting(p.server) || !placeBook(level, chest, name, pages)) {
+                        // (Switched off while the note was being written: no book.)
+                        boolean allowed = !LurkerDirector.isResting(p.server) && FogLurkerConfig.COMMON.sabotage.get()
+                                && FogLurkerConfig.COMMON.hauntings.get() && data.naturalSpawning();
+                        if (!allowed || !placeBook(level, chest, name, pages)) {
                             prof.lastBookAt = previousBook;
                             count = Math.max(0, count - 1); // it was counted as a haunting, but nothing happened
                         }
@@ -502,7 +508,8 @@ public final class Hauntings {
         data.profiles().forEach((id, prof) -> {
             boolean online = server != null && server.getPlayerList().getPlayer(id) != null;
             // "when <friend> comes back" only makes sense for someone who is away
-            if (!id.equals(self) && !online && prof.lastKnownName != null && !prof.lastKnownName.isEmpty()) {
+            if (!id.equals(self) && !online && prof.lastKnownName != null && !prof.lastKnownName.isEmpty()
+                    && prof.recentlySeen(System.currentTimeMillis())) {
                 names.add(prof.lastKnownName);
             }
         });
