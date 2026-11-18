@@ -52,9 +52,13 @@ public final class PlayerEvents {
         int before = level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity b && b.shaking
                 ? b.ticks : -1;
         var server = level.getServer();
-        server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
+        int clickedAt = server.getTickCount();
+        server.tell(new net.minecraft.server.TickTask(clickedAt, () -> {
+            // A swing that was already going has only counted on since the click (before + ticks passed); a new
+            // ring restarted it from 0, so it is lower than that, whenever this check gets to run.
+            int passed = server.getTickCount() - clickedAt;
             if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BellBlockEntity bell
-                    && bell.shaking && bell.ticks <= 5 && (before < 0 || bell.ticks < before)) {
+                    && bell.shaking && bell.ticks <= 5 && (before < 0 || bell.ticks < before + passed)) {
                 com.foglurker.brain.LurkerDirector.onBell(level, pos, ringer);
             }
         }));

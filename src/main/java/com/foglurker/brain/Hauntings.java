@@ -66,7 +66,8 @@ public final class Hauntings {
         }
     }
 
-    private record Timed(long due, Runnable run) {
+    /** @param closing finishes something already shown (a fake friend "leaving"): kept when the rest is cancelled */
+    private record Timed(long due, Runnable run, boolean closing) {
     }
 
     private static final List<Timed> QUEUE = new ArrayList<>();
@@ -80,7 +81,7 @@ public final class Hauntings {
 
     /** Drops every scheduled step of a haunting already under way (it was just killed). */
     public static void cancelPending() {
-        QUEUE.clear();
+        QUEUE.removeIf(t -> !t.closing()); // a friend who "joined" still "leaves", or they would stay online forever
     }
 
     public static void reset() {
@@ -110,7 +111,7 @@ public final class Hauntings {
                     it.remove();
                 }
             }
-            due.forEach(Runnable::run);
+            due.forEach(step -> LurkerDirector.safely("a haunting step", step)); // one bad step never stops the rest
         }
         // Natural spawning off means nothing comes on its own: no hauntings either.
         if (!FogLurkerConfig.COMMON.hauntings.get() || !data.naturalSpawning() || data.inGrace() || data.restingAt(now)) {
@@ -163,7 +164,11 @@ public final class Hauntings {
     }
 
     private static void later(MinecraftServer server, int ticks, Runnable run) {
-        QUEUE.add(new Timed(server.overworld().getGameTime() + ticks, run));
+        QUEUE.add(new Timed(server.overworld().getGameTime() + ticks, run, false));
+    }
+
+    private static void laterClosing(MinecraftServer server, int ticks, Runnable run) {
+        QUEUE.add(new Timed(server.overworld().getGameTime() + ticks, run, true));
     }
 
     /** Picks a kind by weight and runs it; falls through to the others if it does not apply right now. */
@@ -327,7 +332,7 @@ public final class Hauntings {
         Map.Entry<UUID, PlayerBehaviorProfile> pick = offline.get(r.nextInt(offline.size()));
         String name = pick.getValue().lastKnownName;
         p.sendSystemMessage(Component.translatable("multiplayer.player.joined", name).withStyle(ChatFormatting.YELLOW));
-        // The real direction of the nearest woods, so "meet me in the woods to the ..." points somewhere true.
+        // The direction of the leafiest dry ground nearby (the same pick a real lure uses), not a made-up one.
         String woods = SpotFinder.findWoods(p.serverLevel(), p.position(), null, r).direction();
         MimicChat.Context ctx = new MimicChat.Context(name, p.getGameProfile().getName(), pick.getValue(), woods,
                 p.level().isNight(), List.of());
@@ -335,14 +340,17 @@ public final class Hauntings {
         later(server, 60 + r.nextInt(60), () -> MimicChat.compose(ctx, intent, null, r)
                 .whenComplete((text, err) -> server.execute(() -> {
                     // (It may have been killed while the line was being written: then nothing haunts.)
+                    // (Nor when hauntings or natural spawning were switched off meanwhile.)
                     if (err == null && text != null && !text.isBlank() && !p.hasDisconnected()
                             && !LurkerDirector.isResting(server) && FogLurkerConfig.COMMON.impersonateInChat.get()
+                            && FogLurkerConfig.COMMON.hauntings.get() && FogLurkerSavedData.get(server).naturalSpawning()
                             && !LurkerDirector.isHunted(p.getUUID()) && !com.foglurker.world.AfkTracker.isAfk(p)) {
                         p.sendSystemMessage(Component.translatable("chat.type.text", name, text));
                     }
                 })));
-        later(server, 400 + r.nextInt(200), () -> {
-            // Only "leaves" if the real one has not actually logged in meanwhile.
+        laterClosing(server, 400 + r.nextInt(200), () -> {
+            // Only "leaves" if the real one has not actually logged in meanwhile. Sent even if the hauntings were
+            // switched off or it was killed meanwhile: it closes the fake "joined" line.
             if (!p.hasDisconnected() && server.getPlayerList().getPlayer(pick.getKey()) == null) {
                 p.sendSystemMessage(Component.translatable("multiplayer.player.left", name).withStyle(ChatFormatting.YELLOW));
             }

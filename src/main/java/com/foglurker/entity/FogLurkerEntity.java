@@ -581,19 +581,22 @@ public class FogLurkerEntity extends PathfinderMob {
 
     @Override
     public void die(DamageSource source) {
-        if (!this.level().isClientSide && !this.isRemoved() && !this.dead) {
+        boolean serverSide = !this.level().isClientSide && !this.isRemoved() && !this.dead;
+        if (serverSide) {
+            killedByPlayer = source.getEntity() instanceof Player; // read by the loot drop inside super.die
+        }
+        super.die(source);
+        // Everything else only once it really died: another mod can cancel the death, and then it must stay
+        // exactly as it was (disguise, copied gear, no "killed" broadcast, no rest).
+        if (serverSide && this.dead) {
             this.setDisguise(Disguise.CRAWLER); // whatever it was wearing, it dies as itself
             this.setFlag(FLAG_TRANSFORMING | FLAG_ANGRY | FLAG_SITTING | FLAG_LYING, false); // no shaking or hidden corpse
             this.clearEquipment();
-            killedByPlayer = source.getEntity() instanceof Player;
-        }
-        boolean wasDead = this.dead;
-        super.die(source);
-        // Only once it really died (another mod can cancel the death): then the rest, the broadcast and the rest.
-        if (!this.level().isClientSide && !wasDead && this.dead && brain != null) {
-            brain.onDeath();
-            com.foglurker.brain.LurkerDirector.onKilled(this,
-                    source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null);
+            if (brain != null) {
+                brain.onDeath();
+                com.foglurker.brain.LurkerDirector.onKilled(this,
+                        source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null);
+            }
         }
     }
 

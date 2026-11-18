@@ -194,7 +194,7 @@ public final class FogLurkerCommands {
             return false;
         }
         src.sendFailure(Component.literal(target.getGameProfile().getName() + " is AFK, so it leaves them alone. "
-                + "It works as soon as they move again (or type /afk to come back)."));
+                + "It works as soon as they move or look around again (or type /afk to come back)."));
         return true;
     }
 
@@ -258,7 +258,7 @@ public final class FogLurkerCommands {
                 ? "First spawn roll in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes" + rest + "."
                 : "Natural spawning is off, so nothing rolls until /foglurker naturalspawning on.";
         ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal(
-                "The grace period is over. It is out there. " + next).withStyle(ChatFormatting.DARK_RED)), true);
+                "The grace period is over. " + next).withStyle(ChatFormatting.DARK_RED)), true);
         return 1;
     }
 
@@ -412,8 +412,13 @@ public final class FogLurkerCommands {
                     .append(Component.literal(" left (" + data.difficulty().displayName()
                             + " mode). It is still learning how you play.").withStyle(ChatFormatting.GRAY)));
         } else {
-            reply(ctx.getSource(), Component.literal("The grace period is over. It is out there.")
-                    .withStyle(ChatFormatting.DARK_RED));
+            // Only "out there" when it is (this command is for everyone, so no roll times here).
+            var server = ctx.getSource().getServer();
+            String now = !LurkerDirector.active().isEmpty() ? "It is out there."
+                    : LurkerDirector.isResting(server) ? "It was killed; the fog lifts for another " + time(LurkerDirector.restTicksLeft(server)) + "."
+                    : !data.naturalSpawning() ? "Natural spawning is off: it only comes when summoned."
+                    : "It can come at any time.";
+            reply(ctx.getSource(), Component.literal("The grace period is over. " + now).withStyle(ChatFormatting.DARK_RED));
         }
         return (int) Math.min(Integer.MAX_VALUE, left / 20);
     }
@@ -438,10 +443,11 @@ public final class FogLurkerCommands {
         reply(src, Component.literal(on
                 ? (wasOn ? "Natural spawning is already ON. " : "Natural spawning is now ON. ")
                 + (data.inGrace() ? "It starts rolling when the grace period ends."
-                : data.nextSpawnTicks() >= 0 ? "The next roll is in " + time(data.nextSpawnTicks()) + "."
-                : "The first roll is in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes"
-                + (LurkerDirector.isResting(src.getServer()) ? " (after its rest, in " + time(LurkerDirector.restTicksLeft(src.getServer())) + ")" : "")
-                + ".")
+                : LurkerDirector.isResting(src.getServer()) ? "It was killed: the clock starts again after its rest, in "
+                + time(LurkerDirector.restTicksLeft(src.getServer())) + "."
+                : data.nextSpawnTicks() >= 0 ? "The next roll is in " + time(data.nextSpawnTicks())
+                + (LurkerDirector.rollsRunning(src.getServer()) ? "" : " (the clock is paused while nobody it could visit is free)") + "."
+                : "The first roll is in " + FogLurkerConfig.COMMON.spawnRollMinutes.get() + " minutes.")
                 : "Natural spawning is now OFF. It will only come when summoned with /foglurker spawn or /foglurker force. "
                 + "Anything already out there stays until it leaves (/foglurker despawn sends it away).")
                 .withStyle(on ? ChatFormatting.RED : ChatFormatting.GRAY));
@@ -452,8 +458,9 @@ public final class FogLurkerCommands {
         FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
         CommandSourceStack src = ctx.getSource();
         if (LurkerDirector.isResting(src.getServer())) {
-            reply(src, Component.literal("It was killed. It comes back in " + time(LurkerDirector.restTicksLeft(src.getServer()))
-                    + "; until then nothing appears on its own and nothing haunts (admin spawn commands still work).")
+            reply(src, Component.literal("It was killed and rests for another " + time(LurkerDirector.restTicksLeft(src.getServer()))
+                    + "; until then nothing appears on its own and nothing haunts (admin spawn commands still work)."
+                    + (data.naturalSpawning() ? "" : " Natural spawning is off, so after that it still only comes when summoned."))
                     .withStyle(ChatFormatting.DARK_AQUA));
             return 0;
         }
@@ -488,10 +495,13 @@ public final class FogLurkerCommands {
             reply(src, Component.literal("The spawn timer is about to start.").withStyle(ChatFormatting.GRAY));
             return 0;
         }
+        boolean paused = !LurkerDirector.rollsRunning(src.getServer());
         reply(src, Component.literal("Next spawn roll in: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(time(next)).withStyle(ChatFormatting.WHITE))
+                .append(paused ? Component.literal(" (paused: everyone it could visit is AFK or being hunted)").withStyle(ChatFormatting.GRAY)
+                        : Component.empty())
                 .append(data.nextIsGuaranteed()
-                        ? Component.literal(" (guaranteed: the last roll missed)").withStyle(ChatFormatting.RED)
+                        ? Component.literal(" (guaranteed: the last roll did not bring it)").withStyle(ChatFormatting.RED)
                         : Component.literal(" (" + Math.round(FogLurkerConfig.COMMON.spawnChance.get() * 100) + "% chance)")
                         .withStyle(ChatFormatting.GRAY)));
         return next / 20;

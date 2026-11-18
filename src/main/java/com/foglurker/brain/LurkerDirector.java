@@ -61,20 +61,31 @@ public final class LurkerDirector {
 
     // =================================================================== ticking
 
+    /** Runs one piece of side work; an unexpected error is logged instead of crashing the server tick. */
+    static void safely(String what, Runnable work) {
+        try {
+            work.run();
+        } catch (RuntimeException e) {
+            FogLurkerMod.LOGGER.error("Fog Lurker: {} failed; it is tried again later", what, e);
+        }
+    }
+
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
         MinecraftServer server = event.getServer();
-        VoiceBridge.tick();
+        // Voice upkeep is wrapped: whatever goes wrong with a disk, it must never take the server tick down.
+        safely("voice chat", VoiceBridge::tick);
         if (server.getPlayerList().getPlayerCount() == 0) {
             if (server.getTickCount() % 12000 == 0) {
                 // Running, just empty: not "unused". The 30-day expiry still runs, so someone who returns after
                 // 30 days away finds their clips gone, as promised, even if nobody else came by.
-                com.foglurker.voice.VoiceRetention.emptyHeartbeat(System.currentTimeMillis());
+                safely("voice clean-up", () -> com.foglurker.voice.VoiceRetention.emptyHeartbeat(System.currentTimeMillis()));
             }
-            return; // timers only run while someone is playing
+            return; // the spawn countdown, grace and hauntings only run while someone is playing (rest, fear, peace and
+                    // the bell cooldown are world time and keep counting, like the kill message's "30 minutes")
         }
         FogLurkerSavedData data = FogLurkerSavedData.get(server);
         data.tickGrace();
@@ -82,7 +93,7 @@ public final class LurkerDirector {
         if (server.getTickCount() % 12000 == 0) { // every 10 minutes
             List<java.util.UUID> online = new ArrayList<>();
             server.getPlayerList().getPlayers().forEach(p -> online.add(p.getUUID()));
-            com.foglurker.voice.VoiceRetention.heartbeat(System.currentTimeMillis(), online);
+            safely("voice clean-up", () -> com.foglurker.voice.VoiceRetention.heartbeat(System.currentTimeMillis(), online));
         }
         ACTIVE.removeIf(Entity::isRemoved);
         if (naturalSpawnsPaused || !data.naturalSpawning() || data.inGrace() || isResting(server) || !rollsRunning(server)) {
@@ -115,10 +126,30 @@ public final class LurkerDirector {
         return FogLurkerConfig.COMMON.spawnRollMinutes.get() * 60 * 20;
     }
 
-    /** Runs before the final save: the countdown and grace only mark themselves dirty every 10 s. */
+    /**
+     * Runs before the final save (players are still online). The countdown and grace only mark themselves dirty
+     * every 10 s. A visit still going ends here, not when the creature is removed (that comes after the save,
+     * too late to be kept): a hunt counts as getting away, as a logout does, and the next roll stays at least
+     * 5 minutes away with the target remembered as just visited.
+     */
     @SubscribeEvent
     public static void onServerStopping(net.minecraftforge.event.server.ServerStoppingEvent event) {
-        FogLurkerSavedData.get(event.getServer()).setDirty();
+        MinecraftServer server = event.getServer();
+        FogLurkerSavedData data = FogLurkerSavedData.get(server);
+        long now = server.overworld().getGameTime();
+        for (FogLurkerEntity lurker : active()) {
+            LurkerBrain brain = lurker.brain();
+            if (brain != null && !brain.isEnded()) {
+                safely("closing a visit", () -> {
+                    brain.onServerStopping();
+                    LAST_VISIT.put(brain.targetId(), now);
+                    if (data.nextSpawnTicks() < rollInterval()) {
+                        data.setNextSpawnTicks(rollInterval());
+                    }
+                });
+            }
+        }
+        data.setDirty();
     }
 
     @SubscribeEvent
@@ -248,7 +279,7 @@ public final class LurkerDirector {
             return;
         }
         FogLurkerSavedData.get(server).setRestUntil(server.overworld().getGameTime() + REST_TICKS);
-        Hauntings.cancelPending(); // no fake "friend" line still on its way
+        Hauntings.cancelPending(); // no fake "friend" line still on its way (a fake "left" line still closes a fake "joined")
         for (FogLurkerEntity other : active()) {
             if (other != dead && other.brain() != null && !other.isDeadOrDying()) {
                 other.brain().leaveBecauseKilled();

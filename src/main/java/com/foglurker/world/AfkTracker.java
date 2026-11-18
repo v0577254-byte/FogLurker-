@@ -168,9 +168,9 @@ public final class AfkTracker {
             p.server.getPlayerList().broadcastSystemMessage(Component.literal(p.getGameProfile().getName() + " went afk")
                     .withStyle(ChatFormatting.GRAY), false);
             p.sendSystemMessage(Component.literal(manual
-                    ? "It will leave you alone until you move. (/afk again to come back)"
+                    ? "It will leave you alone until you move or look around. (/afk again to come back)"
                     : "You did nothing for " + FogLurkerConfig.COMMON.afkMinutes.get()
-                    + " minutes. It will leave you alone until you move.").withStyle(ChatFormatting.DARK_GRAY));
+                    + " minutes. It will leave you alone until you move or look around.").withStyle(ChatFormatting.DARK_GRAY));
             showAfk(p);
         } else {
             p.displayClientMessage(Component.empty(), true); // clear "AFK" above the hotbar
@@ -301,7 +301,11 @@ public final class AfkTracker {
     @SubscribeEvent
     public static void onChat(ServerChatEvent event) {
         ServerPlayer p = event.getPlayer();
-        p.server.execute(() -> markActive(p));
+        p.server.execute(() -> {
+            if (!p.hasDisconnected()) { // (sent, then left in the same moment: nothing to mark)
+                markActive(p);
+            }
+        });
     }
 
     @SubscribeEvent

@@ -31,22 +31,36 @@ public final class Wards {
             return null;
         }
         BlockPos best = null;
-        double bestD = Double.MAX_VALUE;
-        for (BlockPos p : BlockPos.betweenClosed(center.offset(-r, -r, -r), center.offset(r, r, r))) {
-            if (!level.isLoaded(p)) {
-                continue; // never load or generate chunks just to look for torches
-            }
-            BlockState s = level.getBlockState(p);
-            if (!s.is(ModTags.WARDS)) {
-                continue;
-            }
-            if (s.hasProperty(BlockStateProperties.LIT) && !s.getValue(BlockStateProperties.LIT)) {
-                continue; // a soul campfire that has gone out protects nobody
-            }
-            double d = p.distSqr(center);
-            if (d <= (double) r * r && d < bestD) {
-                bestD = d;
-                best = p.immutable();
+        int bestD = Integer.MAX_VALUE;
+        int rr = r * r;
+        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+        // Only the ball, not the whole cube around it (about half the lookups).
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                int flat = dx * dx + dz * dz;
+                if (flat > rr) {
+                    continue;
+                }
+                p.set(center.getX() + dx, center.getY(), center.getZ() + dz);
+                if (!level.isLoaded(p)) {
+                    continue; // never load or generate chunks just to look for torches
+                }
+                for (int dy = -r; dy <= r; dy++) {
+                    int d = flat + dy * dy;
+                    if (d > rr || d >= bestD) {
+                        continue;
+                    }
+                    p.setY(center.getY() + dy);
+                    BlockState s = level.getBlockState(p);
+                    if (!s.is(ModTags.WARDS)) {
+                        continue;
+                    }
+                    if (s.hasProperty(BlockStateProperties.LIT) && !s.getValue(BlockStateProperties.LIT)) {
+                        continue; // a soul campfire that has gone out protects nobody
+                    }
+                    bestD = d;
+                    best = p.immutable();
+                }
             }
         }
         return best;

@@ -2288,4 +2288,155 @@ public final class FogLurkerGameTests {
         check(MimicChat.sanitize("Alex: §cfollow me", ctx).equals("follow me"), "sanitize failed on prefix/colour");
         h.succeed();
     }
+
+    private static void setStatic(Class<?> c, String name, Object value) throws ReflectiveOperationException {
+        java.lang.reflect.Field f = c.getDeclaredField(name);
+        f.setAccessible(true);
+        f.set(null, value);
+    }
+
+    @GameTest(template = "empty", batch = "consentlock", timeoutTicks = 100)
+    public static void optOutWhileTheListIsLocked(GameTestHelper h) {
+        logged(h, () -> {
+            UUID id = UUID.randomUUID();
+            check(VoiceConsent.optIn(id) && VoiceConsent.isOptedIn(id), "opt-in did not stick");
+            java.nio.file.Path list = SecureStorage.root().resolve("voice_consent.json");
+            java.nio.file.Path aside = SecureStorage.root().resolve("voice_consent.json.testaside");
+            java.nio.file.Path marker = SecureStorage.root().resolve("voice_optouts").resolve(id.toString());
+            Files.move(list, aside, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.createSymbolicLink(list, list.getFileName()); // a link to itself: there, but cannot be opened
+                setStatic(VoiceConsent.class, "loaded", false); // as if the server had just started
+                setStatic(VoiceConsent.class, "retryAt", 0L);
+                check(!VoiceConsent.isReadable(), "a list that cannot be opened must not count as readable");
+                check(!VoiceConsent.isOptedIn(id), "while the list is locked nobody counts as opted in");
+                VoiceConsent.optOut(id);
+                check(Files.exists(marker), "an opt-out while the list is locked must be written down");
+                // A restart before the list opens: only the marker remembers the opt-out.
+                java.lang.reflect.Field pending = VoiceConsent.class.getDeclaredField("PENDING_OUT");
+                pending.setAccessible(true);
+                ((java.util.Set<?>) pending.get(null)).clear();
+            } finally {
+                Files.deleteIfExists(list); // the link, not what it points at
+                Files.move(aside, list);
+                setStatic(VoiceConsent.class, "retryAt", 0L);
+            }
+            check(VoiceConsent.isReadable(), "the list should open again");
+            check(!VoiceConsent.isOptedIn(id), "the opt-out made while the list was locked must be applied");
+            check(!Files.exists(marker), "the marker goes once the list on disk holds the opt-out");
+            h.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", batch = "bell3", timeoutTicks = 400)
+    public static void ringingARealBellByHand(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            LurkerDirector.resetBells();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                net.minecraft.core.BlockPos bell = h.absolutePos(new net.minecraft.core.BlockPos(4, 0, 4));
+                h.getLevel().setBlockAndUpdate(bell, net.minecraft.world.level.block.Blocks.BELL.defaultBlockState());
+                FogLurkerEntity l = hunter(h, p, 12.5, 1.5);
+                p.gameMode.useItemOn(p, h.getLevel(), p.getMainHandItem(), net.minecraft.world.InteractionHand.MAIN_HAND,
+                        new net.minecraft.world.phys.BlockHitResult(Vec3.atCenterOf(bell), net.minecraft.core.Direction.NORTH, bell, false));
+                check(h.getLevel().getBlockEntity(bell) instanceof net.minecraft.world.level.block.entity.BellBlockEntity b && b.shaking,
+                        "right-clicking the bell should ring it");
+                h.runAfterDelay(3, () -> logged(h, () -> {
+                    check(l.isRemoved() || l.brain().phase() == LurkerBrain.Phase.FLEE,
+                            "a bell rung by hand should drive it off (" + l.brain().describe() + ")");
+                    l.brain().vanish(true);
+                    h.succeed();
+                }));
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "meet4", timeoutTicks = 800)
+    public static void creativeAfterRunIsNoEscape(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(80, () -> logged(h, () -> {
+                p.setHealth(20F);
+                FogLurkerEntity l = LurkerDirector.spawnNightMeeting(p, true);
+                check(l != null, "no spot for the night meeting");
+                h.runAfterDelay(LurkerBrain.MEETING_RUN + 2, () -> logged(h, () -> {
+                    p.setGameMode(GameType.CREATIVE);
+                    h.runAfterDelay(5, () -> logged(h, () -> {
+                        check(l.isRemoved() || l.brain().isEnded(), "it should leave a creative player (" + l.brain().describe() + ")");
+                        check(LurkerDirector.leftAloneTicks(p) == 0, "switching to creative is not getting away: no 15-minute peace");
+                        p.setGameMode(GameType.SURVIVAL);
+                        h.succeed();
+                    }));
+                }));
+            }));
+        });
+    }
+
+    /** Another mod that refuses to let the creature die. */
+    public static final class DeathCanceller {
+        @net.minecraftforge.eventbus.api.SubscribeEvent
+        public void onDeath(net.minecraftforge.event.entity.living.LivingDeathEvent e) {
+            if (e.getEntity() instanceof FogLurkerEntity) {
+                e.setCanceled(true);
+            }
+        }
+    }
+
+    @GameTest(template = "empty", batch = "deathcancel", timeoutTicks = 200)
+    public static void cancelledDeathChangesNothing(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(40, () -> logged(h, () -> {
+                FogLurkerEntity l = LurkerDirector.spawn(p, Disguise.ZOMBIE, Boolean.FALSE);
+                check(l != null, "no spawn");
+                l.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+                long restBefore = FogLurkerSavedData.get(server).restUntil();
+                DeathCanceller canceller = new DeathCanceller();
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(canceller);
+                try {
+                    l.die(h.getLevel().damageSources().playerAttack(p));
+                } finally {
+                    net.minecraftforge.common.MinecraftForge.EVENT_BUS.unregister(canceller);
+                }
+                check(l.getDisguise() == Disguise.ZOMBIE, "a cancelled death must keep its disguise, it is " + l.getDisguise());
+                check(l.getMainHandItem().is(Items.IRON_SWORD), "a cancelled death must keep its gear");
+                check(!l.brain().isEnded() && !l.isRemoved(), "a cancelled death must not end the visit");
+                check(FogLurkerSavedData.get(server).restUntil() == restBefore, "a cancelled death must not start the rest");
+                l.brain().vanish(true);
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "stopping", timeoutTicks = 200)
+    public static void closingTheWorldMidHuntIsAnEscape(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(40, () -> logged(h, () -> {
+                FogLurkerEntity l = hunter(h, p, 12.5, 1.5);
+                var profile = FogLurkerSavedData.get(server).profile(p.getUUID());
+                int before = profile.escapes;
+                l.brain().onServerStopping();
+                l.brain().onServerStopping(); // (only once per visit)
+                check(profile.escapes == Math.min(before + 1, 10), "closing the world mid-hunt should count as getting away once, "
+                        + before + " -> " + profile.escapes);
+                profile.escapes = before;
+                l.brain().vanish(true);
+                h.succeed();
+            }));
+        });
+    }
 }

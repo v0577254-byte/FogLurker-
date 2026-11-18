@@ -86,7 +86,7 @@ public final class FogLurkerConfig {
                     .defineInRange("hauntingMinSeconds", 90, 10, 36000);
             hauntingMaxSeconds = b.defineInRange("hauntingMaxSeconds", 240, 10, 36000);
             sabotage = b.comment("Let hauntings change the world a little: put out a torch behind you (the torch drops as an item,",
-                            "needs the mobGriefing gamerule) and leave a book in a chest at your base.")
+                            "needs the mobGriefing gamerule and breakBlocks) and leave a book in a chest at your base.")
                     .define("sabotage", true);
             wardRadius = b.comment("A soul torch, soul lantern or lit soul campfire protects players within this many blocks",
                             "from the attacking form (0 turns wards off).")

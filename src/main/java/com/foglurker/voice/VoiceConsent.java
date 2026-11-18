@@ -157,10 +157,8 @@ public final class VoiceConsent {
                 SnippetStore.deleteExcept(Set.of());
                 PENDING_OUT.clear();
                 pendingWipe = false;
+                appliedMarkers = markers; // removed by the first save that succeeds
                 save(true); // an empty list, newer than anything left on disk
-                if (!unsaved) {
-                    deleteMarkers(markers); // everyone is opted out anyway
-                }
                 loaded = true; // published last: nobody sees the list before it is final
                 return true;
             }
@@ -183,11 +181,11 @@ public final class VoiceConsent {
                 SnippetStore.deleteAll(out); // anything written for them meanwhile goes too
             }
             PENDING_OUT.clear();
-            if (removed) {
+            if (removed || !markers.isEmpty()) {
+                // The markers go only once a list without those players is safely on disk (this save, or the
+                // first retry that succeeds): left behind, they would undo a later opt-in at the next start.
+                appliedMarkers = markers;
                 save(true);
-            }
-            if (!unsaved) {
-                deleteMarkers(markers); // applied and saved: the markers are no longer needed
             }
             loaded = true; // published last: nobody sees the list before it is final
             return true;
@@ -213,8 +211,11 @@ public final class VoiceConsent {
         return SecureStorage.root().resolve("voice_optouts");
     }
 
-    /** Set when a marker could not be written: the opt-out then only lasts until the server stops. */
+    /** Set when a marker could not be written: the opt-out then only lasts until the server stops (retried). */
     private static volatile boolean markerUnsaved;
+    /** Markers applied when the list loaded, waiting for a successful save before they are deleted. */
+    @javax.annotation.Nullable
+    private static java.util.List<Path> appliedMarkers;
 
     private static void writeMarker(String name) {
         try {
@@ -330,6 +331,18 @@ public final class VoiceConsent {
     public static void flushIfUnsaved() {
         if (unsaved) {
             save(unsavedRemoval);
+        }
+        if (markerUnsaved && !loaded) {
+            // Still locked, and a marker could not be written earlier: try again so a restart cannot lose it.
+            synchronized (VoiceConsent.class) {
+                if (!loaded) {
+                    markerUnsaved = false;
+                    PENDING_OUT.forEach(id -> writeMarker(id.toString()));
+                    if (pendingWipe) {
+                        writeMarker("wipe");
+                    }
+                }
+            }
         }
     }
 
@@ -459,6 +472,11 @@ public final class VoiceConsent {
             SecureStorage.writeEncrypted(file(), bytes);
             unsaved = false;
             unsavedRemoval = false;
+            if (appliedMarkers != null) {
+                deleteMarkers(appliedMarkers); // the list on disk now holds those opt-outs
+                appliedMarkers = null;
+                markerUnsaved = false;
+            }
             try {
                 Files.deleteIfExists(newerFile()); // tidy: it is older than the main file now, so it can never win
             } catch (IOException | RuntimeException ignored) {
@@ -475,7 +493,7 @@ public final class VoiceConsent {
             } catch (IOException | RuntimeException e2) {
                 // fall through
             }
-            if (unsavedRemoval) {
+            if (unsavedRemoval && e instanceof IOException) {
                 // Last resort: either copy on disk may still name someone who has opted out, and would opt them
                 // back in after a restart. With no copy at all, everyone is opted out.
                 for (Path f : new Path[]{file(), newerFile()}) {

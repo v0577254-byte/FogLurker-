@@ -110,7 +110,7 @@ public final class BehaviorTracker {
         if (w.lastOnGround && !p.onGround() && dy > 0.2 && moving) {
             w.jumps++;
         }
-        if (p.swinging && !w.lastSwinging && !moving) { // idle swings: standing about, not running and hitting
+        if (p.swinging && !w.lastSwinging && horiz <= 0.03) { // idle swings: standing about (not walking, flying or riding)
             w.swings++;
         }
 
@@ -210,9 +210,18 @@ public final class BehaviorTracker {
         long now = level.getGameTime();
         List<Mob> mobs = level.getEntitiesOfClass(Mob.class, p.getBoundingBox().inflate(24),
                 m -> m.isAlive() && Disguise.of(m) != null);
-        // Their own dogs first, so a dog in a crowded farm is never crowded out of the 8 it looks at.
-        mobs = new java.util.ArrayList<>(mobs);
-        mobs.sort(java.util.Comparator.comparing(m -> !(m instanceof Wolf w && w.isTame() && p.getUUID().equals(w.getOwnerUUID()))));
+        // Their own dogs first, so a dog in a crowded farm is never crowded out of the 8 it looks at (one pass, no sort).
+        List<Mob> ordered = new java.util.ArrayList<>(Math.min(mobs.size(), 16));
+        List<Mob> others = new java.util.ArrayList<>(8);
+        for (Mob m : mobs) {
+            if (m instanceof Wolf w && w.isTame() && p.getUUID().equals(w.getOwnerUUID())) {
+                ordered.add(m);
+            } else if (others.size() < 8) {
+                others.add(m);
+            }
+        }
+        ordered.addAll(others);
+        mobs = ordered;
         int n = 0;
         for (Mob m : mobs) {
             if (n++ >= 8) {

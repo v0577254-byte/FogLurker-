@@ -47,6 +47,9 @@ public final class ClientEffects {
     }
 
     public static void setFogTarget(float intensity) {
+        if (Float.isNaN(intensity)) {
+            intensity = 0F; // never let a bad value freeze the fog for the rest of the session
+        }
         fogTarget = Mth.clamp(intensity, 0F, 1F);
         sinceFogPacket = 0;
     }

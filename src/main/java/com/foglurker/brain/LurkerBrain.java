@@ -899,7 +899,8 @@ public final class LurkerBrain {
         } else if (targetInWater) {
             // It cannot follow you into water. It paces the closest shore and screams.
             targetWaterTicks++;
-            if (age - lastRepath >= 20 || mob.getNavigation().isDone()) {
+            // (Once a second, or every 5 ticks once it got there: no shore at all would otherwise mean a search every tick.)
+            if (age - lastRepath >= 20 || mob.getNavigation().isDone() && age - lastRepath >= 5) {
                 lastRepath = age;
                 Vec3 shore = SpotFinder.nearestDryGround(level(), t.position(), mob.position(), 12);
                 if (shore != null) {
@@ -938,9 +939,9 @@ public final class LurkerBrain {
         // Claws still reach you from the shore if you only waded in.
         double reachSqr = 2.3 * 2.3;
         if (!warded && !windingUp && mob.distanceToSqr(t) <= reachSqr && attackCooldown == 0 && mob.canAttackNow() && mob.hasLineOfSight(t)) {
-            // Raised and facing it (not just raised while a bite bounces off a moment of damage immunity).
-            boolean shielded = t.isBlocking() && t.invulnerableTime <= 10
-                    && t.isDamageSourceBlocked(mob.damageSources().mobAttack(mob));
+            // Raised and facing it. (Vanilla checks the shield before damage immunity, so a raised, facing shield
+            // is what stopped the bite.)
+            boolean shielded = t.isBlocking() && t.isDamageSourceBlocked(mob.damageSources().mobAttack(mob));
             boolean bit = mob.doHurtTarget(t);
             if (!bit && shielded) {
                 // Teeth on a raised shield: it wrenches the shield aside like an axe does (5 s), so a shield buys
@@ -978,8 +979,10 @@ public final class LurkerBrain {
      * get dropped into, and {@link #dig} handles the rest.
      */
     private void chase(ServerPlayer t, double speed) {
+        // Every 5 ticks (20 while heading straight in). Never every tick: a target behind a wall leaves the path
+        // "done" at once, and a full path search each tick is expensive. In between it walks straight at you.
         int every = directChase ? 20 : 5;
-        if (age - lastRepath >= every || (!directChase && mob.getNavigation().isDone())) {
+        if (age - lastRepath >= every) {
             lastRepath = age;
             boolean pathed = mob.getNavigation().moveTo(t, speed);
             var path = mob.getNavigation().getPath();
@@ -1015,7 +1018,10 @@ public final class LurkerBrain {
                 mob.swing(InteractionHand.MAIN_HAND);
                 level.playSound(null, breaking, state.getSoundType().getHitSound(), SoundSource.HOSTILE, 1.0F, 0.6F);
             }
-            level.destroyBlockProgress(mob.getId(), breaking, Math.min(9, breakProgress * 10 / breakTotal));
+            int stage = Math.min(9, breakProgress * 10 / breakTotal);
+            if (breakProgress == 1 || stage != Math.min(9, (breakProgress - 1) * 10 / breakTotal)) {
+                level.destroyBlockProgress(mob.getId(), breaking, stage); // only when the crack grows (it goes to every player)
+            }
             if (breakProgress >= breakTotal) {
                 level.destroyBlockProgress(mob.getId(), breaking, -1);
                 level.destroyBlock(breaking, true, mob);
@@ -1171,6 +1177,20 @@ public final class LurkerBrain {
         PlayerBehaviorProfile p = savedData().profile(t.getUUID());
         p.escapes = Math.min(p.escapes + 1, 10);
         savedData().setDirty();
+    }
+
+    /**
+     * The world is closing (save and quit, or the server stops) during this visit. For its target that is the
+     * same as logging out: a hunt counts as getting away. Runs before the final save.
+     */
+    public void onServerStopping() {
+        if ((phase == Phase.ATTACK || phase == Phase.TRANSFORM || meetingChase) && !escaped
+                && FogLurkerConfig.COMMON.escapeEscalation.get()) {
+            escaped = true;
+            PlayerBehaviorProfile gone = savedData().profile(targetId());
+            gone.escapes = Math.min(gone.escapes + 1, 10);
+            savedData().setDirty();
+        }
     }
 
     /** Skips straight to hunting in its attacking form (used by tests). */

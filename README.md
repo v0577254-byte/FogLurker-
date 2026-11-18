@@ -70,7 +70,7 @@ It can be killed. Its health depends on the mode:
 | Hard | 125 hearts |
 | Deathwish | 175 hearts |
 
-It has 4 armour points (2 armour icons), and it does not take fall, suffocation, drowning, fire, lava, cactus or freezing damage. Swords, arrows, tridents, explosions and Harming potions hurt it normally (it is not undead, so Healing heals it). A raised shield stops one bite, then its teeth wrench the shield aside for 5 seconds, like an axe (the Deathwish bite goes straight through shields). When it dies it falls in its real shape, and **for 30 minutes nothing happens**: nothing appears on its own and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long; admin spawn commands still work). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
+It has 4 armour points (2 armour icons), and it does not take fall, suffocation, drowning, fire, lava, cactus or freezing damage. Swords, arrows, tridents, explosions and Harming potions hurt it normally (it is not undead, so Healing heals it). A raised shield stops one bite, then its teeth wrench the shield aside for 5 seconds, like an axe (the Deathwish bite goes straight through shields). When it dies it falls in its real shape, and **for 30 minutes nothing happens** (world time: on a server it keeps counting while nobody is online, like the fear, peace and bell timers below): nothing appears on its own and nothing haunts anyone on the server (`/foglurker spawntimer` shows how long; admin spawn commands still work). Any other creature that was out leaves too. `/kill` still just makes it vanish (no drops, no rest).
 
 ### What it drops (only when a player lands the killing blow)
 
@@ -135,7 +135,7 @@ Protection IV adds 5% only on diamond and netherite; lower Protection levels, an
 | **Deepslate and obsidian** | It cannot break them. |
 | **Totem of Undying** | Still works, even on Deathwish. |
 
-**Every escape makes it angrier.** Each time you get away from an attack (water, soul fire, a bell, or logging out mid-attack) it becomes 10% more likely to attack you the next time it appears, up to +30%. The grudge resets the moment it lands a bite on you.
+**Every escape makes it angrier.** Each time you get away from an attack (water, soul fire, a bell, or logging out or closing the world mid-attack) it becomes 10% more likely to attack you the next time it appears, up to +30%. The grudge resets the moment it lands a bite on you.
 
 ![The screen closes in as it gets near](docs/images/vignette.jpg)
 
@@ -257,7 +257,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/fglurk optin` | everyone | Opt in to voice snippets |
 | `/fglurk optout` | everyone | Opt out **and delete every stored snippet** |
 | `/fglurk voicesnippets status` | everyone | Whether you are opted in and how many snippets exist |
-| `/afk` (or `/AFK`) | everyone | Go AFK now: it leaves you alone until you move. Again to come back. Not while it is hunting you |
+| `/afk` (or `/AFK`) | everyone | Go AFK now: it leaves you alone until you move or look around. Again to come back. Not while it is hunting you |
 | `/fglurk chatlearning [on\|off]` | everyone | Whether it may learn how you type. `off` forgets every message it kept from you and keeps your chat out of what it sends to Gemini |
 
 `/flurk` and `/fglurk` both work for every voice command.
@@ -350,7 +350,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `breakBlocks` | true | Let the attacking form break blocks to reach you (never the protected list) |
 | `hauntings` | true | Small scares between appearances |
 | `hauntingMinSeconds` / `MaxSeconds` | 90 / 240 | How often a haunting happens |
-| `sabotage` | true | Let hauntings put out torches and leave books in chests |
+| `sabotage` | true | Let hauntings put out torches (also needs `breakBlocks` and mobGriefing) and leave books in chests |
 | `wardRadius` | 6 | How far soul fire protects (0 turns wards off) |
 | `eyeContactRule` | true | Looking at it speeds it up, looking away slows it down |
 | `encounterMaxMinutes` | 5 | An appearance gives up after this long (a watcher that only stares leaves after 2 minutes at most) |
