@@ -79,6 +79,7 @@ public final class VoiceRetention {
         int expired = VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
         VoiceConsent.deleteOrphanSnippets(); // retries anything an opt-out could not delete at the time
         SnippetStore.pruneAllAsync(); // maxSnippetsPerPlayer may have been lowered
+        VoiceConsent.deleteOldAsideCopies(nowMillis);
         if (expired > 0) {
             FogLurkerMod.LOGGER.info("Deleted the voice snippets of {} player(s) not seen for 30 days", expired);
         }
@@ -95,16 +96,16 @@ public final class VoiceRetention {
             return null;
         }
         try {
-            return Long.parseLong(text.trim());
+            return Long.parseLong(text.replace("\uFEFF", "").trim()); // (an editor may add a byte-order mark)
         } catch (NumberFormatException damaged) {
-            return null; // garbage in the stamp: treat as never (it is rewritten below)
+            return 0L; // garbage in the stamp: treat it as very old, so the 30-day promise errs on the side of deleting
         }
     }
 
     static Long readStamp() {
         Path f = SecureStorage.root().resolve(STAMP);
         try {
-            return Files.isRegularFile(f) ? Long.parseLong(Files.readString(f, StandardCharsets.UTF_8).trim()) : null;
+            return Files.isRegularFile(f) ? Long.parseLong(Files.readString(f, StandardCharsets.UTF_8).replace("\uFEFF", "").trim()) : null;
         } catch (IOException | NumberFormatException e) {
             return null;
         }

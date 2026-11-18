@@ -41,9 +41,11 @@ public final class SnippetStore {
         if (!VoiceConsent.isOptedIn(player)) {
             return; // never store anything for someone who has not opted in
         }
+        long recordedUnder = VoiceConsent.generation(player);
         IO.execute(() -> {
-            if (!VoiceConsent.isOptedIn(player)) {
-                return; // opted out while this was being processed
+            // Opted out while this was waiting (even if they opted in again since): it is not kept.
+            if (!VoiceConsent.isOptedIn(player) || VoiceConsent.generation(player) != recordedUnder) {
+                return;
             }
             try {
                 Path d = dir(player);
@@ -51,7 +53,7 @@ public final class SnippetStore {
                 String name = System.currentTimeMillis() + "-" + Integer.toHexString(ThreadLocalRandom.current().nextInt()) + ".snip";
                 Path file = d.resolve(name);
                 SecureStorage.writeEncrypted(file, toBytes(pcm));
-                if (!VoiceConsent.isOptedIn(player)) {
+                if (!VoiceConsent.isOptedIn(player) || VoiceConsent.generation(player) != recordedUnder) {
                     Files.deleteIfExists(file); // they opted out while this was being written
                     return;
                 }

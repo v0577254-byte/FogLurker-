@@ -113,6 +113,29 @@ public final class VoiceConsent {
         }
     }
 
+    /** Copies of an unreadable list are kept for the server owner, but not past the 30 days anything else is kept. */
+    public static void deleteOldAsideCopies(long nowMillis) {
+        try (java.util.stream.Stream<Path> files = Files.list(SecureStorage.root())) {
+            for (Path f : files.toList()) {
+                String n = f.getFileName().toString();
+                int at = n.lastIndexOf(".unreadable-");
+                if (at < 0) {
+                    continue;
+                }
+                try {
+                    long made = Long.parseLong(n.substring(at + ".unreadable-".length()));
+                    if (nowMillis - made > 30L * 24 * 60 * 60 * 1000) {
+                        Files.deleteIfExists(f);
+                    }
+                } catch (NumberFormatException | IOException notOurs) {
+                    // not one of ours, or in use: left alone
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            // the folder cannot be listed right now: next time
+        }
+    }
+
     private static String setAside(Path f) {
         Path aside = f.resolveSibling(f.getFileName() + ".unreadable-" + System.currentTimeMillis());
         try {
@@ -195,10 +218,24 @@ public final class VoiceConsent {
                 // first retry that succeeds): left behind, they would undo a later opt-in at the next start.
                 appliedMarkers = markers;
                 save(true);
+            } else {
+                markerUnsaved = false; // nothing to keep: the list on disk never named them (no false "disk" warning)
             }
             loaded = true; // published last: nobody sees the list before it is final
             return true;
         }
+    }
+
+    /** Bumped for a player on every opt-out or expiry, and for everyone on a wipe. */
+    private static final java.util.Map<UUID, Integer> GENERATION = new ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger EVERYONE_GENERATION = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * Which consent a clip was recorded under. A clip whose generation changed before it was stored was recorded
+     * before an opt-out: it is never kept, even if they opted in again meanwhile.
+     */
+    public static long generation(UUID player) {
+        return ((long) EVERYONE_GENERATION.get() << 32) + GENERATION.getOrDefault(player, 0);
     }
 
     public static boolean isOptedIn(UUID player) {
@@ -418,6 +455,7 @@ public final class VoiceConsent {
 
     /** Forgets every opt-in and deletes every snippet (used when the mod was unused for too long). */
     public static int wipeEverything() {
+        EVERYONE_GENERATION.incrementAndGet();
         if (!ensureLoaded()) {
             synchronized (VoiceConsent.class) {
                 if (!loaded) {
@@ -444,6 +482,7 @@ public final class VoiceConsent {
 
     /** Opts out and deletes every snippet stored for this player. */
     public static int optOut(UUID player) {
+        GENERATION.merge(player, 1, Integer::sum); // anything recorded before now is never stored
         if (!ensureLoaded()) {
             // The list cannot be opened right now: recording stops and the clips go now; the list catches up later.
             synchronized (VoiceConsent.class) {

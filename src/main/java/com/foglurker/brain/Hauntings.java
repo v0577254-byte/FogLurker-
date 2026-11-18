@@ -206,11 +206,12 @@ public final class Hauntings {
 
     // =================================================================== sounds only you can hear
 
-    private static void play(ServerPlayer p, SoundEvent sound, SoundSource source, Vec3 at, float volume, float pitch) {
+    private static void play(ServerPlayer p, ServerLevel where, SoundEvent sound, SoundSource source, Vec3 at, float volume, float pitch) {
         // The later steps of a sound check again: gone AFK, being hunted, switched game mode or world meanwhile, or
         // the hauntings were switched off: the rest of it is not played.
         if (p.hasDisconnected() || !p.isAlive() || p.isSpectator() || p.isCreative() || com.foglurker.world.AfkTracker.isAfk(p)
-                || isBeingHunted(p) || !FogLurkerConfig.COMMON.hauntings.get()
+                || isBeingHunted(p) || !FogLurkerConfig.COMMON.hauntings.get() || p.level() != where
+                || LurkerDirector.leftAloneTicks(p) > 0
                 || p.position().distanceToSqr(at) > 48 * 48) {
             return;
         }
@@ -237,22 +238,22 @@ public final class Hauntings {
                 // Something mining in the wall beside you.
                 Vec3 at = p.position().add(side.scale(4)).add(behind.scale(2)).add(0, 1, 0);
                 for (int i = 0; i < 5; i++) {
-                    later(server, i * 6, () -> play(p, SoundEvents.STONE_HIT, SoundSource.BLOCKS, at, 1.0F, 0.75F));
+                    later(server, i * 6, () -> play(p, level, SoundEvents.STONE_HIT, SoundSource.BLOCKS, at, 1.0F, 0.75F));
                 }
-                later(server, 34, () -> play(p, SoundEvents.STONE_BREAK, SoundSource.BLOCKS, at, 1.0F, 0.8F));
+                later(server, 34, () -> play(p, level, SoundEvents.STONE_BREAK, SoundSource.BLOCKS, at, 1.0F, 0.8F));
             }
             case INDOORS -> {
                 BlockPos chest = r.nextBoolean() ? nearestContainer(level, p.blockPosition(), 10, false) : null;
                 if (chest != null) {
                     // A chest in your base opens... and closes.
                     Vec3 at = Vec3.atCenterOf(chest);
-                    play(p, SoundEvents.CHEST_OPEN, SoundSource.BLOCKS, at, 0.6F, 0.9F);
-                    later(server, 30 + r.nextInt(30), () -> play(p, SoundEvents.CHEST_CLOSE, SoundSource.BLOCKS, at, 0.6F, 0.9F));
+                    play(p, level, SoundEvents.CHEST_OPEN, SoundSource.BLOCKS, at, 0.6F, 0.9F);
+                    later(server, 30 + r.nextInt(30), () -> play(p, level, SoundEvents.CHEST_CLOSE, SoundSource.BLOCKS, at, 0.6F, 0.9F));
                 } else {
                     // Footsteps crossing the roof above you.
                     for (int i = 0; i < 6; i++) {
                         Vec3 at = p.position().add(side.scale(-4 + i * 1.5)).add(0, 4, 0);
-                        later(server, i * 7, () -> play(p, SoundEvents.WOOD_STEP, SoundSource.PLAYERS, at, 0.9F, 0.8F));
+                        later(server, i * 7, () -> play(p, level, SoundEvents.WOOD_STEP, SoundSource.PLAYERS, at, 0.9F, 0.8F));
                     }
                 }
             }
@@ -262,7 +263,7 @@ public final class Hauntings {
                     Vec3 at = p.position().add(behind.scale(9 - i * 1.3));
                     BlockState ground = level.getBlockState(BlockPos.containing(at).below());
                     SoundEvent step = ground.isAir() ? SoundEvents.GRASS_STEP : ground.getSoundType().getStepSound();
-                    later(server, i * 6, () -> play(p, step, SoundSource.PLAYERS, at, 0.8F, 0.9F));
+                    later(server, i * 6, () -> play(p, level, step, SoundSource.PLAYERS, at, 0.8F, 0.9F));
                 }
             }
         }
@@ -462,7 +463,10 @@ public final class Hauntings {
                         pages.add(text);
                         // (Switched off while the note was being written: no book.)
                         boolean allowed = !LurkerDirector.isResting(p.server) && FogLurkerConfig.COMMON.sabotage.get()
-                                && FogLurkerConfig.COMMON.hauntings.get() && data.naturalSpawning();
+                                && FogLurkerConfig.COMMON.hauntings.get() && data.naturalSpawning()
+                                // (and they are still someone a haunting may visit: not AFK, hunted, at peace or in creative)
+                                && !p.hasDisconnected() && !com.foglurker.world.AfkTracker.isAfk(p) && !isBeingHunted(p)
+                                && LurkerDirector.leftAloneTicks(p) == 0 && !p.isCreative() && !p.isSpectator();
                         if (!allowed || !placeBook(level, chest, name, pages)) {
                             prof.lastBookAt = previousBook;
                             count = Math.max(0, count - 1); // it was counted as a haunting, but nothing happened

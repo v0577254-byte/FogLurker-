@@ -145,11 +145,14 @@ public final class FogLurkerCommands {
         net.minecraft.world.phys.Vec3 look = p.getViewVector(1F).multiply(1, 0, 1);
         look = look.lengthSqr() < 1e-4 ? new net.minecraft.world.phys.Vec3(0, 0, 1) : look.normalize();
         net.minecraft.world.phys.Vec3 spot = p.position().add(look.scale(3.5));
+        // Dry ground only, like every other place it appears (never in, on or next to water).
         var ground = com.foglurker.brain.SpotFinder.ground(level, net.minecraft.util.Mth.floor(spot.x),
-                net.minecraft.util.Mth.floor(spot.z), p.getBlockY());
-        if (ground != null) {
-            spot = net.minecraft.world.phys.Vec3.atBottomCenterOf(ground);
+                net.minecraft.util.Mth.floor(spot.z), p.getBlockY(), true);
+        if (ground == null) {
+            ctx.getSource().sendFailure(Component.literal("Nowhere dry for it to dance here (it needs dry ground in front of you)."));
+            return 0;
         }
+        spot = net.minecraft.world.phys.Vec3.atBottomCenterOf(ground);
         FogLurkerEntity dancer = com.foglurker.registry.ModEntities.FOG_LURKER.get().create(level);
         if (dancer == null) {
             ctx.getSource().sendFailure(Component.literal("Could not make the dancer here."));
