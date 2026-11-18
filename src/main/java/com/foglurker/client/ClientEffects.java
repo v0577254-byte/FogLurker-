@@ -46,6 +46,18 @@ public final class ClientEffects {
         return fogTarget;
     }
 
+    /** What the creature is doing to us right now ({@link com.foglurker.network.Mood}), for the Discord status. */
+    private static byte mood;
+
+    public static byte mood() {
+        return mood;
+    }
+
+    public static void setFogTarget(float intensity, byte newMood) {
+        setFogTarget(intensity);
+        mood = intensity > 0F ? newMood : com.foglurker.network.Mood.NONE;
+    }
+
     public static void setFogTarget(float intensity) {
         if (Float.isNaN(intensity)) {
             intensity = 0F; // never let a bad value freeze the fog for the rest of the session
@@ -63,6 +75,7 @@ public final class ClientEffects {
 
     private static void reset() {
         fog = fogPrev = fogTarget = 0;
+        mood = com.foglurker.network.Mood.NONE;
         scareTicks = 0;
         DisguiseCache.clear();
         Apparitions.clear();
@@ -93,6 +106,7 @@ public final class ClientEffects {
         }
         if (++sinceFogPacket > 80) {
             fogTarget = 0; // the server stopped telling us it is near
+            mood = com.foglurker.network.Mood.NONE;
         }
         fogPrev = fog;
         // Rolls in faster than it lifts: thick within ~2 s when it attacks, a slow clear when it leaves.

@@ -335,7 +335,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.3.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.4.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -373,11 +373,11 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 `config/foglurker-client.toml`: `fogEffects` (the fog), `screenEffects` (shake and vignette), `fogOverlay` (also draw the fog as a see-through layer over the screen, so it shows even when a shader pack or rendering mod replaces Minecraft's fog; on by default), `discordRichPresence` (Discord Rich Presence, below; on by default).
 
-**Discord Rich Presence.** While the game runs, your Discord profile shows **Playing Fog Lurker**, with "In the menus", "Lost in the fog" or "Being hunted...", single- or multiplayer, and how long you have been playing. It works with the Discord app (including Flatpak and Snap installs) and with Vesktop. It only talks to the Discord app on your own computer, and it never shows a server address, a world name or anyone's name. If Discord is not running, nothing happens. Turn it off with `discordRichPresence = false`. Your online status (Do Not Disturb and so on) stays yours to set in Discord: apps cannot change it. `/foglurker debugeverything` checks whether the world fog is working on your game.
+**Discord Rich Presence.** While the game runs, your Discord profile shows **Playing Fog Lurker**, with a line about what is happening to you, single- or multiplayer, the in-game day and how long you have been playing. Some of the lines: "Feeling watched..." while something follows you in disguise, "I thought I saw something moving in the bushes" when it drops flat in cover, "Following a friend into the woods", "Who's that?" when its real shape stands in the fog, "RUNNING FOR MY LIFE" when it hunts you, "Just debugging stuff" in creative, "The fog lifts... for now" after it dies, and now and then a rare one (good luck seeing "WHY ISNT IT WORKING???"). It works with the Discord app (including Flatpak and Snap installs) and with Vesktop. It only talks to the Discord app on your own computer, and it never shows a server address, a world name or anyone's name. If Discord is not running, nothing happens. Turn it off with `discordRichPresence = false`. Your online status (Do Not Disturb and so on) stays yours to set in Discord: apps cannot change it. `/foglurker debugeverything` checks whether the world fog is working on your game.
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.3.0.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.4.0.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -389,7 +389,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.3.0.jar
+./gradlew build               # -> build/libs/FogLurker-1.4.0.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
