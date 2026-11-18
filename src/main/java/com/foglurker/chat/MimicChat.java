@@ -32,7 +32,8 @@ public final class MimicChat {
 
     /** Lines about woods, forests or trees, which make no sense where there are none. */
     private static boolean aboutTrees(String line) {
-        return line.contains("wood") || line.contains("forest") || line.contains("tree");
+        String l = line.toLowerCase(Locale.ROOT);
+        return l.contains("wood") || l.contains("forest") || l.contains("tree");
     }
 
     private static final String[] GREET = {"hey", "yo", "hi", "there you are", "oh hey", "yo {t}", "hey {t}", "sup"};
@@ -84,7 +85,9 @@ public final class MimicChat {
         String user = userPrompt(ctx, intent, shareHeard ? heard : null);
         // generate() always completes (with a failed result at worst) within its own time limit.
         return GeminiClient.generate(system, user, 1.0F)
-                .thenApply(r -> r.text().map(t -> sanitize(t, ctx)).filter(t -> !t.isEmpty()).orElse(fallback))
+                .thenApply(r -> r.text().map(t -> sanitize(t, ctx))
+                        .filter(t -> !t.isEmpty() && (ctx.trees() || !aboutTrees(t))) // no "woods" where there are none
+                        .orElse(fallback))
                 .exceptionally(t -> fallback);
     }
 
@@ -198,12 +201,16 @@ public final class MimicChat {
         StringBuilder sb = new StringBuilder(s.length());
         s.codePoints().forEach(cp -> {
             int type = Character.getType(cp);
+            if (Character.isWhitespace(cp) || type == Character.SPACE_SEPARATOR) {
+                sb.append(' '); // (a newline or tab between two words becomes a space, so the words never join)
+                return;
+            }
             if (cp == '§' || cp == '\uFFFD' || type == Character.CONTROL || type == Character.FORMAT
                     || type == Character.SURROGATE || type == Character.PRIVATE_USE || type == Character.UNASSIGNED
                     || cp == 0x115F || cp == 0x1160 || cp == 0x3164 || cp == 0xFFA0 || cp == 0x2800) {
                 return; // (the last ones are "letters" that draw nothing: Hangul fillers and the blank braille cell)
             }
-            sb.appendCodePoint(Character.isWhitespace(cp) || type == Character.SPACE_SEPARATOR ? ' ' : cp);
+            sb.appendCodePoint(cp);
         });
         String out = sb.toString().replaceAll(" {2,}", " ").strip();
         // Nothing anyone could see (only spaces of other kinds): nothing at all, so it is never sent as a blank line.
@@ -240,7 +247,7 @@ public final class MimicChat {
                 }
                 String l = s.toLowerCase(Locale.ROOT);
                 for (String w : LURE_WORDS) {
-                    if (l.contains(w) && s.length() < 60 && !saidBefore(ctx, s)) {
+                    if (l.contains(w) && s.length() < 60 && !saidBefore(ctx, s) && (ctx.trees() || !aboutTrees(s))) {
                         fitting.add(s);
                         break;
                     }
