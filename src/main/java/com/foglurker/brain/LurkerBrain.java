@@ -443,7 +443,7 @@ public final class LurkerBrain {
     // =================================================================== phases
 
     private void stalk(ServerPlayer t, double dist) {
-        fog(t, 0.15F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         watchProgress(t, dist);
         double speed = switch (enc.mode()) {
             case DOG -> speedFor(5.0);
@@ -479,7 +479,7 @@ public final class LurkerBrain {
     }
 
     private void approach(ServerPlayer t, double dist) {
-        fog(t, 0.2F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         watchProgress(t, dist);
         if (dist < 10) {
             stare(t);
@@ -498,7 +498,7 @@ public final class LurkerBrain {
     }
 
     private void greet(ServerPlayer t, double dist) {
-        fog(t, 0.25F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         halt();
         stare(t);
         if (enc.mode() == Mode.DOG) {
@@ -540,7 +540,7 @@ public final class LurkerBrain {
     private void lure(ServerPlayer t, double dist) {
         double toWoods = mob.position().distanceTo(woods);
         float progress = (float) Mth.clamp(1.0 - t.position().distanceTo(woods) / woodsStartDistance, 0, 1);
-        fog(t, 0.3F + 0.4F * progress);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         // If the way into the woods is blocked (water, cliffs), wherever it got to becomes "the spot".
         if (toWoods < bestToWoods - 0.5) {
             bestToWoods = toWoods;
@@ -603,7 +603,7 @@ public final class LurkerBrain {
     }
 
     private void climax(ServerPlayer t, double dist) {
-        fog(t, 0.7F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         halt();
         boolean mimicking = enc.mode() == Mode.MIMIC;
         if (!(enc.willAttack() && canAttack(t))) {
@@ -652,7 +652,7 @@ public final class LurkerBrain {
     }
 
     private void watcher(ServerPlayer t, double dist) {
-        fog(t, 0.35F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         // It does not stand about in the open: it slinks to tall grass, ferns or a bush and lies down
         // in it like a dog, legs tucked under, only its head and eyes showing.
         if (!coverSearched) {
@@ -691,7 +691,7 @@ public final class LurkerBrain {
      * way it drops flat into the grass and holds still. Close enough, it either attacks or is gone.
      */
     private void stalker(ServerPlayer t, double dist) {
-        fog(t, 0.3F + (float) Mth.clamp((24 - dist) / 24, 0, 1) * 0.35F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         boolean seen = isWatchedBy(t);
         if (seen) {
             halt();
@@ -725,7 +725,7 @@ public final class LurkerBrain {
     }
 
     private void doppelganger(ServerPlayer t, double dist) {
-        fog(t, 0.3F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         stare(t);
         // Mirror them: crouch when they crouch, hold what they hold, jump when they jump, swing when they swing.
         mob.setCrouching(t.isShiftKeyDown());
@@ -770,7 +770,7 @@ public final class LurkerBrain {
     private int wanderSince;
 
     private void herd(ServerPlayer t, double dist) {
-        fog(t, 0.22F);
+        fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         boolean lookedAtNow = isLookedAtBy(t);
         double walk = speedFor(Mth.clamp(animalStats.moveSpeed, 0.6F, 3.0F));
         // Real animals glance at players now and then. This one stares a little too often.
@@ -1691,6 +1691,11 @@ public final class LurkerBrain {
     private float fogLevel;
     /** What was last sent, and to whom. */
     private float fogSent = -1F;
+    /**
+     * While it stalks, hides, lures or watches it adds no fog of its own: the light fog that is always there (on
+     * every player's game) is all there is, so the fog never gives it away. It thickens only once it attacks.
+     */
+    private static final float QUIET = 0F;
     @Nullable
     private UUID fogSentTo;
 

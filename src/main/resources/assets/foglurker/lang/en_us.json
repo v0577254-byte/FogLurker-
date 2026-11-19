@@ -19,5 +19,6 @@
   "item.foglurker.foggy_stick": "Foggy Stick",
   "item.foglurker.protector_of_the_fog": "The Protector of the Fog",
   "death.attack.foglurker.protector": "%1$s was cut down by %2$s",
-  "death.attack.foglurker.protector.item": "%1$s was cut down by %2$s using %3$s"
+  "death.attack.foglurker.protector.item": "%1$s was cut down by %2$s using %3$s",
+  "death.attack.foglurker.sleep_paralysis": "%1$s never woke up"
 }

@@ -17,10 +17,18 @@ public final class ModDamageTypes {
             ResourceKey.create(Registries.DAMAGE_TYPE, FogLurkerMod.id("lurker_oneshot"));
 
     /** The Protector of the Fog against the Fog Lurker: straight through its armour. */
+    public static final ResourceKey<DamageType> SLEEP_PARALYSIS =
+            ResourceKey.create(Registries.DAMAGE_TYPE, FogLurkerMod.id("sleep_paralysis"));
+
     public static final ResourceKey<DamageType> PROTECTOR =
             ResourceKey.create(Registries.DAMAGE_TYPE, FogLurkerMod.id("protector"));
 
     private ModDamageTypes() {
+    }
+
+    /** Damage with no one behind it (sleep paralysis). */
+    public static DamageSource source(net.minecraft.world.level.Level level, ResourceKey<DamageType> key) {
+        return new DamageSource(level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(key));
     }
 
     public static DamageSource source(Entity attacker, ResourceKey<DamageType> key) {

@@ -87,6 +87,14 @@ public final class ClientShowcase {
             afkScene(mc, server);
             return;
         }
+        if (scene.equals("sleep")) {
+            sleepScene(mc, server);
+            return;
+        }
+        if (scene.equals("portrait")) {
+            portraitScene(mc, server);
+            return;
+        }
         if (scene.startsWith("fogattack")) {
             // "fogattack2" ... "fogattack32": the render distance to test at (default 32).
             String digits = scene.substring("fogattack".length()).replace("-nofog", "").replace("-dh", "").replace("-night", "");
@@ -156,6 +164,7 @@ public final class ClientShowcase {
             case 40 -> {
                 mc.options.renderDistance().set(fogRenderDistance);
                 server.execute(() -> {
+                    backToGround(server);
                     ServerPlayer p = sp(server);
                     p.serverLevel().setDayTime(System.getProperty("foglurker.scene", "").contains("-night") ? 18000 : 6000);
                     p.setGameMode(GameType.SURVIVAL);
@@ -459,6 +468,95 @@ public final class ClientShowcase {
         // Hiding form (a wolf, at home on a snowy mountain) and its real form, side by side.
         spawnAt(level, px + dirX * 5 + dirZ * 2, pz + dirZ * 5 - dirX * 2, Disguise.WOLF, false, sceneYaw + 180F);
         spawnAt(level, px + dirX * 5 - dirZ * 2, pz + dirZ * 5 + dirX * 2, Disguise.CRAWLER, true, sceneYaw + 180F);
+    }
+
+    /** The portrait scene leaves the player high in the sky: clear what it built and stand on the ground again. */
+    private static void backToGround(MinecraftServer server) {
+        ServerPlayer p = sp(server);
+        ServerLevel level = p.serverLevel();
+        int x = p.getBlockX();
+        int z = p.getBlockZ();
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -6; dz <= 6; dz++) {
+                for (int y = 280; y < 320; y++) {
+                    level.setBlockAndUpdate(new net.minecraft.core.BlockPos(x + dx, y, z + dz),
+                            net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        p.getAbilities().flying = false;
+        p.onUpdateAbilities();
+        int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        p.teleportTo(level, x + 0.5, ground, z + 0.5, p.getYRot(), 0F);
+    }
+
+    /** Someone who has had sleep paralysis goes to bed at night: the faint picture, and the always-there fog. */
+    private static void sleepScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 10 -> server.execute(() -> {
+                backToGround(server);
+                sp(server).serverLevel().setDayTime(6000);
+            });
+            case 50 -> shot(mc, "foglurker_ambient_fog.png");
+            case 55 -> server.execute(() -> sp(server).serverLevel().setDayTime(18000));
+            case 70 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                p.setGameMode(GameType.SURVIVAL);
+                var prof = com.foglurker.world.FogLurkerSavedData.get(server).profile(p.getUUID());
+                prof.sleepParalysisSeen = true;
+                prof.sleepParalysisForced = false;
+                net.minecraft.core.BlockPos foot = p.blockPosition().north(2);
+                net.minecraft.core.BlockPos head = foot.north();
+                level.setBlockAndUpdate(foot, net.minecraft.world.level.block.Blocks.RED_BED.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.NORTH));
+                level.setBlockAndUpdate(head, net.minecraft.world.level.block.Blocks.RED_BED.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.NORTH)
+                        .setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD));
+                p.startSleepInBed(head).ifLeft(problem -> FogLurkerMod.LOGGER.info("Showcase: could not sleep: {}", problem));
+            });
+            case 150 -> shot(mc, "foglurker_sleep_vision.png");
+            case 170 -> mc.stop();
+            default -> {
+            }
+        }
+    }
+
+    /** The crawler's face against the open sky, for the faint picture shown in bed after sleep paralysis. */
+    private static void portraitScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> {
+                mc.options.hideGui = true;
+                mc.options.fov().set(50);
+                server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    ServerLevel level = p.serverLevel();
+                    level.setDayTime(6000);
+                    p.setGameMode(GameType.CREATIVE);
+                    int x = p.getBlockX();
+                    int z = p.getBlockZ();
+                    int y = 300; // above everything: nothing but sky behind it
+                    var barrier = net.minecraft.world.level.block.Blocks.BARRIER.defaultBlockState();
+                    level.setBlockAndUpdate(new net.minecraft.core.BlockPos(x, y - 1, z), barrier);
+                    level.setBlockAndUpdate(new net.minecraft.core.BlockPos(x, y, z - 3), barrier);
+                    FogLurkerEntity l = ModEntities.FOG_LURKER.get().create(level);
+                    l.moveTo(x + 0.5, y + 0.75, z - 3.2, 0F, 0F); // facing south, toward the camera
+                    l.setYHeadRot(0F);
+                    l.setYBodyRot(0F);
+                    l.setNoAi(true);
+                    l.setDisguise(Disguise.CRAWLER);
+                    l.setAggressive(true);
+                    level.addFreshEntity(l);
+                    p.getAbilities().flying = true;
+                    p.onUpdateAbilities();
+                    p.teleportTo(level, x + 0.5, y, z + 0.9, 180F, 2F);
+                });
+            }
+            case 140 -> shot(mc, "foglurker_portrait.png");
+            case 160 -> mc.stop();
+            default -> {
+            }
+        }
     }
 
     private static void spawnAt(ServerLevel level, int x, int z, Disguise d, boolean aggressive, float yaw) {

@@ -177,18 +177,25 @@ It leaves players who are away from the keyboard alone: it never comes for them,
 
 ## The fog
 
-The fog rolls in whenever it is near you and lifts a few seconds after it leaves. It works the same at **every render distance from 2 to 32 chunks**:
+**There is always a light fog in the Overworld**, with a few wisps of mist: you can still see the land through it, about 80 blocks (or 63% of your view if that is shorter). It does **not** thicken while the creature stalks you, hides, lures you or watches you, so the fog never gives it away. It closes in only when it shows itself. It works the same at **every render distance from 2 to 32 chunks**:
 
 | What it is doing | How far you can see |
 |---|---|
-| a copy walking up from far off | about 120 blocks, or 80% of your view if that is shorter |
-| stalking you | about 80 blocks, or 63% of your view |
-| luring you deep | from about 80 blocks down to about 20 as it nears the woods |
+| nothing, or stalking, hiding, luring, watching | about 80 blocks, or 63% of your view (the fog that is always there) |
+| the night meeting (Deathwish, at night) | about 10 blocks |
 | attacking | about 11 blocks (7 at a 2-chunk render distance) |
 
-So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in over about 2 seconds. **Real mist, too:** soft wisps of fog drift around you while it hunts you, more and closer the thicker the fog, lit like the world around them (a pale moonlit grey at night, not black). They fade into the distance like everything else. `fogParticles` in the client config switches them off, and they follow Minecraft's Particles setting.
+So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier when it attacks. The attack fog closes in over about 2 seconds. `ambientFog` in the client config sets how thick the always-there fog is (0 turns it off). **Real mist, too:** soft wisps of fog drift around you while it hunts you, more and closer the thicker the fog, lit like the world around them (a pale moonlit grey at night, not black). They fade into the distance like everything else. `fogParticles` in the client config switches them off, and they follow Minecraft's Particles setting.
 
 If a rendering mod switches Minecraft's fog off or pushes it out of sight (Distant Horizons, Embeddium/Sodium Extra's fog option, OptiFine's fog off), Fog Lurker notices and draws the same distance fog itself over the world, so it looks the same at every render distance either way. Only when nothing else can show it (a shader pack) does a soft see-through veil cover the screen (under your hotbar and chat; it hides with F1). `/foglurker debugeverything` says which way your game shows it.
+
+## Sleep paralysis
+
+A rare encounter in **every mode**: each time you lie down to sleep there is a **5% chance** of sleep paralysis. A moment after you lie down you are thrown out of bed, take **half a heart** of damage, and the Fog Lurker says in chat:
+
+> FogLurker: Hmm Did I Do That?
+
+It does **not** appear afterwards, and you can go straight back to bed and sleep normally. But from then on, **whenever you go to bed, a faint picture of it shows** while you fall asleep. Try it with `/foglurker force sleep-paralysis [player]`.
 
 ## Night
 
@@ -246,6 +253,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
 | `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
 | `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
+| `/foglurker force sleep-paralysis [player]` | cheats / op | The next time that player goes to sleep they get sleep paralysis: "Done! the next time you go to sleep you will experience sleep paralysis" |
 | `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
 | `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. Turning it back `on` starts a fresh 5-minute countdown |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
@@ -337,7 +345,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.2.7.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.3.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -373,11 +381,11 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `voice.voiceDistance` | 32 | |
 | `voice.showVoiceNoticeOnJoin` | true | |
 
-`config/foglurker-client.toml`: `fogEffects` (the fog), `screenEffects` (shake and vignette), `fogOverlay` (also draw the fog as a see-through layer over the screen when nothing else can show it, for example with a shader pack; on by default), `fogParticles` (the drifting wisps of mist; on by default). `/foglurker debugeverything` checks whether the world fog is working on your game.
+`config/foglurker-client.toml`: `fogEffects` (the fog), `screenEffects` (shake and vignette), `fogOverlay` (also draw the fog as a see-through layer over the screen when nothing else can show it, for example with a shader pack; on by default), `fogParticles` (the drifting wisps of mist; on by default), `ambientFog` (how thick the fog that is always there is, 0 to 0.6; 0.3 by default, 0 turns it off). `/foglurker debugeverything` checks whether the world fog is working on your game.
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.7.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.3.0.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -389,7 +397,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.2.7.jar
+./gradlew build               # -> build/libs/FogLurker-1.3.0.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

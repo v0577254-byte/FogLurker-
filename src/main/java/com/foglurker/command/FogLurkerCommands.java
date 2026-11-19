@@ -93,7 +93,11 @@ public final class FogLurkerCommands {
                         .then(Commands.literal("meet")
                                 .executes(cheats(ctx -> forceMeet(ctx, ctx.getSource().getPlayerOrException())))
                                 .then(Commands.argument("target", EntityArgument.player())
-                                        .executes(cheats(ctx -> forceMeet(ctx, EntityArgument.getPlayer(ctx, "target")))))))
+                                        .executes(cheats(ctx -> forceMeet(ctx, EntityArgument.getPlayer(ctx, "target"))))))
+                        .then(Commands.literal("sleep-paralysis")
+                                .executes(cheats(ctx -> forceSleepParalysis(ctx, ctx.getSource().getPlayerOrException())))
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .executes(cheats(ctx -> forceSleepParalysis(ctx, EntityArgument.getPlayer(ctx, "target")))))))
                 .then(Commands.literal("spawntimer")
                         .executes(cheats(FogLurkerCommands::spawnTimer)))
                 .then(Commands.literal("naturalspawning")
@@ -233,6 +237,17 @@ public final class FogLurkerCommands {
     }
 
     /** /foglurker force meet [player]: the Deathwish night meeting, now, 50/50 whether it attacks. */
+    /** The next time they go to sleep, sleep paralysis (see SleepParalysis). */
+    private static int forceSleepParalysis(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
+        com.foglurker.world.SleepParalysis.forceNext(target);
+        boolean self = ctx.getSource().getEntity() == target;
+        String text = self
+                ? "Done! the next time you go to sleep you will experience sleep paralysis"
+                : "Done! the next time " + target.getGameProfile().getName() + " goes to sleep he/she will experience sleep paralysis";
+        ctx.getSource().sendSuccess(() -> Component.literal(text), false); // exactly this, no prefix
+        return 1;
+    }
+
     private static int forceMeet(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
         if (refuseAfk(ctx.getSource(), target)) {
             return 0;

@@ -2526,4 +2526,39 @@ public final class FogLurkerGameTests {
             h.succeed();
         });
     }
+
+    @GameTest(template = "empty", batch = "sleepparalysis", timeoutTicks = 200)
+    public static void sleepParalysisRareAndForced(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            server.setDifficulty(Difficulty.NORMAL, true);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            ServerPlayer q = player(h, 4.5, 1.5);
+            kickOtherPlayers(server, p, q);
+            h.runAfterDelay(80, () -> logged(h, () -> { // (after the 3 seconds a player who just joined cannot be hurt)
+                // 5% in every mode: a roll under 0.05 is sleep paralysis, anything else a normal sleep.
+                check(com.foglurker.world.SleepParalysis.lieDown(p, 0.049), "a roll under 5% should be sleep paralysis");
+                check(!com.foglurker.world.SleepParalysis.lieDown(q, 0.051), "a roll over 5% should be a normal sleep");
+                // Forced: the next sleep is a sure one, whatever the roll.
+                var ops = server.createCommandSourceStack().withPermission(2);
+                server.getCommands().performPrefixedCommand(ops, "foglurker force sleep-paralysis " + q.getGameProfile().getName());
+                var qProf = FogLurkerSavedData.get(server).profile(q.getUUID());
+                check(qProf.sleepParalysisForced, "force sleep-paralysis should mark their next sleep");
+                check(com.foglurker.world.SleepParalysis.lieDown(q, 0.99), "a forced one happens whatever the roll");
+                // It strikes: out of bed, half a heart, and no creature afterwards.
+                q.setHealth(20F);
+                int before = LurkerDirector.active().size();
+                com.foglurker.world.SleepParalysis.strike(q);
+                check(Math.abs(q.getHealth() - 19F) < 0.01F, "sleep paralysis should cost exactly half a heart, health is " + q.getHealth());
+                check(!q.isSleeping(), "it should throw them out of bed");
+                check(LurkerDirector.active().size() == before, "the creature must not appear after it");
+                check(LurkerDirector.leftAloneTicks(q) > 0, "nothing should come for them right after it");
+                check(qProf.sleepParalysisSeen && !qProf.sleepParalysisForced, "it should be remembered, and the force used up");
+                // Back to bed: a normal sleep, even with the unluckiest roll.
+                check(!com.foglurker.world.SleepParalysis.lieDown(q, 0.0), "going back to bed right after must be a normal sleep");
+                h.succeed();
+            }));
+        });
+    }
 }

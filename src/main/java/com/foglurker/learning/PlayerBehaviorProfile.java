@@ -76,6 +76,10 @@ public final class PlayerBehaviorProfile {
     public long dogSeenAt;
     /** When they were last seen playing (System.currentTimeMillis), 0 if not known (older saves). */
     public long lastSeenMillis;
+    /** Has had sleep paralysis: from then on a faint picture of the creature shows whenever they sleep. */
+    public boolean sleepParalysisSeen;
+    /** /foglurker force sleep-paralysis: the next time they sleep it happens for sure. */
+    public boolean sleepParalysisForced;
     /** Storage blocks they opened themselves (newest last, at most 16): the only places a book is left. */
     public final java.util.ArrayDeque<Long> openedContainers = new java.util.ArrayDeque<>();
 
@@ -225,6 +229,8 @@ public final class PlayerBehaviorProfile {
         t.putInt("escapes", escapes);
         t.putLong("lastBook", lastBookAt);
         t.putLong("lastSeen", lastSeenMillis);
+        t.putBoolean("spSeen", sleepParalysisSeen);
+        t.putBoolean("spForced", sleepParalysisForced);
         t.putLongArray("opened", openedContainers.stream().mapToLong(Long::longValue).toArray());
         t.putBoolean("noChatLearn", chatLearningOff);
         if (homeKnown) {
@@ -282,6 +288,8 @@ public final class PlayerBehaviorProfile {
             p.heldItems.remove(p.heldItems.keySet().iterator().next());
         }
         p.lastSeenMillis = t.getLong("lastSeen");
+        p.sleepParalysisSeen = t.getBoolean("spSeen");
+        p.sleepParalysisForced = t.getBoolean("spForced");
         long[] opened = t.getLongArray("opened");
         for (int i = Math.max(0, opened.length - 16); i < opened.length; i++) {
             p.openedContainers.addLast(opened[i]);

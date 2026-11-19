@@ -23,6 +23,9 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = FogLurkerMod.MOD_ID, value = Dist.CLIENT)
 public final class ClientEffects {
     private static float fogTarget;
+    /** The light fog that is always there (Overworld), easing in and out with dimension changes. */
+    private static float ambient;
+    private static float ambientPrev;
     private static float fog;
     private static float fogPrev;
     private static int sinceFogPacket;
@@ -64,6 +67,7 @@ public final class ClientEffects {
     private static void reset() {
         FogWisps.clear();
         fog = fogPrev = fogTarget = 0;
+        ambient = ambientPrev = 0;
         scareTicks = 0;
         DisguiseCache.clear();
         Apparitions.clear();
@@ -96,7 +100,11 @@ public final class ClientEffects {
         if (++sinceFogPacket > 80) {
             fogTarget = 0; // the server stopped telling us it is near
         }
-        FogWisps.tick(mc, fog);
+        ambientPrev = ambient;
+        float ambientWanted = FogLurkerConfig.CLIENT.fogEffects.get() && mc.level.dimension() == net.minecraft.world.level.Level.OVERWORLD
+                ? (float) (double) FogLurkerConfig.CLIENT.ambientFog.get() : 0F;
+        ambient += (ambientWanted - ambient) * 0.02F;
+        FogWisps.tick(mc, Math.max(fog, ambient));
         fogPrev = fog;
         // Rolls in faster than it lifts: thick within ~2 s when it attacks, a slow clear when it leaves.
         fog += (fogTarget - fog) * (fogTarget > fog ? 0.06F : 0.03F);
@@ -157,8 +165,9 @@ public final class ClientEffects {
         return was;
     }
 
+    /** The fog to draw in the world: the creature's, or the light fog that is always there, whichever is thicker. */
     static float fogAt(double partialTick) {
-        return fogNow(partialTick);
+        return Math.max(fogNow(partialTick), Mth.lerp((float) partialTick, ambientPrev, ambient));
     }
 
     static int fogColorRgb() {
@@ -178,7 +187,7 @@ public final class ClientEffects {
         if (!FogLurkerConfig.CLIENT.fogEffects.get() || event.getType() != FogType.NONE) {
             return;
         }
-        float f = fogNow(event.getPartialTick());
+        float f = fogAt(event.getPartialTick());
         if (f < 0.01F) {
             return;
         }
@@ -204,7 +213,7 @@ public final class ClientEffects {
 
     @SubscribeEvent
     public static void onFogColor(ViewportEvent.ComputeFogColor event) {
-        float f = FogLurkerConfig.CLIENT.fogEffects.get() ? fogNow(event.getPartialTick()) * 0.8F : 0F;
+        float f = FogLurkerConfig.CLIENT.fogEffects.get() ? fogAt(event.getPartialTick()) * 0.8F : 0F;
         if (f >= 0.01F) {
             float avg = (event.getRed() + event.getGreen() + event.getBlue()) / 3F;
             event.setRed(Mth.lerp(f, event.getRed(), avg * 0.95F));

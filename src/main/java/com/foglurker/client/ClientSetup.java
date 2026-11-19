@@ -48,5 +48,6 @@ public final class ClientSetup {
     public static void registerOverlays(RegisterGuiOverlaysEvent event) {
         event.registerBelowAll("fog", ClientEffects::renderFogOverlay);
         event.registerAboveAll("scare", ClientEffects::renderOverlay);
+        event.registerAbove(net.minecraftforge.client.gui.overlay.VanillaGuiOverlay.SLEEP_FADE.id(), "sleep_paralysis", SleepVision::render);
     }
 }

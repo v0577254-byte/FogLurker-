@@ -8,7 +8,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String VERSION = "1";
+    /** 3: the sleep paralysis picture (1.3.0). Both sides must match. */
+    private static final String VERSION = "3";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             FogLurkerMod.id("main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -31,6 +32,11 @@ public final class ModNetwork {
                 .encoder(ApparitionPacket::encode)
                 .decoder(ApparitionPacket::decode)
                 .consumerMainThread(ApparitionPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(SleepVisionPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(SleepVisionPacket::encode)
+                .decoder(SleepVisionPacket::decode)
+                .consumerMainThread(SleepVisionPacket::handle)
                 .add();
         // TEMPORARY: /foglurker debugeverything (remove before release)
         CHANNEL.messageBuilder(DebugPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
