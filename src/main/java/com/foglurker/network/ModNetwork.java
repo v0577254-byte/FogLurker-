@@ -8,8 +8,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    /** 3: the sleep paralysis picture (1.3.0). Both sides must match. */
-    private static final String VERSION = "3";
+    /** 5: the sleep paralysis picture and the server's always-there fog (1.3.x). Both sides must match. */
+    private static final String VERSION = "5";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             FogLurkerMod.id("main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -32,6 +32,11 @@ public final class ModNetwork {
                 .encoder(ApparitionPacket::encode)
                 .decoder(ApparitionPacket::decode)
                 .consumerMainThread(ApparitionPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(AlwaysFogPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(AlwaysFogPacket::encode)
+                .decoder(AlwaysFogPacket::decode)
+                .consumerMainThread(AlwaysFogPacket::handle)
                 .add();
         CHANNEL.messageBuilder(SleepVisionPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SleepVisionPacket::encode)

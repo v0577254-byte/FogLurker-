@@ -119,27 +119,34 @@ final class FogWisps {
         float spread = 6F + 22F * (1F - fog);
         for (int i = 0; i < perTick && WISPS.size() < maxAlive; i++) {
             double angle = r.nextDouble() * Math.PI * 2;
-            double dist = 2.5 + r.nextDouble() * spread;
+            // Even over the area (not bunched toward the middle), and never right on top of another wisp: an even
+            // layer of mist, not clumps.
+            double dist = 2.5 + Math.sqrt(r.nextDouble()) * spread;
             double x = p.getX() + Math.cos(angle) * dist;
             double z = p.getZ() + Math.sin(angle) * dist;
             BlockPos column = BlockPos.containing(x, p.getY(), z);
             if (!mc.level.isLoaded(column)) {
                 continue;
             }
-            int ground = mc.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column.getX(), column.getZ());
-            // On open ground it hugs the ground; in a cave, under a roof or on a tower it stays at your height.
-            double y = Math.abs(ground - p.getY()) <= 8 ? ground + 0.3 + r.nextDouble() * 2.2 : p.getY() - 0.5 + r.nextDouble() * 2.5;
+            Double floor = floorNear(mc, column, p.getY());
+            if (floor == null) {
+                continue; // over a cliff edge, a ravine or open air: mist lies on the ground, it does not float
+            }
+            double y = floor + 0.2 + r.nextDouble() * 1.1; // low, lying on the ground
+            if (tooClose(x, y, z)) {
+                continue;
+            }
             Wisp w = new Wisp();
             w.x = w.ox = x;
             w.y = w.oy = y;
             w.z = w.oz = z;
             w.dx = (r.nextDouble() - 0.5) * 0.03;
-            w.dy = 0.001 + r.nextDouble() * 0.003;
+            w.dy = 0; // it drifts along the ground; it never rises up into the air
             w.dz = (r.nextDouble() - 0.5) * 0.03;
-            w.size = 1.6F + r.nextFloat() * 2.4F;
-            w.roll = w.oRoll = r.nextFloat() * Mth.TWO_PI;
-            w.spin = (r.nextFloat() - 0.5F) * 0.012F;
-            w.peak = 0.16F + 0.34F * fog;
+            w.size = 2.4F + r.nextFloat() * 2.2F;
+            w.roll = w.oRoll = (r.nextFloat() - 0.5F) * 0.3F; // nearly level: a low band, not a tilted blob
+            w.spin = (r.nextFloat() - 0.5F) * 0.0015F;
+            w.peak = 0.12F + 0.26F * fog; // bigger and fainter: they blend into one layer
             w.variant = r.nextInt(4);
             w.life = 110 + r.nextInt(90);
             w.bright = brightness(mc, w);
@@ -147,10 +154,43 @@ final class FogWisps {
         }
     }
 
+    /**
+     * The floor near this column at about the player's height: the ground outside, the floor of a cave, a roof
+     * you stand on. Null if there is none within a few blocks (a cliff edge, a ravine, open air).
+     */
+    @Nullable
+    private static Double floorNear(Minecraft mc, BlockPos column, double playerY) {
+        BlockPos.MutableBlockPos pos = column.mutable();
+        int top = (int) Math.floor(playerY) + 3;
+        for (int y = top; y >= top - 9; y--) {
+            pos.setY(y);
+            var below = mc.level.getBlockState(pos.below());
+            if (mc.level.getBlockState(pos).getCollisionShape(mc.level, pos).isEmpty()
+                    && !below.getCollisionShape(mc.level, pos.below()).isEmpty()
+                    && below.getFluidState().isEmpty()) {
+                return (double) y;
+            }
+        }
+        return null;
+    }
+
+    /** Another wisp already this close: it would only thicken one spot into a clump. */
+    private static boolean tooClose(double x, double y, double z) {
+        for (Wisp o : WISPS) {
+            double dx = o.x - x;
+            double dy = (o.y - y) * 2; // (height counts double: they are a low layer)
+            double dz = o.z - z;
+            if (dx * dx + dy * dy + dz * dz < 2.6 * 2.6) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Lit like the world around it, but never darker than faint moonlight (mist at night is pale, not black). */
     private static float brightness(Minecraft mc, Wisp w) {
         int light = mc.level.getMaxLocalRawBrightness(BlockPos.containing(w.x, w.y, w.z));
-        return 0.34F + 0.66F * (light / 15F);
+        return 0.24F + 0.76F * (light / 15F);
     }
 
     /** After the world and Fog Lurker's own fog: the wisps on top, sorted far to near, hidden behind blocks. */
@@ -191,21 +231,26 @@ final class FogWisps {
             float d = (float) Math.sqrt(w.distSq);
             float fade = Math.min(1F, w.age / 25F) * Math.min(1F, (w.life - w.age) / 30F);
             float close = Mth.clamp((d - 1.0F) / 2.5F, 0F, 1F); // never a wall of mist pressed against your eyes
-            float faded = 1F - Mth.clamp((d - near) / Math.max(far - near, 0.5F), 0F, 1F);
+            // Mist is something around you: it thins out well before the fog's far edge (no row of puffs on the horizon).
+            float fadeFrom = Math.min(6F, far * 0.25F);
+            float fadeTo = Math.max(fadeFrom + 2F, far * 0.6F);
+            float faded = 1F - Mth.clamp((d - fadeFrom) / (fadeTo - fadeFrom), 0F, 1F);
             float a = w.peak * fade * close * faded;
             if (a < 0.004F) {
                 continue;
             }
-            float rr = Mth.lerp(partialTick, w.oRoll, w.roll);
-            float cos = Mth.cos(rr) * w.size;
-            float sin = Mth.sin(rr) * w.size;
-            // The quad's two half-axes, turned by the wisp's slow roll, always facing the camera.
-            float ax = left.x() * cos + up.x() * sin;
-            float ay = left.y() * cos + up.y() * sin;
-            float az = left.z() * cos + up.z() * sin;
-            float bx = up.x() * cos - left.x() * sin;
-            float by = up.y() * cos - left.y() * sin;
-            float bz = up.z() * cos - left.z() * sin;
+            float rr = Mth.clamp(Mth.lerp(partialTick, w.oRoll, w.roll), -0.2F, 0.2F);
+            float cos = Mth.cos(rr);
+            float sin = Mth.sin(rr);
+            // Facing the camera, wide and low (2.5 times wider than tall): mist lies along the ground in bands.
+            float sx = w.size;
+            float sy = w.size * 0.4F;
+            float ax = (left.x() * cos + up.x() * sin) * sx;
+            float ay = (left.y() * cos + up.y() * sin) * sx;
+            float az = (left.z() * cos + up.z() * sin) * sx;
+            float bx = (up.x() * cos - left.x() * sin) * sy;
+            float by = (up.y() * cos - left.y() * sin) * sy;
+            float bz = (up.z() * cos - left.z() * sin) * sy;
             float x = (float) (Mth.lerp(partialTick, w.ox, w.x) - cam.x);
             float y = (float) (Mth.lerp(partialTick, w.oy, w.y) - cam.y);
             float z = (float) (Mth.lerp(partialTick, w.oz, w.z) - cam.z);

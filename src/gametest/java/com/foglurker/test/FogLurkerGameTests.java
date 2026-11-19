@@ -2561,4 +2561,24 @@ public final class FogLurkerGameTests {
             }));
         });
     }
+
+    @GameTest(template = "empty", batch = "alwaysfog", timeoutTicks = 100)
+    public static void fogCommandSetsTheWorldsFog(GameTestHelper h) {
+        logged(h, () -> {
+            MinecraftServer server = h.getLevel().getServer();
+            FogLurkerSavedData data = FogLurkerSavedData.get(server);
+            int before = data.alwaysFog();
+            var ops = server.createCommandSourceStack().withPermission(2);
+            server.getCommands().performPrefixedCommand(ops, "foglurker fog 70");
+            check(data.alwaysFog() == 70, "/foglurker fog 70 should set it to 70, it is " + data.alwaysFog());
+            server.getCommands().performPrefixedCommand(ops, "foglurker fog 250");
+            check(data.alwaysFog() == 70, "out-of-range numbers are refused");
+            var saved = data.save(new net.minecraft.nbt.CompoundTag());
+            check(FogLurkerSavedData.load(saved).alwaysFog() == 70, "it should be saved with the world");
+            check(FogLurkerSavedData.load(new net.minecraft.nbt.CompoundTag()).alwaysFog() == FogLurkerSavedData.DEFAULT_ALWAYS_FOG,
+                    "an older world gets the normal fog");
+            data.setAlwaysFog(before);
+            h.succeed();
+        });
+    }
 }

@@ -33,6 +33,9 @@ public final class FogLurkerSavedData extends SavedData {
     private boolean guaranteedNext;
     /** Whether it appears on its own (spawn rolls). Off: it only comes when summoned with a command. */
     private boolean naturalSpawning = true;
+    /** The fog that is always there (Overworld), 0..100; /foglurker fog. */
+    private int alwaysFog = DEFAULT_ALWAYS_FOG;
+    public static final int DEFAULT_ALWAYS_FOG = 45;
     /** Game time until which it rests after being killed: nothing appears and nothing haunts. */
     private long restUntil;
     private int encounters;
@@ -153,6 +156,15 @@ public final class FogLurkerSavedData extends SavedData {
         return naturalSpawning;
     }
 
+    public int alwaysFog() {
+        return alwaysFog;
+    }
+
+    public void setAlwaysFog(int level) {
+        alwaysFog = Math.max(0, Math.min(100, level));
+        setDirty();
+    }
+
     public void setNaturalSpawning(boolean on) {
         if (on && !naturalSpawning) {
             nextSpawnTicks = -1; // starts a fresh 5-minute countdown (after grace, if any is left)
@@ -240,6 +252,7 @@ public final class FogLurkerSavedData extends SavedData {
         tag.putInt("nextSpawn", nextSpawnTicks);
         tag.putBoolean("guaranteedNext", guaranteedNext);
         tag.putBoolean("naturalSpawning", naturalSpawning);
+        tag.putInt("alwaysFog", alwaysFog);
         tag.putLong("restUntil", restUntil);
         tag.putInt("encounters", encounters);
         CompoundTag prof = new CompoundTag();
@@ -264,6 +277,7 @@ public final class FogLurkerSavedData extends SavedData {
         d.nextSpawnTicks = tag.contains("nextSpawn") ? tag.getInt("nextSpawn") : -1;
         d.guaranteedNext = tag.getBoolean("guaranteedNext");
         d.naturalSpawning = !tag.contains("naturalSpawning") || tag.getBoolean("naturalSpawning");
+        d.alwaysFog = tag.contains("alwaysFog") ? Math.max(0, Math.min(100, tag.getInt("alwaysFog"))) : DEFAULT_ALWAYS_FOG;
         d.restUntil = tag.getLong("restUntil");
         d.encounters = tag.getInt("encounters");
         CompoundTag prof = tag.getCompound("profiles");

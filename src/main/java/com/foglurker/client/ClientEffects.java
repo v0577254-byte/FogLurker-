@@ -26,6 +26,12 @@ public final class ClientEffects {
     /** The light fog that is always there (Overworld), easing in and out with dimension changes. */
     private static float ambient;
     private static float ambientPrev;
+    /** What the server says the fog that is always there is (/foglurker fog), 0..1. */
+    private static float alwaysFog = com.foglurker.world.FogLurkerSavedData.DEFAULT_ALWAYS_FOG / 100F;
+
+    public static void setAlwaysFog(float level) {
+        alwaysFog = Float.isNaN(level) ? 0F : Mth.clamp(level, 0F, 1F);
+    }
     private static float fog;
     private static float fogPrev;
     private static int sinceFogPacket;
@@ -102,7 +108,7 @@ public final class ClientEffects {
         }
         ambientPrev = ambient;
         float ambientWanted = FogLurkerConfig.CLIENT.fogEffects.get() && mc.level.dimension() == net.minecraft.world.level.Level.OVERWORLD
-                ? (float) (double) FogLurkerConfig.CLIENT.ambientFog.get() : 0F;
+                ? alwaysFog : 0F;
         ambient += (ambientWanted - ambient) * 0.02F;
         FogWisps.tick(mc, Math.max(fog, ambient));
         fogPrev = fog;

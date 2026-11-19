@@ -100,6 +100,11 @@ public final class FogLurkerCommands {
                                         .executes(cheats(ctx -> forceSleepParalysis(ctx, EntityArgument.getPlayer(ctx, "target")))))))
                 .then(Commands.literal("spawntimer")
                         .executes(cheats(FogLurkerCommands::spawnTimer)))
+                .then(Commands.literal("fog")
+                        .executes(FogLurkerCommands::showFog)
+                        .then(Commands.argument("thickness", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 100))
+                                .requires(FogLurkerCommands::isAdmin)
+                                .executes(ctx -> setFog(ctx, com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "thickness")))))
                 .then(Commands.literal("naturalspawning")
                         .executes(ctx -> naturalSpawning(ctx, null))
                         .then(Commands.literal("on").requires(FogLurkerCommands::isAdmin).executes(ctx -> naturalSpawning(ctx, true)))
@@ -237,6 +242,29 @@ public final class FogLurkerCommands {
     }
 
     /** /foglurker force meet [player]: the Deathwish night meeting, now, 50/50 whether it attacks. */
+    /** /foglurker fog: how thick the fog that is always there is. */
+    private static int showFog(CommandContext<CommandSourceStack> ctx) {
+        int level = FogLurkerSavedData.get(ctx.getSource().getServer()).alwaysFog();
+        reply(ctx.getSource(), Component.literal("The fog that is always there: " + level + " (0 = none, 100 = thickest, "
+                + FogLurkerSavedData.DEFAULT_ALWAYS_FOG + " = normal). It thickens on its own when it attacks.")
+                .withStyle(ChatFormatting.GRAY));
+        return level;
+    }
+
+    /** /foglurker fog <0-100>: sets it for everyone in this world, at once. */
+    private static int setFog(CommandContext<CommandSourceStack> ctx, int level) {
+        var server = ctx.getSource().getServer();
+        FogLurkerSavedData.get(server).setAlwaysFog(level);
+        var packet = new com.foglurker.network.AlwaysFogPacket(level / 100F);
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            com.foglurker.network.ModNetwork.send(p, packet);
+        }
+        ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal("The fog is now " + level
+                + (level == 0 ? " (no fog unless it attacks)" : level == 100 ? " (the thickest)" : "") + " for everyone in this world.")
+                .withStyle(ChatFormatting.GRAY)), true);
+        return 1;
+    }
+
     /** The next time they go to sleep, sleep paralysis (see SleepParalysis). */
     private static int forceSleepParalysis(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
         com.foglurker.world.SleepParalysis.forceNext(target);

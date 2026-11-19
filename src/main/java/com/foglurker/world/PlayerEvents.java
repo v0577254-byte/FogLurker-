@@ -82,6 +82,9 @@ public final class PlayerEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
+        // How thick this world's always-there fog is (/foglurker fog).
+        com.foglurker.network.ModNetwork.send(player, new com.foglurker.network.AlwaysFogPacket(
+                FogLurkerSavedData.get(player.server).alwaysFog() / 100F));
         VoiceConsent.touch(player.getUUID(), System.currentTimeMillis());
         if (!VoiceBridge.isActive() || !FogLurkerConfig.COMMON.showVoiceNoticeOnJoin.get()
                 || !VoiceConsent.isReadable() // cannot tell whether they opted in: try at the next join

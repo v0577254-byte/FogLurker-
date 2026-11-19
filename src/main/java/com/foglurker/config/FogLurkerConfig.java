@@ -158,7 +158,6 @@ public final class FogLurkerConfig {
         public final ForgeConfigSpec.BooleanValue screenEffects;
         public final ForgeConfigSpec.BooleanValue fogOverlay;
         public final ForgeConfigSpec.BooleanValue fogParticles;
-        public final ForgeConfigSpec.DoubleValue ambientFog;
 
         Client(ForgeConfigSpec.Builder b) {
             fogEffects = b.comment("Thick fog rolls in while the creature is hunting you.")
@@ -173,10 +172,6 @@ public final class FogLurkerConfig {
             fogParticles = b.comment("Wisps of fog drifting around you while it hunts you: real fog in the world, which shows",
                             "even with Distant Horizons, Embeddium or a shader pack. Follows Minecraft's Particles setting.")
                     .define("fogParticles", true);
-            ambientFog = b.comment("A light fog that is always there in the Overworld (with a few wisps of mist), so its arrival is",
-                            "not given away by fog appearing. You can still see the land through it. It thickens only when",
-                            "the creature attacks. 0 turns it off.")
-                    .defineInRange("ambientFog", 0.3, 0.0, 0.6);
         }
     }
 }
