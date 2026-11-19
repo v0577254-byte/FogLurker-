@@ -74,6 +74,17 @@ public enum LurkerDifficulty {
     }
 
     /** How much thicker its fog is at night: +10% / +15% / +25% / +35% / +50%. */
+    /** How thick the fog that is always there is in this mode (0..100), unless /foglurker fog sets it. */
+    public int alwaysFog() {
+        return switch (this) {
+            case VERY_EASY -> 15;
+            case EASY -> 25;
+            case MEDIUM -> 45;
+            case HARD -> 55;
+            case DEATHWISH -> 60;
+        };
+    }
+
     public float nightFogMultiplier() {
         return switch (this) {
             case VERY_EASY -> 1.10F;

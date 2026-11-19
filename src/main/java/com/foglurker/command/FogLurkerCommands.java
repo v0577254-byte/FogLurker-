@@ -102,6 +102,7 @@ public final class FogLurkerCommands {
                         .executes(cheats(FogLurkerCommands::spawnTimer)))
                 .then(Commands.literal("fog")
                         .executes(FogLurkerCommands::showFog)
+                        .then(Commands.literal("default").requires(FogLurkerCommands::isAdmin).executes(FogLurkerCommands::modeFog))
                         .then(Commands.argument("thickness", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 100))
                                 .requires(FogLurkerCommands::isAdmin)
                                 .executes(ctx -> setFog(ctx, com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "thickness")))))
@@ -244,9 +245,12 @@ public final class FogLurkerCommands {
     /** /foglurker force meet [player]: the Deathwish night meeting, now, 50/50 whether it attacks. */
     /** /foglurker fog: how thick the fog that is always there is. */
     private static int showFog(CommandContext<CommandSourceStack> ctx) {
-        int level = FogLurkerSavedData.get(ctx.getSource().getServer()).alwaysFog();
-        reply(ctx.getSource(), Component.literal("The fog that is always there: " + level + " (0 = none, 100 = thickest, "
-                + FogLurkerSavedData.DEFAULT_ALWAYS_FOG + " = normal). It thickens on its own when it attacks.")
+        FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
+        int level = data.alwaysFog();
+        reply(ctx.getSource(), Component.literal("The fog that is always there: " + level
+                + (data.alwaysFogFollowsMode() ? " (the " + data.difficulty().displayName() + " default)" : " (set with /foglurker fog; "
+                + data.difficulty().displayName() + "'s own is " + data.difficulty().alwaysFog() + ", /foglurker fog default goes back to it)")
+                + ". 0 = none, 100 = thickest. It thickens on its own when it attacks.")
                 .withStyle(ChatFormatting.GRAY));
         return level;
     }
@@ -255,14 +259,22 @@ public final class FogLurkerCommands {
     private static int setFog(CommandContext<CommandSourceStack> ctx, int level) {
         var server = ctx.getSource().getServer();
         FogLurkerSavedData.get(server).setAlwaysFog(level);
-        var packet = new com.foglurker.network.AlwaysFogPacket(level / 100F);
-        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            com.foglurker.network.ModNetwork.send(p, packet);
-        }
+        com.foglurker.world.PlayerEvents.sendAlwaysFogToAll(server);
         ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal("The fog is now " + level
                 + (level == 0 ? " (no fog unless it attacks)" : level == 100 ? " (the thickest)" : "") + " for everyone in this world.")
                 .withStyle(ChatFormatting.GRAY)), true);
         return 1;
+    }
+
+    /** /foglurker fog default: back to the mode's own fog (15/25/45/55/60). */
+    private static int modeFog(CommandContext<CommandSourceStack> ctx) {
+        var server = ctx.getSource().getServer();
+        FogLurkerSavedData data = FogLurkerSavedData.get(server);
+        data.useModeFog();
+        com.foglurker.world.PlayerEvents.sendAlwaysFogToAll(server);
+        ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal("The fog follows the mode again: "
+                + data.alwaysFog() + " (" + data.difficulty().displayName() + ").").withStyle(ChatFormatting.GRAY)), true);
+        return data.alwaysFog();
     }
 
     /** The next time they go to sleep, sleep paralysis (see SleepParalysis). */
@@ -711,6 +723,7 @@ public final class FogLurkerCommands {
         }
         FogLurkerSavedData data = FogLurkerSavedData.get(ctx.getSource().getServer());
         data.setDifficulty(d);
+        com.foglurker.world.PlayerEvents.sendAlwaysFogToAll(ctx.getSource().getServer()); // the mode's own fog, unless set
         ctx.getSource().sendSuccess(() -> PREFIX.copy().append(Component.literal("Mode set to ").withStyle(ChatFormatting.GRAY))
                 .append(describe(d)), true);
         if (data.inGrace()) {

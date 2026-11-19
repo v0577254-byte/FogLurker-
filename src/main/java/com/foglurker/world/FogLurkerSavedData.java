@@ -33,8 +33,9 @@ public final class FogLurkerSavedData extends SavedData {
     private boolean guaranteedNext;
     /** Whether it appears on its own (spawn rolls). Off: it only comes when summoned with a command. */
     private boolean naturalSpawning = true;
-    /** The fog that is always there (Overworld), 0..100; /foglurker fog. */
-    private int alwaysFog = DEFAULT_ALWAYS_FOG;
+    /** The fog that is always there (Overworld), 0..100, set with /foglurker fog; -1 = the mode's own. */
+    private int alwaysFog = -1;
+    /** Before the server says (Medium's). */
     public static final int DEFAULT_ALWAYS_FOG = 45;
     /** Game time until which it rests after being killed: nothing appears and nothing haunts. */
     private long restUntil;
@@ -156,12 +157,24 @@ public final class FogLurkerSavedData extends SavedData {
         return naturalSpawning;
     }
 
+    /** The fog that is always there right now: what /foglurker fog set, or else the mode's own. */
     public int alwaysFog() {
-        return alwaysFog;
+        return alwaysFog >= 0 ? alwaysFog : difficulty().alwaysFog();
+    }
+
+    /** True while it follows the mode (nobody set it with /foglurker fog). */
+    public boolean alwaysFogFollowsMode() {
+        return alwaysFog < 0;
     }
 
     public void setAlwaysFog(int level) {
         alwaysFog = Math.max(0, Math.min(100, level));
+        setDirty();
+    }
+
+    /** Back to the mode's own fog (/foglurker fog default). */
+    public void useModeFog() {
+        alwaysFog = -1;
         setDirty();
     }
 
@@ -253,6 +266,7 @@ public final class FogLurkerSavedData extends SavedData {
         tag.putBoolean("guaranteedNext", guaranteedNext);
         tag.putBoolean("naturalSpawning", naturalSpawning);
         tag.putInt("alwaysFog", alwaysFog);
+        tag.putBoolean("alwaysFogByMode", true); // (-1 above means "the mode's own")
         tag.putLong("restUntil", restUntil);
         tag.putInt("encounters", encounters);
         CompoundTag prof = new CompoundTag();
@@ -277,7 +291,13 @@ public final class FogLurkerSavedData extends SavedData {
         d.nextSpawnTicks = tag.contains("nextSpawn") ? tag.getInt("nextSpawn") : -1;
         d.guaranteedNext = tag.getBoolean("guaranteedNext");
         d.naturalSpawning = !tag.contains("naturalSpawning") || tag.getBoolean("naturalSpawning");
-        d.alwaysFog = tag.contains("alwaysFog") ? Math.max(0, Math.min(100, tag.getInt("alwaysFog"))) : DEFAULT_ALWAYS_FOG;
+        if (tag.getBoolean("alwaysFogByMode")) {
+            d.alwaysFog = Math.max(-1, Math.min(100, tag.getInt("alwaysFog")));
+        } else {
+            // 1.4.0 saved 45 when nobody had set it: that is "the mode's own"; any other number was chosen.
+            int v = tag.contains("alwaysFog") ? tag.getInt("alwaysFog") : -1;
+            d.alwaysFog = v == 45 || v < 0 ? -1 : Math.min(100, v);
+        }
         d.restUntil = tag.getLong("restUntil");
         d.encounters = tag.getInt("encounters");
         CompoundTag prof = tag.getCompound("profiles");

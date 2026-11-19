@@ -177,15 +177,15 @@ It leaves players who are away from the keyboard alone: it never comes for them,
 
 ## The fog
 
-**There is always a light fog in the Overworld**, with a few wisps of mist: you can still see the land through it, about 55 blocks (or half your view if that is shorter). The mist lies low on the ground, in an even layer. It does **not** thicken while the creature stalks you, hides, lures you or watches you, so the fog never gives it away. It closes in only when it shows itself. It works the same at **every render distance from 2 to 32 chunks**:
+**There is always a light fog in the Overworld**, with a few wisps of mist: you can still see the land through it: on Medium about 55 blocks (or half your view if that is shorter), more on the easier modes and less on Hard and Deathwish. The mist lies low on the ground, in an even layer. It does **not** thicken while the creature stalks you, hides, lures you or watches you, so the fog never gives it away. It closes in only when it shows itself. It works the same at **every render distance from 2 to 32 chunks**:
 
 | What it is doing | How far you can see |
 |---|---|
-| nothing, or stalking, hiding, luring, watching | about 55 blocks, or half your view (the fog that is always there) |
+| nothing, or stalking, hiding, luring, watching | the fog that is always there: on Medium about 55 blocks, or half your view |
 | the night meeting (Deathwish, at night) | about 10 blocks |
 | attacking | about 11 blocks (7 at a 2-chunk render distance) |
 
-So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier when it attacks. The attack fog closes in over about 2 seconds. `/foglurker fog <0-100>` sets how thick the always-there fog is for everyone in the world (45 by default, 0 turns it off); it is saved with the world. **Real mist, too:** soft wisps of fog drift around you while it hunts you, more and closer the thicker the fog, lit like the world around them (a pale moonlit grey at night, not black). They fade into the distance like everything else. `fogParticles` in the client config switches them off, and they follow Minecraft's Particles setting.
+So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier when it attacks. The attack fog closes in over about 2 seconds. How thick the always-there fog is depends on the mode: **Very Easy 15, Easy 25, Medium 45, Hard 55, Deathwish 60** (out of 100). `/foglurker fog <0-100>` sets it for everyone in the world instead (0 turns it off) and `/foglurker fog default` goes back to the mode's own; it is saved with the world. **Real mist, too:** soft wisps of fog drift around you while it hunts you, more and closer the thicker the fog, lit like the world around them (a pale moonlit grey at night, not black). They fade into the distance like everything else. `fogParticles` in the client config switches them off, and they follow Minecraft's Particles setting.
 
 If a rendering mod switches Minecraft's fog off or pushes it out of sight (Distant Horizons, Embeddium/Sodium Extra's fog option, OptiFine's fog off), Fog Lurker notices and draws the same distance fog itself over the world, so it looks the same at every render distance either way. Only when nothing else can show it (a shader pack) does a soft see-through veil cover the screen (under your hotbar and chat; it hides with F1). `/foglurker debugeverything` says which way your game shows it.
 
@@ -253,7 +253,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
 | `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
 | `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
-| `/foglurker fog [0-100]` | view: everyone · set: op / host | How thick the fog that is always there is, for everyone in this world (45 by default; 0 = none, 100 = thickest). Saved with the world |
+| `/foglurker fog [0-100\|default]` | view: everyone · set: op / host | How thick the fog that is always there is, for everyone in this world (0 = none, 100 = thickest). By default it follows the mode: Very Easy 15, Easy 25, Medium 45, Hard 55, Deathwish 60. `default` goes back to that. Saved with the world |
 | `/foglurker force sleep-paralysis [player]` | cheats / op | The next time that player goes to sleep they get sleep paralysis: "Done! the next time you go to sleep you will experience sleep paralysis" |
 | `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
 | `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. Turning it back `on` starts a fresh 5-minute countdown |
@@ -346,7 +346,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.4.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.4.1.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -386,7 +386,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.4.0.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.4.1.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -398,7 +398,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.4.0.jar
+./gradlew build               # -> build/libs/FogLurker-1.4.1.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

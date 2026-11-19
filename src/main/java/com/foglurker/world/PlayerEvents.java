@@ -76,15 +76,26 @@ public final class PlayerEvents {
         }
     }
 
+    /** How thick this world's always-there fog is (the mode's own, or /foglurker fog). */
+    public static void sendAlwaysFog(ServerPlayer player) {
+        com.foglurker.network.ModNetwork.send(player, new com.foglurker.network.AlwaysFogPacket(
+                FogLurkerSavedData.get(player.server).alwaysFog() / 100F));
+    }
+
+    /** ...to everyone, after it changed. */
+    public static void sendAlwaysFogToAll(net.minecraft.server.MinecraftServer server) {
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            sendAlwaysFog(p);
+        }
+    }
+
     /** Tell every player once that voice snippets exist and are strictly opt-in. */
     @SubscribeEvent
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        // How thick this world's always-there fog is (/foglurker fog).
-        com.foglurker.network.ModNetwork.send(player, new com.foglurker.network.AlwaysFogPacket(
-                FogLurkerSavedData.get(player.server).alwaysFog() / 100F));
+        sendAlwaysFog(player);
         VoiceConsent.touch(player.getUUID(), System.currentTimeMillis());
         if (!VoiceBridge.isActive() || !FogLurkerConfig.COMMON.showVoiceNoticeOnJoin.get()
                 || !VoiceConsent.isReadable() // cannot tell whether they opted in: try at the next join

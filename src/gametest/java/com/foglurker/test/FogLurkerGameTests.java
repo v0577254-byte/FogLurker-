@@ -2567,17 +2567,35 @@ public final class FogLurkerGameTests {
         logged(h, () -> {
             MinecraftServer server = h.getLevel().getServer();
             FogLurkerSavedData data = FogLurkerSavedData.get(server);
-            int before = data.alwaysFog();
+            LurkerDifficulty mode = data.difficulty();
             var ops = server.createCommandSourceStack().withPermission(2);
+            // Each mode has its own: 15, 25, 45, 55, 60.
+            int[] expected = {15, 25, 45, 55, 60};
+            for (LurkerDifficulty d : LurkerDifficulty.values()) {
+                data.setDifficulty(d);
+                data.useModeFog();
+                check(data.alwaysFog() == expected[d.ordinal()], d + " should have fog " + expected[d.ordinal()] + ", has " + data.alwaysFog());
+            }
+            data.setDifficulty(LurkerDifficulty.HARD);
             server.getCommands().performPrefixedCommand(ops, "foglurker fog 70");
-            check(data.alwaysFog() == 70, "/foglurker fog 70 should set it to 70, it is " + data.alwaysFog());
+            check(data.alwaysFog() == 70 && !data.alwaysFogFollowsMode(), "/foglurker fog 70 should set it to 70, it is " + data.alwaysFog());
             server.getCommands().performPrefixedCommand(ops, "foglurker fog 250");
             check(data.alwaysFog() == 70, "out-of-range numbers are refused");
+            data.setDifficulty(LurkerDifficulty.EASY);
+            check(data.alwaysFog() == 70, "a fog someone set stays when the mode changes");
             var saved = data.save(new net.minecraft.nbt.CompoundTag());
             check(FogLurkerSavedData.load(saved).alwaysFog() == 70, "it should be saved with the world");
-            check(FogLurkerSavedData.load(new net.minecraft.nbt.CompoundTag()).alwaysFog() == FogLurkerSavedData.DEFAULT_ALWAYS_FOG,
-                    "an older world gets the normal fog");
-            data.setAlwaysFog(before);
+            server.getCommands().performPrefixedCommand(ops, "foglurker fog default");
+            check(data.alwaysFogFollowsMode() && data.alwaysFog() == 25, "default goes back to the mode's own (Easy 25), it is " + data.alwaysFog());
+            // A 1.4.0 world saved 45 when nobody had set it: that means "the mode's own".
+            var old = new net.minecraft.nbt.CompoundTag();
+            old.putString("difficulty", "hard");
+            old.putInt("alwaysFog", 45);
+            check(FogLurkerSavedData.load(old).alwaysFog() == 55, "an old world's 45 follows the mode (Hard 55)");
+            old.putInt("alwaysFog", 30);
+            check(FogLurkerSavedData.load(old).alwaysFog() == 30, "an old world's chosen number is kept");
+            data.setDifficulty(mode);
+            data.useModeFog();
             h.succeed();
         });
     }
