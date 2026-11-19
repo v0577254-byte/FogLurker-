@@ -15,6 +15,18 @@ public final class ClientSetup {
     private ClientSetup() {
     }
 
+    /** The creature's own distance fog, for when another mod switches Minecraft's fog off (see DepthFog). */
+    @SubscribeEvent
+    public static void registerShaders(net.minecraftforge.client.event.RegisterShadersEvent event) {
+        try {
+            event.registerShader(new net.minecraft.client.renderer.ShaderInstance(event.getResourceProvider(),
+                    FogLurkerMod.id("depth_fog"), com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION), DepthFog::setShader);
+        } catch (Exception e) {
+            // A graphics driver that will not compile it: the fog veil over the screen still shows the fog.
+            FogLurkerMod.LOGGER.warn("Fog Lurker: its own fog shader could not be loaded ({}); using the fog veil only", e.toString());
+        }
+    }
+
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         FogLurkerEntity.clientTicker = DisguiseCache::tick;

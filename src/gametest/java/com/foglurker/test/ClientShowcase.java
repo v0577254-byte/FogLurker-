@@ -39,6 +39,16 @@ public final class ClientShowcase {
     private ClientShowcase() {
     }
 
+    /** "-nofog" scenes: act like a rendering mod with its fog switch off (Minecraft's fog step never reaches anyone). */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
+    public static void onRenderFog(net.minecraftforge.client.event.ViewportEvent.RenderFog event) {
+        if (ENABLED && System.getProperty("foglurker.scene", "").endsWith("-nofog")) {
+            event.setNearPlaneDistance(1.0E6F);
+            event.setFarPlaneDistance(2.0E6F);
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public static void onTick(TickEvent.ClientTickEvent event) {
         if (!ENABLED || event.phase != TickEvent.Phase.END) {
@@ -69,7 +79,7 @@ public final class ClientShowcase {
         }
         if (scene.startsWith("fogattack")) {
             // "fogattack2" ... "fogattack32": the render distance to test at (default 32).
-            String digits = scene.substring("fogattack".length());
+            String digits = scene.substring("fogattack".length()).replace("-nofog", "");
             fogRenderDistance = digits.isEmpty() ? 32 : Integer.parseInt(digits);
             fogAttackScene(mc, server);
             return;
@@ -145,14 +155,14 @@ public final class ClientShowcase {
             case 70 -> server.execute(() -> server.getCommands().performPrefixedCommand(
                     sp(server).createCommandSourceStack().withPermission(2), "foglurker force stalk"));
             case 120, 160 -> logFog(mc, "stalking");
-            case 165 -> shot(mc, "foglurker_fog_stalk_rd" + fogRenderDistance + ".png");
+            case 165 -> shot(mc, "foglurker_fog_stalk_rd" + fogRenderDistance + System.getProperty("foglurker.scene", "").replaceAll("^fogattack\\d*", "") + ".png");
             case 170 -> server.execute(() -> {
                 var ops = sp(server).createCommandSourceStack().withPermission(2);
                 server.getCommands().performPrefixedCommand(ops, "foglurker despawn");
                 server.getCommands().performPrefixedCommand(ops, "foglurker force attack");
             });
             case 180, 200, 220, 260 -> logFog(mc, "attacking");
-            case 262 -> shot(mc, "foglurker_fog_attack_rd" + fogRenderDistance + ".png");
+            case 262 -> shot(mc, "foglurker_fog_attack_rd" + fogRenderDistance + System.getProperty("foglurker.scene", "").replaceAll("^fogattack\\d*", "") + ".png");
             case 300 -> mc.stop();
             default -> {
             }
@@ -226,6 +236,8 @@ public final class ClientShowcase {
                 what, ticks, String.format("%.2f", ClientEffects.currentFog()), ClientEffects.fogTargetNow(),
                 String.format("%.0f", ClientEffects.lastFogFar()), mc.options.getEffectiveRenderDistance(),
                 mc.level.getEntitiesOfClass(FogLurkerEntity.class, mc.player.getBoundingBox().inflate(96)).size());
+        FogLurkerMod.LOGGER.info("Showcase: world fog frames {}, Fog Lurker's own fog frames {} (last second)",
+                ClientEffects.fogAppliedLastSecond(), com.foglurker.client.DepthFog.framesLastSecond());
     }
 
     private static void scaresScene(Minecraft mc, MinecraftServer server) {

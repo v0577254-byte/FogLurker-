@@ -142,10 +142,13 @@ public final class ClientDebug {
         }
         int asked = ClientEffects.fogEventsLastSecond();
         int used = ClientEffects.fogAppliedLastSecond();
-        boolean ok = used > 0;
-        String detail = ok ? "the world fog is working (" + used + " frames in the last second)"
-                : asked == 0 ? "Minecraft never asked for the world fog: a shader pack or rendering mod replaces it. "
-                + "The fog veil over the screen still shows it" + (FogLurkerConfig.CLIENT.fogOverlay.get() ? "." : " (turn fogOverlay on).")
+        int own = DepthFog.framesLastSecond();
+        boolean ok = used > 0 || own > 0;
+        String detail = used > 0 ? "the world fog is working (" + used + " frames in the last second)"
+                : own > 0 ? "another mod switches Minecraft's fog off, so Fog Lurker draws its own fog over the world ("
+                + own + " frames in the last second)"
+                : asked == 0 ? "Minecraft never asked for the world fog and Fog Lurker could not draw its own: a shader pack "
+                + "replaces the picture. The fog veil over the screen still shows it" + (FogLurkerConfig.CLIENT.fogOverlay.get() ? "." : " (turn fogOverlay on).")
                 : !FogLurkerConfig.CLIENT.fogEffects.get() ? "fogEffects is off in config/foglurker-client.toml"
                 : "the fog was asked for but not used (" + asked + " frames); tell the mod author";
         passed = 0;

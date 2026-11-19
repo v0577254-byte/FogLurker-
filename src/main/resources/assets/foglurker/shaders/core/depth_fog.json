@@ -1,0 +1,88 @@
+{
+  "blend": {
+    "func": "add",
+    "srcrgb": "srcalpha",
+    "dstrgb": "1-srcalpha"
+  },
+  "vertex": "foglurker:depth_fog",
+  "fragment": "foglurker:depth_fog",
+  "attributes": [
+    "Position"
+  ],
+  "samplers": [
+    {
+      "name": "DepthSampler"
+    }
+  ],
+  "uniforms": [
+    {
+      "name": "VeilColor",
+      "type": "float",
+      "count": 3,
+      "values": [
+        0.75,
+        0.77,
+        0.8
+      ]
+    },
+    {
+      "name": "ProjScale",
+      "type": "float",
+      "count": 2,
+      "values": [
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Planes",
+      "type": "float",
+      "count": 2,
+      "values": [
+        0.05,
+        512.0
+      ]
+    },
+    {
+      "name": "FogRange",
+      "type": "float",
+      "count": 2,
+      "values": [
+        0.0,
+        100.0
+      ]
+    },
+    {
+      "name": "Alphas",
+      "type": "float",
+      "count": 2,
+      "values": [
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "name": "InvViewRot",
+      "type": "matrix4x4",
+      "count": 16,
+      "values": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    }
+  ]
+}

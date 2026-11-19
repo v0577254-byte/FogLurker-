@@ -90,6 +90,7 @@ public final class ClientEffects {
             fogAppliedLastSecond = fogApplied;
             fogEvents = 0;
             fogApplied = 0;
+            DepthFog.tickSecond();
         }
         if (++sinceFogPacket > 80) {
             fogTarget = 0; // the server stopped telling us it is near
@@ -145,13 +146,31 @@ public final class ClientEffects {
         return fogAppliedLastSecond;
     }
 
+    /** Set when Minecraft's fog step applied the creature's fog this frame; read (and reset) by {@link DepthFog}. */
+    private static boolean worldFogApplied;
+
+    static boolean takeWorldFogApplied() {
+        boolean was = worldFogApplied;
+        worldFogApplied = false;
+        return was;
+    }
+
+    static float fogAt(double partialTick) {
+        return fogNow(partialTick);
+    }
+
+    static int fogColorRgb() {
+        return fogColor;
+    }
+
     private static float fogNow(double partialTick) {
         return Mth.lerp((float) partialTick, fogPrev, fog);
     }
 
     @SubscribeEvent
     public static void onRenderFog(ViewportEvent.RenderFog event) {
-        if (event.getMode() == net.minecraft.client.renderer.FogRenderer.FogMode.FOG_TERRAIN) {
+        boolean terrain = event.getMode() == net.minecraft.client.renderer.FogRenderer.FogMode.FOG_TERRAIN;
+        if (terrain) {
             fogEvents++; // once per frame (the sky pass fires this event too)
         }
         if (!FogLurkerConfig.CLIENT.fogEffects.get() || event.getType() != FogType.NONE) {
@@ -162,6 +181,9 @@ public final class ClientEffects {
             return;
         }
         fogApplied++;
+        if (terrain) {
+            worldFogApplied = true; // this frame Minecraft's own fog carries it: DepthFog stays out of the way
+        }
         // Works the same from 2 to 32 chunks of render distance: see FogCurve.
         float far = com.foglurker.util.FogCurve.far(f, event.getFarPlaneDistance());
         float near = com.foglurker.util.FogCurve.near(f, far, event.getNearPlaneDistance());
