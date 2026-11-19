@@ -186,7 +186,9 @@ The fog rolls in whenever it is near you and lifts a few seconds after it leaves
 | luring you deep | from about 80 blocks down to about 20 as it nears the woods |
 | attacking | about 11 blocks (7 at a 2-chunk render distance) |
 
-So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in over about 2 seconds. If a rendering mod switches Minecraft's fog off (Embeddium/Sodium Extra's fog option, OptiFine's fog off, Distant Horizons), Fog Lurker draws the same distance fog itself over the world, so it looks the same at every render distance either way. The same fog is also drawn as a soft veil over the screen (under your hotbar and chat), so it still shows with a shader pack. (Like the hotbar, the veil hides with F1.) `/foglurker debugeverything` says which way your game shows it.
+So a long render distance cannot push the fog out of sight, and a short one still gets visibly foggier at every stage. The attack fog closes in over about 2 seconds. **Real mist, too:** soft wisps of fog drift around you while it hunts you, more and closer the thicker the fog, lit like the world around them (a pale moonlit grey at night, not black). They fade into the distance like everything else. `fogParticles` in the client config switches them off, and they follow Minecraft's Particles setting.
+
+If a rendering mod switches Minecraft's fog off or pushes it out of sight (Distant Horizons, Embeddium/Sodium Extra's fog option, OptiFine's fog off), Fog Lurker notices and draws the same distance fog itself over the world, so it looks the same at every render distance either way. Only when nothing else can show it (a shader pack) does a soft see-through veil cover the screen (under your hotbar and chat; it hides with F1). `/foglurker debugeverything` says which way your game shows it.
 
 ## Night
 
@@ -335,7 +337,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.2.6.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.2.7.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -371,11 +373,11 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `voice.voiceDistance` | 32 | |
 | `voice.showVoiceNoticeOnJoin` | true | |
 
-`config/foglurker-client.toml`: `fogEffects` (the fog), `screenEffects` (shake and vignette), `fogOverlay` (also draw the fog as a see-through layer over the screen, so it shows even when a shader pack or rendering mod replaces Minecraft's fog; on by default). `/foglurker debugeverything` checks whether the world fog is working on your game.
+`config/foglurker-client.toml`: `fogEffects` (the fog), `screenEffects` (shake and vignette), `fogOverlay` (also draw the fog as a see-through layer over the screen when nothing else can show it, for example with a shader pack; on by default), `fogParticles` (the drifting wisps of mist; on by default). `/foglurker debugeverything` checks whether the world fog is working on your game.
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.6.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.2.7.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -387,7 +389,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.2.6.jar
+./gradlew build               # -> build/libs/FogLurker-1.2.7.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

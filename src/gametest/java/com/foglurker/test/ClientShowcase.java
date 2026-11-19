@@ -49,6 +49,16 @@ public final class ClientShowcase {
         }
     }
 
+    /** "-dh" scenes: act like Distant Horizons, which lets the fog step run and then pushes the fog out of sight. */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST, receiveCanceled = true)
+    public static void onRenderFogLast(net.minecraftforge.client.event.ViewportEvent.RenderFog event) {
+        if (ENABLED && System.getProperty("foglurker.scene", "").contains("-dh")) {
+            event.setNearPlaneDistance(1.0E6F);
+            event.setFarPlaneDistance(2.0E6F);
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public static void onTick(TickEvent.ClientTickEvent event) {
         if (!ENABLED || event.phase != TickEvent.Phase.END) {
@@ -79,7 +89,7 @@ public final class ClientShowcase {
         }
         if (scene.startsWith("fogattack")) {
             // "fogattack2" ... "fogattack32": the render distance to test at (default 32).
-            String digits = scene.substring("fogattack".length()).replace("-nofog", "");
+            String digits = scene.substring("fogattack".length()).replace("-nofog", "").replace("-dh", "").replace("-night", "");
             fogRenderDistance = digits.isEmpty() ? 32 : Integer.parseInt(digits);
             fogAttackScene(mc, server);
             return;
@@ -147,7 +157,7 @@ public final class ClientShowcase {
                 mc.options.renderDistance().set(fogRenderDistance);
                 server.execute(() -> {
                     ServerPlayer p = sp(server);
-                    p.serverLevel().setDayTime(6000);
+                    p.serverLevel().setDayTime(System.getProperty("foglurker.scene", "").contains("-night") ? 18000 : 6000);
                     p.setGameMode(GameType.SURVIVAL);
                     p.setInvulnerable(true);
                 });
@@ -236,8 +246,9 @@ public final class ClientShowcase {
                 what, ticks, String.format("%.2f", ClientEffects.currentFog()), ClientEffects.fogTargetNow(),
                 String.format("%.0f", ClientEffects.lastFogFar()), mc.options.getEffectiveRenderDistance(),
                 mc.level.getEntitiesOfClass(FogLurkerEntity.class, mc.player.getBoundingBox().inflate(96)).size());
-        FogLurkerMod.LOGGER.info("Showcase: world fog frames {}, Fog Lurker's own fog frames {} (last second)",
-                ClientEffects.fogAppliedLastSecond(), com.foglurker.client.DepthFog.framesLastSecond());
+        FogLurkerMod.LOGGER.info("Showcase: world fog shown {} frames, Fog Lurker's own fog {} frames (last second), wisps {}",
+                com.foglurker.client.DepthFog.worldFogFramesLastSecond(), com.foglurker.client.DepthFog.framesLastSecond(),
+                com.foglurker.client.DepthFog.wispCount());
     }
 
     private static void scaresScene(Minecraft mc, MinecraftServer server) {

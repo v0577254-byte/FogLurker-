@@ -62,6 +62,7 @@ public final class ClientEffects {
     }
 
     private static void reset() {
+        FogWisps.clear();
         fog = fogPrev = fogTarget = 0;
         scareTicks = 0;
         DisguiseCache.clear();
@@ -95,6 +96,7 @@ public final class ClientEffects {
         if (++sinceFogPacket > 80) {
             fogTarget = 0; // the server stopped telling us it is near
         }
+        FogWisps.tick(mc, fog);
         fogPrev = fog;
         // Rolls in faster than it lifts: thick within ~2 s when it attacks, a slow clear when it leaves.
         fog += (fogTarget - fog) * (fogTarget > fog ? 0.06F : 0.03F);
@@ -208,6 +210,11 @@ public final class ClientEffects {
             event.setRed(Mth.lerp(f, event.getRed(), avg * 0.95F));
             event.setGreen(Mth.lerp(f, event.getGreen(), avg * 0.98F));
             event.setBlue(Mth.lerp(f, event.getBlue(), avg * 1.05F));
+            // At night the fog is a dark grey you can see, not plain black.
+            float floor = 0.11F * f;
+            event.setRed(Math.max(event.getRed(), floor * 0.95F));
+            event.setGreen(Math.max(event.getGreen(), floor * 0.98F));
+            event.setBlue(Math.max(event.getBlue(), floor * 1.05F));
         }
         // Always remember the colour (also before the fog starts) so the screen veil matches the sky now.
         fogColor = ((int) (Mth.clamp(event.getRed(), 0F, 1F) * 255) << 16) | ((int) (Mth.clamp(event.getGreen(), 0F, 1F) * 255) << 8)
@@ -233,8 +240,11 @@ public final class ClientEffects {
         // even when shaders or a rendering mod replace Minecraft's world fog.
         float veil = FogLurkerConfig.CLIENT.fogEffects.get() && FogLurkerConfig.CLIENT.fogOverlay.get() ? fogNow(partialTick) : 0F;
         if (veil > 0.02F) {
-            int base = (int) (Mth.clamp(veil * 0.42F, 0F, 1F) * 255);
-            int edge = (int) (Mth.clamp(veil * 0.72F, 0F, 1F) * 255);
+            // When real fog is on screen (Minecraft's, or Fog Lurker's own), only a light haze at the edges is added:
+            // a flat gray layer over everything is only for when nothing else can show it (a shader pack).
+            boolean realFog = DepthFog.worldFogFramesLastSecond() > 0 || DepthFog.framesLastSecond() > 0;
+            int base = (int) (Mth.clamp(veil * (realFog ? 0.0F : 0.42F), 0F, 1F) * 255);
+            int edge = (int) (Mth.clamp(veil * (realFog ? 0.3F : 0.72F), 0F, 1F) * 255);
             graphics.fill(0, 0, width, height, (base << 24) | fogColor);
             int band = height / 3;
             graphics.fillGradient(0, 0, width, band, ((edge - base) << 24) | fogColor, fogColor & 0xFFFFFF);

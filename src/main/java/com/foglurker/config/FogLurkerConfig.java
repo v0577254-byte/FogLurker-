@@ -157,6 +157,7 @@ public final class FogLurkerConfig {
         public final ForgeConfigSpec.BooleanValue fogEffects;
         public final ForgeConfigSpec.BooleanValue screenEffects;
         public final ForgeConfigSpec.BooleanValue fogOverlay;
+        public final ForgeConfigSpec.BooleanValue fogParticles;
 
         Client(ForgeConfigSpec.Builder b) {
             fogEffects = b.comment("Thick fog rolls in while the creature is hunting you.")
@@ -168,6 +169,9 @@ public final class FogLurkerConfig {
             fogOverlay = b.comment("Also draw the fog as a see-through layer over the screen. This shows even when a shader pack",
                             "or another mod replaces Minecraft's own fog.")
                     .define("fogOverlay", true);
+            fogParticles = b.comment("Wisps of fog drifting around you while it hunts you: real fog in the world, which shows",
+                            "even with Distant Horizons, Embeddium or a shader pack. Follows Minecraft's Particles setting.")
+                    .define("fogParticles", true);
         }
     }
 }

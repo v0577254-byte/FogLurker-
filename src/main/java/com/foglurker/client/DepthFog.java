@@ -51,6 +51,11 @@ public final class DepthFog {
         shader = s;
     }
 
+    /** How many wisps of mist are out (debug and tests). */
+    public static int wispCount() {
+        return FogWisps.count();
+    }
+
     /** Frames in the last second where this drew the fog (because Minecraft's fog did not run). */
     public static int framesLastSecond() {
         return framesLastSecond;
@@ -59,6 +64,16 @@ public final class DepthFog {
     static void tickSecond() {
         framesLastSecond = frames;
         frames = 0;
+        worldFramesLastSecond = worldFrames;
+        worldFrames = 0;
+    }
+
+    private static int worldFrames;
+    private static int worldFramesLastSecond;
+
+    /** Frames in the last second where Minecraft's own fog really showed the creature's fog. */
+    public static int worldFogFramesLastSecond() {
+        return worldFramesLastSecond;
     }
 
     @SubscribeEvent
@@ -66,21 +81,31 @@ public final class DepthFog {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER) {
             return;
         }
-        boolean worldFogDidIt = ClientEffects.takeWorldFogApplied();
-        if (worldFogDidIt || broken || shader == null || SHADER_PACK_MOD || !FogLurkerConfig.CLIENT.fogEffects.get()) {
+        // Minecraft's fog step ran with the creature's fog... and nothing changed it afterwards. Distant Horizons, for
+        // one, lets the step run and then pushes the fog out of sight: then the fog actually in use is far further.
+        boolean worldFogDidIt = ClientEffects.takeWorldFogApplied()
+                && RenderSystem.getShaderFogEnd() <= ClientEffects.lastFogFar() + 2F;
+        if (worldFogDidIt) {
+            worldFrames++;
+        }
+        if (SHADER_PACK_MOD || !FogLurkerConfig.CLIENT.fogEffects.get()) {
             return;
         }
         float f = ClientEffects.fogAt(event.getPartialTick());
-        if (f < 0.01F || event.getCamera().getFluidInCamera() != FogType.NONE) {
-            return; // no fog right now, or under water/lava, where Minecraft's own fog is the right one
+        if (event.getCamera().getFluidInCamera() != FogType.NONE) {
+            return; // under water or lava Minecraft's own fog is the right one
         }
-        try {
-            draw(Minecraft.getInstance(), event.getProjectionMatrix(), event.getPoseStack().last().pose(), f);
-            frames++;
-        } catch (RuntimeException e) {
-            broken = true; // never try again this session: the fog veil over the screen still shows it
-            FogLurkerMod.LOGGER.warn("Fog Lurker: could not draw its own fog ({}); the fog veil still shows it", e.toString());
+        if (f >= 0.01F && !worldFogDidIt && !broken && shader != null) {
+            try {
+                draw(Minecraft.getInstance(), event.getProjectionMatrix(), event.getPoseStack().last().pose(), f);
+                frames++;
+            } catch (RuntimeException e) {
+                broken = true; // never try again this session: the fog veil over the screen still shows it
+                FogLurkerMod.LOGGER.warn("Fog Lurker: could not draw its own fog ({}); the fog veil still shows it", e.toString());
+            }
         }
+        // Then the wisps of mist on top of everything.
+        FogWisps.render(event.getCamera(), event.getPoseStack().last().pose(), event.getPartialTick(), f);
     }
 
     private static void draw(Minecraft mc, Matrix4f proj, Matrix4f view, float f) {

@@ -21,6 +21,8 @@ public final class ClientSetup {
         try {
             event.registerShader(new net.minecraft.client.renderer.ShaderInstance(event.getResourceProvider(),
                     FogLurkerMod.id("depth_fog"), com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION), DepthFog::setShader);
+            event.registerShader(new net.minecraft.client.renderer.ShaderInstance(event.getResourceProvider(),
+                    FogLurkerMod.id("fog_wisp"), com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX_COLOR), FogWisps::setShader);
         } catch (Exception e) {
             // A graphics driver that will not compile it: the fog veil over the screen still shows the fog.
             FogLurkerMod.LOGGER.warn("Fog Lurker: its own fog shader could not be loaded ({}); using the fog veil only", e.toString());

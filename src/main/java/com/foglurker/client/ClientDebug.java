@@ -143,8 +143,9 @@ public final class ClientDebug {
         int asked = ClientEffects.fogEventsLastSecond();
         int used = ClientEffects.fogAppliedLastSecond();
         int own = DepthFog.framesLastSecond();
-        boolean ok = used > 0 || own > 0;
-        String detail = used > 0 ? "the world fog is working (" + used + " frames in the last second)"
+        int shown = DepthFog.worldFogFramesLastSecond();
+        boolean ok = shown > 0 || own > 0;
+        String detail = shown > 0 ? "the world fog is working (" + shown + " frames in the last second)"
                 : own > 0 ? "another mod switches Minecraft's fog off, so Fog Lurker draws its own fog over the world ("
                 + own + " frames in the last second)"
                 : asked == 0 ? "Minecraft never asked for the world fog and Fog Lurker could not draw its own: a shader pack "
@@ -154,6 +155,9 @@ public final class ClientDebug {
         passed = 0;
         failed = 0;
         check("World fog", ok, detail);
+        check("Fog wisps", !FogLurkerConfig.CLIENT.fogParticles.get() || DepthFog.wispCount() > 0,
+                !FogLurkerConfig.CLIENT.fogParticles.get() ? "off (fogParticles in config/foglurker-client.toml)"
+                : DepthFog.wispCount() + " wisps of mist drifting around you");
         check("Fog veil", FogLurkerConfig.CLIENT.fogOverlay.get(), FogLurkerConfig.CLIENT.fogOverlay.get()
                 ? "on: the fog also shows as a layer over the screen" : "off (fogOverlay in config/foglurker-client.toml)");
     }
