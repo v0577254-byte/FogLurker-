@@ -1798,8 +1798,14 @@ public final class FogLurkerGameTests {
             h.runAfterDelay(80, () -> logged(h, () -> {
                 p.setHealth(20F);
                 FogLurkerEntity l = hunter(h, p, 6.5, 1.5);
+                double[] fastestClimb = {0};
                 h.succeedWhen(() -> {
+                    if (l.isClimbing()) { // (checked every tick until it passes)
+                        fastestClimb[0] = Math.max(fastestClimb[0], l.getDeltaMovement().y);
+                    }
                     check(!l.isRemoved(), "it gave up (" + l.brain().describe() + ")");
+                    // Vanilla climbing is about 0.12 blocks a tick; it climbs 50-75% faster than that.
+                    check(fastestClimb[0] > 0.17, "it should climb faster than a spider (fastest " + fastestClimb[0] + ")");
                     check(p.getHealth() < 20F, "it has not reached the top of the tower yet ("
                             + l.brain().describe() + ", y " + l.getY() + " vs " + p.getY() + ")");
                     l.brain().vanish(false);

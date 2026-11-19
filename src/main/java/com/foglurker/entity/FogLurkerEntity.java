@@ -230,6 +230,21 @@ public class FogLurkerEntity extends PathfinderMob {
         return this.climbing || super.onClimbable();
     }
 
+    /** How much faster than a spider it goes up a wall (vanilla climbing is about 0.12 blocks a tick). */
+    public static final double CLIMB_BOOST = 1.65;
+
+    @Override
+    public void travel(net.minecraft.world.phys.Vec3 input) {
+        super.travel(input);
+        // Minecraft resets a climber's speed to its own fixed value every tick: scale that up while it is on a wall.
+        if (this.climbing && this.horizontalCollision) {
+            net.minecraft.world.phys.Vec3 v = getDeltaMovement();
+            if (v.y > 0) {
+                setDeltaMovement(v.x, v.y * CLIMB_BOOST, v.z);
+            }
+        }
+    }
+
     public boolean isClimbing() {
         return this.climbing;
     }
