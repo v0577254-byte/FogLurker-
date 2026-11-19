@@ -132,7 +132,9 @@ public final class FogLurkerConfig {
             geminiFallbackModels = b.comment("Tried in order if the main model is unavailable.")
                     .defineList("fallbackModels", List.of("gemini-2.5-flash", "gemini-flash-lite-latest"),
                             o -> o instanceof String s && !s.isBlank());
-            geminiTimeoutSeconds = b.defineInRange("timeoutSeconds", 10, 2, 60);
+            // (A new name: the old "timeoutSeconds" default of 10 was too short for newer models and would have stayed.)
+            geminiTimeoutSeconds = b.comment("How long to wait for one answer from Gemini, in seconds.")
+                    .defineInRange("requestTimeoutSeconds", 20, 2, 60);
             b.pop();
 
             b.push("voice");

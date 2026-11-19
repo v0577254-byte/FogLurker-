@@ -667,6 +667,9 @@ public final class FogLurkerCommands {
                 // Advice that fits the failure: only a refusal points at the key.
                 boolean local = why != null && (why.contains("set it again") || why.contains("model names"));
                 String advice = local ? "Fix that, then test again with /foglurker geministatus."
+                        : status == 0 && why != null && (why.contains("timed out") || why.contains("too long"))
+                        ? "Google did not answer in time; the key may be fine. Try again, or raise requestTimeoutSeconds "
+                        + "under [gemini] in config/foglurker-common.toml."
                         : status == 0 ? "Could not reach Google (network or timeout); the key may be fine, try again later."
                         : status == 429 ? "Google is rate limiting this key for now; it waits and tries again by itself."
                         : status >= 500 ? "Google's side is having trouble; try again later."

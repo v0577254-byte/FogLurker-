@@ -58,8 +58,22 @@ public final class GeminiClient {
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8))
             .build();
-    /** Models that reject "thinkingBudget: 0"; we stop sending it to them. */
-    private static final Map<String, Boolean> THINKING_REJECTED = new ConcurrentHashMap<>();
+    /**
+     * How to keep a model from thinking at length (a short chat line needs none, and thinking is what makes an
+     * answer take many seconds). Gemini 2.5 takes {@code thinkingBudget: 0}; Gemini 3 (which the "-latest" names
+     * now point to) takes {@code thinkingLevel} instead; some models refuse both and get no setting at all.
+     */
+    enum Thinking { BUDGET_OFF, LEVEL_LOW, MODEL_DEFAULT }
+
+    /** The setting each model accepted, learned from its refusals (model -> setting). */
+    private static final Map<String, Thinking> THINKING = new ConcurrentHashMap<>();
+
+    /** The settings to try for a model, best guess first. */
+    static List<Thinking> thinkingOrder(String model) {
+        boolean gemini3 = model.contains("gemini-3") || model.endsWith("-latest");
+        return gemini3 ? List.of(Thinking.LEVEL_LOW, Thinking.BUDGET_OFF, Thinking.MODEL_DEFAULT)
+                : List.of(Thinking.BUDGET_OFF, Thinking.LEVEL_LOW, Thinking.MODEL_DEFAULT);
+    }
     private static final Set<String> WARNED_MODELS = ConcurrentHashMap.newKeySet();
     /** Free-tier limits are per model, so rate limits are tracked per model (model -> wait until, epoch ms). */
     private static final Map<String, Long> MODEL_LIMITED_UNTIL = new ConcurrentHashMap<>();
@@ -169,7 +183,7 @@ public final class GeminiClient {
     public static void setBaseUrlForTests(@Nullable String url) {
         base = url == null ? DEFAULT_BASE : url;
         testTimeoutSeconds = url == null ? 0 : 2;
-        THINKING_REJECTED.clear();
+        THINKING.clear();
     }
 
     private static int requestTimeoutSeconds() {
@@ -283,14 +297,9 @@ public final class GeminiClient {
                     Result.fail(429, "Gemini model " + model + " is rate limited; waiting as Google asked", "RATE_LIMITED"), false);
         }
         String key = c.key();
-        boolean disableThinking = !THINKING_REJECTED.containsKey(model);
-        return call(key, model, c.system(), c.user(), c.temperature(), disableThinking).thenCompose(r -> {
-            if (r.status() == 400 && disableThinking && mentionsThinking(r.error())) {
-                THINKING_REJECTED.put(model, Boolean.TRUE);
-                return call(key, model, c.system(), c.user(), c.temperature(), false);
-            }
-            return CompletableFuture.completedFuture(r);
-        }).thenCompose(r -> {
+        List<Thinking> order = thinkingOrder(model);
+        Thinking known = THINKING.get(model);
+        return callThinking(c, model, order, known == null ? 0 : Math.max(0, order.indexOf(known))).thenCompose(r -> {
             if (r.text().isPresent()) {
                 if (key.equals(rejectedKey)) {
                     clearKeyRejection(); // the key works after all (an API was enabled, billing fixed...)
@@ -395,8 +404,20 @@ public final class GeminiClient {
         return DEFAULT_RATE_LIMIT_MILLIS;
     }
 
+    /** Asks with the thinking setting at {@code i}; if the model refuses that setting, with the next one. */
+    private static CompletableFuture<Result> callThinking(Chain c, String model, List<Thinking> order, int i) {
+        Thinking t = order.get(i);
+        return call(c.key(), model, c.system(), c.user(), c.temperature(), t).thenCompose(r -> {
+            if (r.status() == 400 && i + 1 < order.size() && mentionsThinking(r.error())) {
+                THINKING.put(model, order.get(i + 1));
+                return callThinking(c, model, order, i + 1);
+            }
+            return CompletableFuture.completedFuture(r);
+        });
+    }
+
     private static CompletableFuture<Result> call(String key, String model, String system, String user,
-                                                  float temperature, boolean disableThinking) {
+                                                  float temperature, Thinking thinking) {
         JsonObject body = new JsonObject();
         JsonObject sys = new JsonObject();
         sys.add("parts", parts(system));
@@ -409,11 +430,17 @@ public final class GeminiClient {
         body.add("contents", contents);
         JsonObject gen = new JsonObject();
         gen.addProperty("temperature", temperature);
-        gen.addProperty("maxOutputTokens", disableThinking ? MAX_TOKENS : MAX_TOKENS_THINKING);
-        if (disableThinking) {
-            JsonObject thinking = new JsonObject();
-            thinking.addProperty("thinkingBudget", 0);
-            gen.add("thinkingConfig", thinking);
+        // Any thinking a model still does counts against the output tokens: give it room unless thinking is off.
+        gen.addProperty("maxOutputTokens", thinking == Thinking.BUDGET_OFF ? MAX_TOKENS : MAX_TOKENS_THINKING);
+        if (thinking != Thinking.MODEL_DEFAULT) {
+            JsonObject cfg = new JsonObject();
+            if (thinking == Thinking.BUDGET_OFF) {
+                cfg.addProperty("thinkingBudget", 0);
+            } else {
+                // Flash models go as low as "minimal"; Pro models only as low as "low".
+                cfg.addProperty("thinkingLevel", model.contains("pro") ? "low" : "minimal");
+            }
+            gen.add("thinkingConfig", cfg);
         }
         body.add("generationConfig", gen);
 

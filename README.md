@@ -346,7 +346,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.4.1.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.4.2.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -376,7 +376,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | `maxConcurrent` | 2 | How many players it can hunt at the same time on a server |
 | `afkProtection` | true | Leave AFK players alone (never comes for or attacks them) |
 | `afkMinutes` | 5 | Minutes without activity before a player counts as AFK |
-| `gemini.model` | `gemini-flash-latest` | Plus `fallbackModels`, `timeoutSeconds` |
+| `gemini.model` | `gemini-flash-latest` | Plus `fallbackModels`, `requestTimeoutSeconds` (20) |
 | `voice.maxSnippetsPerPlayer` | 40 | |
 | `voice.recordChance` | 0.35 | |
 | `voice.voiceDistance` | 32 | |
@@ -386,7 +386,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.4.1.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.4.2.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -398,7 +398,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.4.1.jar
+./gradlew build               # -> build/libs/FogLurker-1.4.2.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

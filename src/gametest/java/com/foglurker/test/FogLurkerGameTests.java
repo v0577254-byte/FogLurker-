@@ -1314,6 +1314,24 @@ public final class FogLurkerGameTests {
                         reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]}}]}";
                     }
                 }
+                case "gemini-3-fake" -> {
+                    if (body.contains("\"thinkingLevel\":\"minimal\"") && !body.contains("thinkingBudget")) {
+                        reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]}}]}";
+                    } else {
+                        status = 400;
+                        reply = "{\"error\":{\"code\":400,\"message\":\"Thinking budget is not supported for this model.\","
+                                + "\"status\":\"INVALID_ARGUMENT\"}}";
+                    }
+                }
+                case "older-latest" -> {
+                    if (body.contains("thinkingLevel")) {
+                        status = 400;
+                        reply = "{\"error\":{\"code\":400,\"message\":\"Thinking level is not supported for this model.\","
+                                + "\"status\":\"INVALID_ARGUMENT\"}}";
+                    } else {
+                        reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]}}]}";
+                    }
+                }
                 case "badkey" -> {
                     status = 400;
                     reply = "{\"error\":{\"code\":400,\"message\":\"API key not valid. Please pass a valid API key.\","
@@ -1389,6 +1407,18 @@ public final class FogLurkerGameTests {
                     "the retry should drop the budget and allow room to think");
             seen.clear();
             check(gem(List.of("thinker"), key).text().isPresent() && seen.size() == 1, "it should remember the model must think");
+
+            // Gemini 3 (and the "-latest" names): thinking kept low with thinkingLevel, right from the first request.
+            seen.clear();
+            check(gem(List.of("gemini-3-fake"), key).text().orElse("").equals("ok") && seen.size() == 1,
+                    "a Gemini 3 model should get thinkingLevel first, saw " + seen.size() + " requests");
+            // A "-latest" name that still points at an older model: back to thinkingBudget 0, and remembered.
+            seen.clear();
+            check(gem(List.of("older-latest"), key).text().orElse("").equals("ok") && seen.size() == 2
+                    && seen.get(1).body().contains("\"thinkingBudget\":0"), "an older model should get the budget after refusing the level");
+            seen.clear();
+            check(gem(List.of("older-latest"), key).text().isPresent() && seen.size() == 1
+                    && seen.get(0).body().contains("\"thinkingBudget\":0"), "it should remember the budget works");
 
             // A model the project cannot use (403) is skipped; a 502 HTML page is skipped.
             seen.clear();
