@@ -1,0 +1,56 @@
+// The Fog Lurker's crawler form for Minecraft 1.21.11 (Forge 61), for showcase videos:
+// the model, texture and glowing eyes, a chase / climb / bite brain, and /foglurker spawn.
+// The full mod (disguises, fog, hauntings...) is the 1.20.1 one in the folder above.
+plugins {
+    id 'java'
+    id 'idea'
+    id 'eclipse'
+    id 'net.minecraftforge.gradle' version '[7.0.3,8)'
+}
+
+version = mod_version
+group = 'com.foglurker'
+base { archivesName = 'FogLurker-Crawler-1.21.11' }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+minecraft {
+    mappings channel: 'official', version: '1.21.11'
+    runs {
+        configureEach {
+            workingDir = layout.projectDirectory.dir('run')
+            systemProperty 'eventbus.api.strictRuntimeChecks', 'true'
+        }
+        register('client') {
+            // Dev only: ./gradlew runClient -Pshowcase  (makes a test world, spawns it, takes screenshots, quits)
+            if (project.hasProperty('showcase')) {
+                systemProperty 'foglurker.showcase', 'true'
+                args '--width', '1280', '--height', '720'
+            }
+        }
+        register('server') { args '--nogui' }
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
+dependencies {
+    implementation minecraft.dependency('net.minecraftforge:forge:1.21.11-61.2.5')
+    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.5'
+}
+
+// The dev showcase script never ships.
+tasks.named('jar', Jar) { exclude 'com/foglurker/crawler/dev/**' }
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+tasks.named('processResources', ProcessResources) {
+    var props = [mod_version: version]
+    inputs.properties(props)
+    filesMatching('META-INF/mods.toml') { expand(props) }
+}

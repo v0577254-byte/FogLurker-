@@ -1,0 +1,23 @@
+modLoader="javafml"
+loaderVersion="[61,)"
+license="MIT"
+
+[[mods]]
+modId="foglurker"
+version="${mod_version}"
+displayName="Fog Lurker: Crawler (1.21.11)"
+authors="FogLurker contributors"
+description='''The Fog Lurker's pale crawler for Minecraft 1.21.11: it chases you, climbs walls and bites. Summon it with /foglurker spawn.'''
+
+[[dependencies.foglurker]]
+    modId="forge"
+    mandatory=true
+    versionRange="[61,)"
+    ordering="NONE"
+    side="BOTH"
+[[dependencies.foglurker]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.21.11,1.22)"
+    ordering="NONE"
+    side="BOTH"
