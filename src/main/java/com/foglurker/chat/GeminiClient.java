@@ -57,6 +57,7 @@ public final class GeminiClient {
 
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8))
+            .version(HttpClient.Version.HTTP_1_1) // one plain request at a time: nothing to stall on a shared connection
             .build();
     /**
      * How to keep a model from thinking at length (a short chat line needs none, and thinking is what makes an
@@ -77,6 +78,9 @@ public final class GeminiClient {
     private static final Set<String> WARNED_MODELS = ConcurrentHashMap.newKeySet();
     /** Free-tier limits are per model, so rate limits are tracked per model (model -> wait until, epoch ms). */
     private static final Map<String, Long> MODEL_LIMITED_UNTIL = new ConcurrentHashMap<>();
+    /** Models that just timed out (busy at Google): skipped for a while when a backup is left (model -> until, ms). */
+    private static final Map<String, Long> MODEL_SLOW_UNTIL = new ConcurrentHashMap<>();
+    private static final long SLOW_SKIP_MILLIS = 2 * 60_000L;
     private static volatile String base = DEFAULT_BASE;
     /** Request timeout override for the game tests (seconds), or 0 to use the config. */
     private static volatile int testTimeoutSeconds;
@@ -184,6 +188,7 @@ public final class GeminiClient {
         base = url == null ? DEFAULT_BASE : url;
         testTimeoutSeconds = url == null ? 0 : 2;
         THINKING.clear();
+        MODEL_SLOW_UNTIL.clear();
     }
 
     private static int requestTimeoutSeconds() {
@@ -192,8 +197,8 @@ public final class GeminiClient {
     }
 
     public static int overallTimeoutSeconds() {
-        // One slow attempt plus the "no thinking" retry, with a little slack.
-        return requestTimeoutSeconds() * 2 + 5;
+        // Room for a slow main model and two backups after it (each moves on when one times out), with a little slack.
+        return requestTimeoutSeconds() * 3 + 5;
     }
 
     /** The configured models, cleaned up: "models/" prefixes removed, duplicates and invalid names dropped. */
@@ -285,6 +290,11 @@ public final class GeminiClient {
         if (index >= c.models().size() || (index > 0 && c.overdue())) {
             Result r = lastFailure != null ? lastFailure
                     : Result.fail(404, "None of the configured Gemini models are available");
+            int tried = Math.min(index, c.models().size());
+            if (lastFailure != null && tried > 1) {
+                r = new Result(r.text(), r.status(), stripEnd(r.error()) + " (tried " + String.join(", ",
+                        c.models().subList(0, tried)) + ")", r.reason());
+            }
             if (allKeyProblems && lastFailure != null && isKeyProblem(r)) {
                 rejectKey(c.key(), r); // every model refused this key
             }
@@ -295,6 +305,12 @@ public final class GeminiClient {
             // Still waiting out this model's rate limit: do not even ask.
             return tryModels(c, index + 1,
                     Result.fail(429, "Gemini model " + model + " is rate limited; waiting as Google asked", "RATE_LIMITED"), false);
+        }
+        Long slowUntil = MODEL_SLOW_UNTIL.get(model);
+        if (!c.ignoreLimits() && slowUntil != null && slowUntil - monoMillis() > 0 && index + 1 < c.models().size()) {
+            // It timed out a moment ago: go straight to a backup instead of waiting on it again.
+            return tryModels(c, index + 1,
+                    Result.fail(0, "Gemini model " + model + " was too slow a moment ago", "TIMEOUT"), allKeyProblems);
         }
         String key = c.key();
         List<Thinking> order = thinkingOrder(model);
@@ -320,6 +336,11 @@ public final class GeminiClient {
                 if (current == null || c.key().equals(current)) { // an answer for a replaced key says nothing about the new one
                     MODEL_LIMITED_UNTIL.put(model, monoMillis() + rateLimitMillis(r));
                 }
+                return tryModels(c, index + 1, r, false);
+            }
+            if ("TIMEOUT".equals(r.reason())) {
+                // Busy at Google (it happens to the newest models): try a backup, and skip this one for a while.
+                MODEL_SLOW_UNTIL.put(model, monoMillis() + SLOW_SKIP_MILLIS);
                 return tryModels(c, index + 1, r, false);
             }
             if (r.status() == 400 || r.status() == 404 || (r.status() >= 500 && r.status() < 600)) {
@@ -461,6 +482,10 @@ public final class GeminiClient {
                         resp.headers().firstValue("Retry-After").orElse(null)), key))
                 .exceptionally(t -> {
                     FogLurkerMod.LOGGER.debug("Gemini request to {} failed: {}", model, rootMessage(t));
+                    if (isTimeout(t)) {
+                        return Result.fail(0, "Gemini model " + model + " did not answer within "
+                                + requestTimeoutSeconds() + " seconds", "TIMEOUT");
+                    }
                     return Result.fail(0, "Could not reach Gemini: " + rootMessage(t));
                 });
     }
@@ -629,6 +654,20 @@ public final class GeminiClient {
     private static String oneLine(String s) {
         String t = s.replaceAll("\\s+", " ").trim();
         return t.length() > 200 ? t.substring(0, 200) + "..." : t;
+    }
+
+    private static boolean isTimeout(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause()) {
+            if (c instanceof java.net.http.HttpTimeoutException) {
+                return true; // (a connect timeout is one too: that host is not answering either)
+            }
+        }
+        return false;
+    }
+
+    /** Text without the full stop(s) at its end, so another sentence can follow. */
+    public static String stripEnd(@Nullable String s) {
+        return s == null ? "" : s.replaceAll("[.\\s]+$", "");
     }
 
     private static String rootMessage(Throwable t) {

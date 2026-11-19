@@ -667,8 +667,9 @@ public final class FogLurkerCommands {
                 // Advice that fits the failure: only a refusal points at the key.
                 boolean local = why != null && (why.contains("set it again") || why.contains("model names"));
                 String advice = local ? "Fix that, then test again with /foglurker geministatus."
-                        : status == 0 && why != null && (why.contains("timed out") || why.contains("too long"))
-                        ? "Google did not answer in time; the key may be fine. Try again, or raise requestTimeoutSeconds "
+                        : status == 0 && why != null && (why.contains("did not answer") || why.contains("too slow")
+                                || why.contains("timed out") || why.contains("too long"))
+                        ? "Google's models are busy right now; the key may be fine. Try again in a few minutes, or raise requestTimeoutSeconds "
                         + "under [gemini] in config/foglurker-common.toml."
                         : status == 0 ? "Could not reach Google (network or timeout); the key may be fine, try again later."
                         : status == 429 ? "Google is rate limiting this key for now; it waits and tries again by itself."
@@ -677,7 +678,8 @@ public final class FogLurkerCommands {
                         ? "Check the key, and that the Generative Language API, billing and your region are allowed for it."
                         : status == 400 ? "Google refused the request for these models; try other model names in the config."
                         : "The key is kept; check it and set it again if needed.";
-                reply(src, Component.literal("Gemini test failed: " + why + ". " + advice).withStyle(ChatFormatting.RED));
+                reply(src, Component.literal("Gemini test failed: " + GeminiClient.stripEnd(why) + ". " + advice)
+                        .withStyle(ChatFormatting.RED));
             }
         }));
     }

@@ -1299,7 +1299,7 @@ public final class FogLurkerGameTests {
             int status = 200;
             String reply;
             switch (model) {
-                case "gone" -> {
+                case "gone", "gone2" -> {
                     status = 404;
                     reply = "{\"error\":{\"code\":404,\"message\":\"models/gone is not found\",\"status\":\"NOT_FOUND\"}}";
                 }
@@ -1361,7 +1361,7 @@ public final class FogLurkerGameTests {
                 case "overthink" -> reply = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hmm\",\"thought\":true}]},"
                         + "\"finishReason\":\"MAX_TOKENS\"}]}";
                 case "garbage" -> reply = "{\"candidates\":\"what\"}";
-                case "hang" -> {
+                case "hang", "hang2" -> {
                     try {
                         Thread.sleep(6_000); // longer than the 2 s test timeout
                     } catch (InterruptedException ignored) {
@@ -1494,6 +1494,18 @@ public final class FogLurkerGameTests {
             long took = System.currentTimeMillis() - t0;
             check(!hung.text().isPresent() && took < com.foglurker.chat.GeminiClient.overallTimeoutSeconds() * 1000L,
                     "a hung server should fail within the time limit (" + took + " ms, " + hung + ")");
+
+            // A model that times out: straight on to the backup, and skipped while it is slow.
+            seen.clear();
+            var backup = gem(List.of("hang2", "ok-model"), key);
+            check(backup.text().orElse("").equals("hey come here"), "a timed-out model should fall back to the next, gave " + backup);
+            seen.clear();
+            check(gem(List.of("hang2", "ok-model"), key).text().isPresent() && seen.size() == 1
+                    && seen.get(0).model().equals("ok-model"), "a model that just timed out should be skipped for a while");
+            // Every model failing: the message says which ones were tried, with one full stop.
+            var both = gem(List.of("gone", "gone2"), key);
+            check(both.error() != null && both.error().endsWith("(tried gone, gone2)") && !both.error().contains(".."),
+                    "the failure should name the models tried: " + both.error());
 
             // Model names from the config are cleaned up; a bad one can never change the URL.
             check(com.foglurker.chat.GeminiClient.cleanModels(java.util.Arrays.asList("models/gemini-2.5-flash", " gemini-2.5-flash ",
