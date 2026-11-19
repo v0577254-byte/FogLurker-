@@ -1064,7 +1064,9 @@ public final class LurkerBrain {
             float hardness = level.getBlockState(pick).getDestroySpeed(level, pick);
             breaking = pick;
             breakProgress = 0;
-            breakTotal = (int) Mth.clamp(6 + hardness * 6, 6, 60); // dirt 0.5 s, stone 0.75 s, iron 1.8 s
+            int ticks = (int) Mth.clamp(6 + hardness * 6, 6, 60);
+            // Anything past 1 s goes twice as fast: dirt 0.45 s, stone 0.75 s, planks 0.9 s, iron 1.4 s, at most 2 s.
+            breakTotal = ticks > 20 ? 20 + (ticks - 20) / 2 : ticks;
         }
     }
 
