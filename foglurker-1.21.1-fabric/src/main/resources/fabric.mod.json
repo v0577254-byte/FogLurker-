@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "foglurker",
+  "version": "${version}",
+  "name": "Fog Lurker",
+  "description": "A horror creature that learns how you play, steals your friends' faces, voices and pets, and tries to lure you into the woods.",
+  "authors": ["FogLurker contributors"],
+  "license": "MIT",
+  "icon": "foglurker_logo.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.foglurker.FogLurkerMod"],
+    "client": ["com.foglurker.client.ClientSetup"],
+    "voicechat": ["com.foglurker.voice.svc.FogLurkerVoicechatPlugin"]
+  },
+  "mixins": ["foglurker.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.20.0",
+    "fabric-api": "*",
+    "minecraft": ">=1.21.1 <1.21.2",
+    "java": ">=21"
+  },
+  "suggests": {
+    "voicechat": "*"
+  }
+}

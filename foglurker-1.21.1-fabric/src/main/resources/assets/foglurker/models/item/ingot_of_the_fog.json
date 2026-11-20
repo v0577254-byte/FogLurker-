@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "foglurker:item/ingot_of_the_fog"
+  }
+}

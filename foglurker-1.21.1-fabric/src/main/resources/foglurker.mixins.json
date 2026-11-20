@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.foglurker.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AnvilMenuMixin",
+    "BlockItemMixin",
+    "EntityMixin",
+    "ItemCombinerMenuAccessor",
+    "LivingEntityAccessor",
+    "LivingEntityMixin",
+    "PlayerMixin",
+    "ProjectileMixin",
+    "ServerPlayerMixin",
+    "TridentItemMixin",
+    "WolfInvoker"
+  ],
+  "client": [
+    "FogRendererMixin",
+    "GameRendererMixin",
+    "GuiMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
