@@ -29,7 +29,8 @@ public abstract class GameRendererMixin {
         foglurker$inHand = false;
     }
 
-    @Inject(method = "bobHurt", at = @At("TAIL"))
+    // RETURN, not TAIL: bobHurt returns early whenever you are not just hurt (nearly every frame).
+    @Inject(method = "bobHurt", at = @At("RETURN"))
     private void foglurker$shake(PoseStack pose, float partialTick, CallbackInfo ci) {
         if (!foglurker$inHand) {
             ClientEffects.shakeCamera(pose, partialTick);

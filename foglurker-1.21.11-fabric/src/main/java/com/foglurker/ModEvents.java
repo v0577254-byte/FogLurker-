@@ -7,7 +7,6 @@ import com.foglurker.world.AfkTracker;
 import com.foglurker.world.PlayerEvents;
 import com.foglurker.world.SleepParalysis;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -66,10 +65,6 @@ public final class ModEvents {
             String text = message.signedContent();
             AfkTracker.onChat(sender);
             BehaviorTracker.onChat(sender, text);
-        });
-        EntitySleepEvents.ALLOW_SLEEPING.register((player, pos) -> {
-            BehaviorTracker.onSleep(player, pos);
-            return null; // only watching: vanilla decides
         });
 
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {

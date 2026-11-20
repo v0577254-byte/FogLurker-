@@ -23,6 +23,16 @@ public abstract class ServerPlayerMixin {
         }
     }
 
+    /**
+     * Trying to sleep in a bed, before vanilla's own checks (too far, blocked, monsters, daytime) and before it moves
+     * the respawn point: where Forge fired PlayerSleepInBedEvent. (Fabric's ALLOW_SLEEPING fires only after those.)
+     */
+    @Inject(method = "startSleepInBed", at = @At("HEAD"))
+    private void foglurker$trySleep(net.minecraft.core.BlockPos pos,
+                                    CallbackInfoReturnable<com.mojang.datafixers.util.Either<net.minecraft.world.entity.player.Player.BedSleepingProblem, net.minecraft.util.Unit>> cir) {
+        com.foglurker.learning.BehaviorTracker.onSleep((ServerPlayer) (Object) this, pos);
+    }
+
     /** "[AFK]" after the name in the player list. */
     @Inject(method = "getTabListDisplayName", at = @At("RETURN"), cancellable = true)
     private void foglurker$afkTag(CallbackInfoReturnable<Component> cir) {
