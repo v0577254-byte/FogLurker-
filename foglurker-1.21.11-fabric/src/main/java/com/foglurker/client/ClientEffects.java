@@ -54,6 +54,23 @@ public final class ClientEffects {
         sinceFogPacket = 0;
     }
 
+    /** How thick the fog gets when it rushes in for no reason (a jumpscare), 0..1. */
+    private static final float SURGE_FOG = 0.92F;
+    /** Ticks the fog stays rushed in (counts down; it then lifts slowly, as when it leaves). */
+    private static int surgeTicks;
+
+    /** A jumpscare: the fog rushes in around you within about a second, stays a few seconds, then slowly lifts. */
+    public static void fogSurge(int holdTicks) {
+        if (!FogLurkerConfig.CLIENT.fogEffects.get()) {
+            return; // fog effects switched off on this client
+        }
+        surgeTicks = Mth.clamp(holdTicks, 0, 20 * 20);
+    }
+
+    public static int surgeTicksLeft() {
+        return surgeTicks;
+    }
+
     public static void scare(int ticks) {
         scareTicks = ticks;
         scareTotal = Math.max(1, ticks);
@@ -67,6 +84,7 @@ public final class ClientEffects {
         ambient = ambientPrev = 0;
         alwaysFog = 0F; // the next world's server says how thick its fog is
         scareTicks = 0;
+        surgeTicks = 0;
         DisguiseCache.clear();
         Apparitions.clear();
     }
@@ -102,9 +120,16 @@ public final class ClientEffects {
         FogWisps.tick(mc, Math.max(fog, ambient));
         fogPrev = fog;
         // Rolls in faster than it lifts: thick within ~2 s when it attacks, a slow clear when it leaves.
-        fog += (fogTarget - fog) * (fogTarget > fog ? 0.06F : 0.03F);
-        if (Math.abs(fog - fogTarget) < 0.001F) {
-            fog = fogTarget;
+        // A jumpscare surge rushes in within about a second instead.
+        float target = fogTarget;
+        boolean surging = surgeTicks > 0;
+        if (surging) {
+            surgeTicks--;
+            target = Math.max(target, SURGE_FOG);
+        }
+        fog += (target - fog) * (target > fog ? (surging ? 0.1F : 0.06F) : 0.03F);
+        if (Math.abs(fog - target) < 0.001F) {
+            fog = target;
         }
         if (scareTicks > 0) {
             scareTicks--;

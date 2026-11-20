@@ -116,6 +116,16 @@ public final class FabricShowcase {
             case 920 -> cmd(mc, "foglurker debugeverything");
             case 1020 -> shot(mc, "fabric_debug.png");
             case 1040 -> {
+                cmd(mc, "time set 6000");
+                cmd(mc, "kill @e[type=foglurker:fog_lurker]");
+            }
+            // The fog-surge jumpscare, end to end: sent by the server, received here, the fog rushes in and lifts.
+            case 1060 -> mc.getSingleplayerServer().execute(() -> say("surge sent " + com.foglurker.brain.Hauntings.fogSurge(
+                    mc.getSingleplayerServer().getPlayerList().getPlayers().get(0), net.minecraft.util.RandomSource.create(7))));
+            case 1075, 1090, 1150, 1230, 1300 -> say("surge fog " + com.foglurker.client.ClientEffects.currentFog() + " left "
+                    + com.foglurker.client.ClientEffects.surgeTicksLeft());
+            case 1085 -> shot(mc, "fabric_fog_surge.png");
+            case 1310 -> {
                 say("RESULT done");
                 new Thread(() -> {
                     try {

@@ -29,6 +29,7 @@ public final class FogLurkerMod implements ModInitializer {
     @Override
     public void onInitialize() {
         FogLurkerConfig.COMMON_SPEC.load(FabricLoader.getInstance().getConfigDir().resolve("foglurker-common.toml"));
+        FogLurkerConfig.update(); // an old file still at an old default gets the new one, once
         ModSounds.register();
         ModEffects.register();
         ModEntities.register();

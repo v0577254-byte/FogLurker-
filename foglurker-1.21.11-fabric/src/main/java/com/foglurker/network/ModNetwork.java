@@ -21,6 +21,7 @@ public final class ModNetwork {
         PayloadTypeRegistry.playS2C().register(SleepVisionPacket.TYPE, SleepVisionPacket.CODEC);
         // TEMPORARY: /foglurker debugeverything (remove before release)
         PayloadTypeRegistry.playS2C().register(DebugPacket.TYPE, DebugPacket.CODEC);
+        PayloadTypeRegistry.playS2C().register(FogSurgePacket.TYPE, FogSurgePacket.CODEC);
     }
 
     public static void send(ServerPlayer player, CustomPacketPayload msg) {

@@ -45,7 +45,7 @@ Between appearances (after the grace period) one player gets a small scare every
 - **A book in your chest** (only a chest or barrel you have opened yourself, so nobody else can plant one by your bed to read it). Signed with your own name, quoting things you said in chat, and telling you where you sleep. With a Gemini key its last page is written in your own typing style. At most one every 20 minutes, only at your base.
 - **Jumpscares, for no reason at all** (config `jumpscares`):
   - **The fog pulls in.** Out of nowhere the fog rushes in around you within a second, something whispers right beside you in it, your heartbeat picks up, and a few seconds later it lifts again as if nothing happened.
-  - **A scream right behind you**, and your view jolts (a short shake with dark edges, never a flash).
+  - **A scream right behind you**, and your view jolts (a short shake, and the screen goes dark red for a moment: never a bright flash).
   - **Its roar, far off**, from somewhere you are not looking.
   - **A whisper at your ear.**
   - **Your heartbeat**, faster and faster... then it stops.

@@ -59,6 +59,8 @@ public final class ClientSetup implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SleepVisionPacket.TYPE, (p, ctx) -> ctx.client().execute(SleepVision::show));
         // TEMPORARY: /foglurker debugeverything
         ClientPlayNetworking.registerGlobalReceiver(DebugPacket.TYPE, (p, ctx) -> ctx.client().execute(ClientDebug::run));
+        ClientPlayNetworking.registerGlobalReceiver(com.foglurker.network.FogSurgePacket.TYPE,
+                (p, ctx) -> ctx.client().execute(() -> ClientEffects.fogSurge(p.holdTicks())));
 
         if (Boolean.getBoolean("foglurker.showcase")) {
             try { // dev only: the class is not in the jar

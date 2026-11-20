@@ -235,7 +235,8 @@ public final class Hauntings {
         Vec3 side = new Vec3(-look.z, 0, look.x).scale(r.nextBoolean() ? 1 : -1);
         switch (r.nextInt(5)) {
             case 0 -> {
-                // A scream right behind you, and a jolt (the camera shakes, the edges go dark: never a flash).
+                // A scream right behind you, and a jolt (the camera shakes and the screen goes dark red for a moment:
+                // never a bright flash).
                 play(p, level, SoundEvents.ENDERMAN_SCREAM, SoundSource.HOSTILE, p.position().add(behind.scale(2)).add(0, 1.5, 0),
                         1.0F, 0.5F);
                 if (ModNetwork.CHANNEL.isRemotePresent(p.connection.connection)) {
