@@ -1,4 +1,4 @@
-# Fog Lurker for Minecraft 1.21.1 (Fabric) — 0.2.0 fabric beta
+# Fog Lurker for Minecraft 1.21.1 (Fabric) — 0.2.1 fabric beta
 
 The whole Fog Lurker mod (the same one as the Forge 1.20.1 version in the folder above, public line), ported to
 **Fabric** and **Minecraft 1.21.1**: the creature and its disguises, the fog and mist, hauntings, sleep paralysis,
@@ -7,6 +7,12 @@ opt-in voice snippets. Every command and config option works the same; see the m
 
 The same mod as the 1.21.11 Fabric beta (`../foglurker-1.21.11-fabric`), for Minecraft 1.21.1, where many
 modpacks are. Use the jar that matches your Minecraft version.
+
+## New in 0.2.1
+
+- The line that sets the Gemini key (`/foglurker setgeminiapikey <key>`) is never kept: not in the chat box's history
+  (the up arrow), and not in `command_history.txt`, where Minecraft 1.21 writes the commands you type in plain text. A
+  key line already in that file from an earlier version is wiped from it the next time the game starts.
 
 ## New in 0.2.0 (same as Forge 1.5.0)
 
@@ -22,7 +28,7 @@ modpacks are. Use the jar that matches your Minecraft version.
 ## Installing
 
 1. Install **Fabric Loader 0.20.1 or newer** for Minecraft **1.21.1** (in Prism Launcher: a 1.21.1 instance with Fabric).
-2. Put **Fabric API** (0.116 or newer for 1.21.1) and `FogLurker-0.2.0-fabric-beta+1.21.1.jar` in `mods/`, on the server
+2. Put **Fabric API** (0.116 or newer for 1.21.1) and `FogLurker-0.2.1-fabric-beta+1.21.1.jar` in `mods/`, on the server
    and every client.
 3. Optional, for voices: **Simple Voice Chat** (Fabric, 1.21.1) on the server and every client.
 
@@ -43,7 +49,7 @@ The config files are the same as on Forge: `config/foglurker-common.toml` and `c
 Gradle runs on **Java 25** (Fabric Loom needs it); the mod is built for Java 21.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-0.2.0-fabric-beta+1.21.1.jar
+./gradlew build               # -> build/libs/FogLurker-0.2.1-fabric-beta+1.21.1.jar
 ./gradlew runGametest         # all 52 in-game tests on a game-test server (build/gametest/junit.xml)
 ./gradlew runClient -Pshowcase   # dev check: makes a world, runs the commands, saves screenshots
 ```

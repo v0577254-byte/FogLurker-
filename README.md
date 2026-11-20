@@ -328,6 +328,7 @@ You can also set the `FOGLURKER_GEMINI_API_KEY` environment variable on a server
 How the key is handled:
 - It is stored AES-256-GCM encrypted in `foglurker_secure/`, never in a world save, never sent to players, and never logged. Chat only ever shows a masked preview (`AIza…k3Fq`).
 - It is sent only to Google, in the `x-goog-api-key` header (never in a URL), over HTTPS.
+- The line you type to set it is never kept in the chat box's history (the up arrow), so nobody who uses the computer afterwards can bring the key back on screen. On a server, the `FOGLURKER_GEMINI_API_KEY` environment variable avoids typing it at all.
 - If every model rejects the key it stops asking for 10 minutes (or until you set a key again) and uses the built-in phrases, so a bad key never slows the game down or spams requests. If a model is rate limited it skips that model for as long as Google asks (up to 10 minutes, from the reply or its Retry-After header) and uses the next one; a model that is missing, broken or refuses the request is skipped too.
 - Every request has a time limit; if Google is slow or unreachable the creature simply uses a built-in phrase.
 - Models are configurable (default `gemini-flash-latest`, falling back to `gemini-2.5-flash` and `gemini-flash-lite-latest`). Names like `models/gemini-2.5-flash` work too; anything that is not a valid model id is ignored with a warning.
@@ -355,7 +356,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.5.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.5.1.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -397,7 +398,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.5.0.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.5.1.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -409,7 +410,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.5.0.jar
+./gradlew build               # -> build/libs/FogLurker-1.5.1.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

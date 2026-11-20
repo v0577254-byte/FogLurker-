@@ -78,6 +78,10 @@ public final class ClientShowcase {
             scaresScene(mc, server);
             return;
         }
+        if ("keyhistory".equals(System.getProperty("foglurker.scene"))) {
+            keyHistoryScene(mc);
+            return;
+        }
         if ("surge".equals(System.getProperty("foglurker.scene"))) {
             surgeScene(mc, server);
             return;
@@ -262,6 +266,28 @@ public final class ClientShowcase {
         FogLurkerMod.LOGGER.info("Showcase: world fog shown {} frames, Fog Lurker's own fog {} frames (last second), wisps {}",
                 com.foglurker.client.DepthFog.worldFogFramesLastSecond(), com.foglurker.client.DepthFog.framesLastSecond(),
                 com.foglurker.client.DepthFog.wispCount());
+    }
+
+    /**
+     * The Gemini key never stays in the chat box's history: a line typed as if setting it (a fake key, never run) is
+     * gone from the up-arrow list a tick later, while an ordinary command stays.
+     */
+    private static void keyHistoryScene(Minecraft mc) {
+        switch (ticks) {
+            case 40 -> {
+                mc.gui.getChat().addRecentChat("/foglurker setgeminiapikey AIzaFAKEshowcaseKEY0000000000000000000");
+                mc.gui.getChat().addRecentChat("/time query daytime");
+            }
+            case 45 -> {
+                boolean inChat = mc.gui.getChat().getRecentChat().stream().anyMatch(l -> l.contains("setgeminiapikey"));
+                boolean kept = mc.gui.getChat().getRecentChat().contains("/time query daytime");
+                FogLurkerMod.LOGGER.info("Showcase: key history {} (in chat {}, ordinary command kept {})",
+                        !inChat && kept ? "OK" : "FAILED", inChat, kept);
+            }
+            case 50 -> mc.stop();
+            default -> {
+            }
+        }
     }
 
     /** The fog-surge jumpscare: clear day, then the fog rushes in for no reason, then lifts. */

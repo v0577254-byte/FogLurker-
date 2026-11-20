@@ -54,6 +54,31 @@ public final class FabricShowcase {
         return mc.getSingleplayerServer().overworld().getEntities(ModEntities.FOG_LURKER.get(), e -> true);
     }
 
+    /**
+     * The Gemini key is never kept in the chat history or in command_history.txt: a line typed as if setting it
+     * (a fake key, never run) is dropped, an ordinary command is still kept, and a key line saved in the file before
+     * the game started (put there by the dev run) is gone from it.
+     */
+    private static String keyHistory(Minecraft mc) {
+        String fake = "/foglurker setgeminiapikey AIzaFAKEshowcaseKEY0000000000000000000";
+        mc.gui.getChat().addRecentChat(fake);
+        mc.gui.getChat().addRecentChat("/time query daytime");
+        boolean inChat = mc.gui.getChat().getRecentChat().stream().anyMatch(l -> l.contains("setgeminiapikey"));
+        boolean normalKept = mc.gui.getChat().getRecentChat().contains("/time query daytime")
+                && mc.commandHistory().history().contains("/time query daytime");
+        boolean inHistory = mc.commandHistory().history().stream().anyMatch(l -> l.contains("setgeminiapikey"));
+        String file;
+        try {
+            file = java.nio.file.Files.readString(mc.gameDirectory.toPath().resolve("command_history.txt"));
+        } catch (java.io.IOException e) {
+            file = "";
+        }
+        boolean inFile = file.contains("setgeminiapikey") || file.contains("AIza");
+        boolean ok = !inChat && !inHistory && !inFile && normalKept;
+        return (ok ? "OK" : "FAILED") + " (in chat " + inChat + ", in history " + inHistory + ", in file " + inFile
+                + ", ordinary command kept " + normalKept + ", file keeps " + file.lines().count() + " lines)";
+    }
+
     private static void tick() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) {
@@ -69,6 +94,7 @@ public final class FabricShowcase {
         t++;
         ServerPlayer sp = mc.getSingleplayerServer().getPlayerList().getPlayers().get(0);
         switch (t) {
+            case 40 -> say("key history " + keyHistory(mc));
             case 60 -> {
                 LurkerDirector.naturalSpawnsPaused = true;
                 cmd(mc, "time set 6000");

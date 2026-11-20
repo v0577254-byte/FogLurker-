@@ -19,7 +19,9 @@
   "client": [
     "FogRendererMixin",
     "GameRendererMixin",
-    "GuiMixin"
+    "GuiMixin",
+    "ChatComponentMixin",
+    "CommandHistoryMixin"
   ],
   "injectors": {
     "defaultRequire": 1
