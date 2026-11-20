@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "TIT",
+    "TIT",
+    "TST"
+  ],
+  "key": {
+    "I": "foglurker:ingot_of_the_fog",
+    "T": "foglurker:teeth_of_the_lurker",
+    "S": "foglurker:foggy_stick"
+  },
+  "result": {
+    "id": "foglurker:protector_of_the_fog"
+  }
+}

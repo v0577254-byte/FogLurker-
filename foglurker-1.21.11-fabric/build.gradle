@@ -1,0 +1,79 @@
+// Fog Lurker for Minecraft 1.21.11 on Fabric (beta). The same mod as the Forge 1.20.1 one in the folder above
+// (public line: no Discord Rich Presence), ported to Fabric and to Minecraft 1.21.11.
+// Gradle runs on Java 25 (Loom needs it); the mod itself is built for Java 21.
+plugins {
+    id 'fabric-loom' version '1.19.4'
+}
+
+version = project.mod_version
+group = 'com.foglurker'
+base { archivesName = 'FogLurker' } // -> FogLurker-0.1.0-fabric-beta.jar
+
+// In-game tests live in their own source set (and their own little dev mod) so they never ship in the mod jar.
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
+repositories {
+    maven { name = 'henkelmax'; url = 'https://maven.maxhenkel.de/repository/public' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    // Simple Voice Chat is optional: only its API is needed to build.
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:${project.voicechat_api_version}"
+}
+
+loom {
+    mods {
+        foglurker {
+            sourceSet sourceSets.main
+        }
+        'foglurker-gametest' {
+            sourceSet sourceSets.gametest
+        }
+    }
+    runs {
+        // ./gradlew runGametest: boots a game-test server, runs every test, writes build/gametest/junit.xml and stops.
+        gametest {
+            server()
+            name 'Game Test'
+            vmArg '-Dfabric-api.gametest'
+            vmArg "-Dfabric-api.gametest.report-file=${project.layout.buildDirectory.get().asFile}/gametest/junit.xml"
+            runDir 'build/gametest'
+            source sourceSets.gametest
+        }
+        client {
+            // Dev only: ./gradlew runClient -Pshowcase  (makes a test world, runs the mod's commands, takes screenshots)
+            if (project.hasProperty('showcase')) {
+                vmArg '-Dfoglurker.showcase=true'
+                programArgs '--width', '1280', '--height', '720'
+            }
+        }
+    }
+}
+
+// The dev showcase script never ships.
+jar { exclude 'com/foglurker/dev/**' }
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand 'version': project.version }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    it.options.encoding = 'UTF-8'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+tasks.named('compileJava', JavaCompile) { options.compilerArgs += ['-Xmaxerrs', '5000'] }

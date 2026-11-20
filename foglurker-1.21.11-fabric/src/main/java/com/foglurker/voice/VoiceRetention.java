@@ -1,0 +1,138 @@
+package com.foglurker.voice;
+
+import com.foglurker.FogLurkerMod;
+import com.foglurker.security.SecureStorage;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.UUID;
+
+/**
+ * Voice snippets never outlive their purpose by more than 30 days.
+ * <ul>
+ *   <li>An opted-in player who has not been online for 30 days (for example because they removed the
+ *       mod and can no longer join) has their snippets deleted.</li>
+ *   <li>If the mod itself was not run for 30 days (removed, then reinstalled later), every snippet is
+ *       wiped the moment it starts again, before anything else happens.</li>
+ * </ul>
+ * A removed mod cannot run code, so the secure folder also carries a plain-text note explaining that
+ * it is safe to delete by hand.
+ */
+public final class VoiceRetention {
+    public static final long RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1000;
+    private static final String STAMP = "last_active.txt";
+    private static final String NOTE = "READ_ME.txt";
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
+
+    private VoiceRetention() {
+    }
+
+    /** Runs when the server (or singleplayer world) starts. @return snippets deleted */
+    public static int onStart(long nowMillis) {
+        int deleted = 0;
+        Long last;
+        boolean stampReadable = true;
+        try {
+            last = readStampStrict();
+        } catch (IOException e) {
+            // Cannot tell when it last ran: neither wipe nor overwrite the stamp (that would lose the 30-day rule).
+            FogLurkerMod.LOGGER.error("Could not read when Fog Lurker last ran ({}); the 30-day clean-up is checked again next "
+                    + "start (if this keeps happening, check foglurker_secure/last_active.txt)", e.getMessage());
+            last = null;
+            stampReadable = false;
+        }
+        if (last != null && nowMillis - last > RETENTION_MILLIS) {
+            deleted = VoiceConsent.wipeEverything();
+            FogLurkerMod.LOGGER.info("Fog Lurker was not used for over 30 days: deleted all {} stored voice snippets", deleted);
+        }
+        deleted += VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
+        int orphans = VoiceConsent.deleteOrphanSnippets();
+        if (orphans > 0) {
+            FogLurkerMod.LOGGER.warn("Deleted {} voice snippet(s) that had no opt-in on record", orphans);
+        }
+        deleted += orphans;
+        if (stampReadable) {
+            stamp(nowMillis);
+        }
+        return deleted;
+    }
+
+    /** Every 10 minutes while the server runs with nobody on: still running (stamp) and still expiring old clips. */
+    public static void emptyHeartbeat(long nowMillis) {
+        VoiceConsent.flushIfUnsaved();
+        int expired = VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
+        if (expired > 0) {
+            FogLurkerMod.LOGGER.info("Deleted the voice snippets of {} player(s) not seen for 30 days", expired);
+        }
+        stamp(nowMillis);
+    }
+
+    /** Runs every so often while playing, and when players join or leave. */
+    public static void heartbeat(long nowMillis, Iterable<UUID> onlinePlayers) {
+        VoiceConsent.flushIfUnsaved();
+        VoiceConsent.touchAll(onlinePlayers, nowMillis);
+        int expired = VoiceConsent.expireStale(nowMillis, RETENTION_MILLIS);
+        VoiceConsent.deleteOrphanSnippets(); // retries anything an opt-out could not delete at the time
+        SnippetStore.pruneAllAsync(); // maxSnippetsPerPlayer may have been lowered
+        VoiceConsent.deleteOldAsideCopies(nowMillis);
+        if (expired > 0) {
+            FogLurkerMod.LOGGER.info("Deleted the voice snippets of {} player(s) not seen for 30 days", expired);
+        }
+        stamp(nowMillis);
+    }
+
+    /** @return when it last ran, null if never; throws if the stamp is there but cannot be read right now */
+    static Long readStampStrict() throws IOException {
+        Path f = SecureStorage.root().resolve(STAMP);
+        String text;
+        try {
+            text = Files.readString(f, StandardCharsets.UTF_8);
+        } catch (java.nio.file.NoSuchFileException missing) {
+            return null;
+        }
+        try {
+            return Long.parseLong(text.replace("\uFEFF", "").trim()); // (an editor may add a byte-order mark)
+        } catch (NumberFormatException damaged) {
+            return 0L; // garbage in the stamp: treat it as very old, so the 30-day promise errs on the side of deleting
+        }
+    }
+
+    static Long readStamp() {
+        Path f = SecureStorage.root().resolve(STAMP);
+        try {
+            return Files.isRegularFile(f) ? Long.parseLong(Files.readString(f, StandardCharsets.UTF_8).replace("\uFEFF", "").trim()) : null;
+        } catch (IOException | NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** For tests: pretend the mod last ran at this time. */
+    public static void stamp(long millis) {
+        try {
+            SecureStorage.writeAtomic(SecureStorage.root().resolve(STAMP), Long.toString(millis).getBytes(StandardCharsets.UTF_8));
+            String wipeAfter = DATE.format(Instant.ofEpochMilli(millis + RETENTION_MILLIS));
+            String note = """
+                    FOG LURKER - SECURE FOLDER
+
+                    This folder holds the Fog Lurker mod's encrypted data: the Gemini API key (if one was set),
+                    who opted in to voice snippets, and their voice snippets.
+
+                    If you have removed Fog Lurker, nothing uses this folder any more. You can delete it.
+
+                    Automatic clean-up:
+                    - The snippets of anyone who has not been online for 30 days are deleted.
+                    - The mod last ran on %s. If it is started again after %s, it deletes every
+                      voice snippet in here before doing anything else.
+                    - Opting out (/fglurk optout) deletes your snippets immediately.
+                    """.formatted(DATE.format(Instant.ofEpochMilli(millis)), wipeAfter);
+            SecureStorage.writeAtomic(SecureStorage.root().resolve(NOTE), note.getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            FogLurkerMod.LOGGER.warn("Could not update the secure folder's activity stamp", e);
+        }
+    }
+}
