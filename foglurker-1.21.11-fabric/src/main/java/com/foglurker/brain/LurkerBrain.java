@@ -1092,9 +1092,13 @@ public final class LurkerBrain {
         if (hardness < 0 || hardness >= 50.0F || level.getBlockEntity(pos) != null) {
             return false;
         }
-        // (Forge asked claim mods here; Fabric has no such event for mobs. The checks above and the unbreakable
-        // tag still apply, and so does the mob_griefing gamerule.)
-        return !s.is(net.minecraft.tags.BlockTags.WITHER_IMMUNE);
+        if (s.is(net.minecraft.tags.BlockTags.WITHER_IMMUNE)) {
+            return false;
+        }
+        // Claim and protection mods get their say: the same block-break check a player would cause, from a fake
+        // player (which claim mods keep out of claims), as the torch haunting does.
+        return net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level,
+                net.fabricmc.fabric.api.entity.FakePlayer.get(level), pos, s, level.getBlockEntity(pos));
     }
 
     /** How far round from where the player faces the creature is (radians), as the shield check measures it. */

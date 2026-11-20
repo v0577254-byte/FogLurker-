@@ -360,21 +360,39 @@ public final class ConfigSpec {
             }
             List<String> out = new ArrayList<>();
             String inner = t.substring(1, t.length() - 1).strip();
-            if (!inner.isEmpty()) {
-                for (String part : inner.split(",")) {
-                    String p = part.strip();
-                    if (p.isEmpty()) {
-                        continue;
-                    }
-                    if (!p.startsWith("\"")) {
-                        return false;
-                    }
-                    String s = unquote(p);
-                    if (!valid.test(s)) {
-                        return false;
-                    }
-                    out.add(s);
+            // Quoted items, separated by commas (a comma inside the quotes is part of the item).
+            int i = 0;
+            while (i < inner.length()) {
+                char c = inner.charAt(i);
+                if (c == ',' || Character.isWhitespace(c)) {
+                    i++;
+                    continue;
                 }
+                if (c != '"') {
+                    return false;
+                }
+                StringBuilder item = new StringBuilder();
+                int j = i + 1;
+                boolean closed = false;
+                while (j < inner.length()) {
+                    char d = inner.charAt(j);
+                    if (d == '\\' && j + 1 < inner.length()) {
+                        item.append(inner.charAt(j + 1));
+                        j += 2;
+                    } else if (d == '"') {
+                        closed = true;
+                        j++;
+                        break;
+                    } else {
+                        item.append(d);
+                        j++;
+                    }
+                }
+                if (!closed || !valid.test(item.toString())) {
+                    return false;
+                }
+                out.add(item.toString());
+                i = j;
             }
             value = List.copyOf(out);
             return true;

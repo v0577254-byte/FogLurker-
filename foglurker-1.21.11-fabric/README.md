@@ -22,9 +22,6 @@ The config files are the same as on Forge: `config/foglurker-common.toml` and `c
   mods have had their say), so Sodium and Distant Horizons keep it. The Forge version's own full-screen fog redraw (for
   mods that switch Minecraft's fog off) is not in this beta; if something still switches the fog off (a shader
   pack), the fog veil over the screen shows it, as before.
-- **Claim mods:** Fabric has no event for a mob breaking a block, so when the attacking form claws through a wall it
-  checks the `mob_griefing` gamerule, `breakBlocks` and its own protected blocks, but not claim mods. (Hauntings that
-  put out a torch still ask claim mods first, as a fake player breaking the block.)
 - **No Discord Rich Presence** in this build.
 
 ## Building and testing

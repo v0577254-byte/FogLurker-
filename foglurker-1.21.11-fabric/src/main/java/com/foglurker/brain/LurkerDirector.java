@@ -754,7 +754,9 @@ public final class LurkerDirector {
             }
             default -> {
                 if (pick.disguise() == Disguise.SHEEP) {
-                    variant = Sheep.getRandomSheepColor(level, target.blockPosition()).getId();
+                    // The colour sheep have where it is (1.21 colours sheep by biome), from the plan's own dice.
+                    variant = net.minecraft.world.entity.animal.sheep.SheepColorSpawnRules.getSheepColor(
+                            level.getBiome(target.blockPosition()), r).getId();
                 }
             }
         }

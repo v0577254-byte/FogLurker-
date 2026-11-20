@@ -162,7 +162,7 @@ public final class DebugCommand {
 
         r.send(Component.literal("Server: " + r.passed + " passed, " + r.failed + " failed, " + r.skipped + " skipped")
                 .withStyle(r.failed == 0 ? ChatFormatting.GREEN : ChatFormatting.RED, ChatFormatting.BOLD));
-        if (net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(player, com.foglurker.network.FogPacket.TYPE)) {
+        if (net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(player, DebugPacket.TYPE)) {
             r.send(Component.literal("Asking your game to check its side (models, textures, sounds)...").withStyle(ChatFormatting.GRAY));
             ModNetwork.send(player, DebugPacket.INSTANCE);
         }
@@ -319,7 +319,8 @@ public final class DebugCommand {
         r.run("The bite", (rep, w) -> {
             LurkerDifficulty d = FogLurkerSavedData.get(player.level().getServer()).difficulty();
             boolean mauls = d == LurkerDifficulty.HARD || d == LurkerDifficulty.DEATHWISH;
-            rep.check(w, true, "Slowness I for 10 s"
+            boolean registered = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.containsKey(FogLurkerMod.id("mauled"));
+            rep.check(w, registered, (registered ? "" : "the Mauled effect is not registered! ") + "Slowness I for 10 s"
                     + (mauls ? " + Mauled (no jumping, no boats) on " + d.displayName() : " (Mauled only on Hard/Deathwish)"));
         });
         r.run("Damage source", (rep, w) -> {
