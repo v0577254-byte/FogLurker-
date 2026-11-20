@@ -1076,6 +1076,11 @@ public final class LurkerBrain {
         return !s.isAir() && !s.getCollisionShape(level(), pos).isEmpty();
     }
 
+    /** The last block a claim mod would not let it break, and until when that answer is kept. */
+    @org.jetbrains.annotations.Nullable
+    private BlockPos claimRefusedAt;
+    private int claimRefusedUntil;
+
     /** Never deepslate/obsidian/bedrock (tag), nothing as hard as obsidian, nothing holding items or data. */
     public boolean canBreak(BlockPos pos) {
         ServerLevel level = level();
@@ -1096,9 +1101,18 @@ public final class LurkerBrain {
             return false;
         }
         // Claim and protection mods get their say: the same block-break check a player would cause, from a fake
-        // player (which claim mods keep out of claims), as the torch haunting does.
-        return net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level,
+        // player (which claim mods keep out of claims), as the torch haunting does. A refusal is remembered for 2 s,
+        // so pressing against a claimed wall does not ask them again every tick.
+        if (pos.equals(claimRefusedAt) && mob.tickCount < claimRefusedUntil) {
+            return false;
+        }
+        boolean allowed = net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level,
                 net.fabricmc.fabric.api.entity.FakePlayer.get(level), pos, s, level.getBlockEntity(pos));
+        if (!allowed) {
+            claimRefusedAt = pos.immutable();
+            claimRefusedUntil = mob.tickCount + 40;
+        }
+        return allowed;
     }
 
     /** How far round from where the player faces the creature is (radians), as the shield check measures it. */

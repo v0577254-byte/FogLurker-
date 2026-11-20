@@ -376,7 +376,7 @@ public final class ConfigSpec {
                 boolean closed = false;
                 while (j < inner.length()) {
                     char d = inner.charAt(j);
-                    if (d == '\\' && j + 1 < inner.length()) {
+                    if (d == '\\' && j + 1 < inner.length() && (inner.charAt(j + 1) == '"' || inner.charAt(j + 1) == '\\')) {
                         item.append(inner.charAt(j + 1));
                         j += 2;
                     } else if (d == '"') {
