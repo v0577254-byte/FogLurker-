@@ -78,6 +78,10 @@ public final class ClientShowcase {
             scaresScene(mc, server);
             return;
         }
+        if ("surge".equals(System.getProperty("foglurker.scene"))) {
+            surgeScene(mc, server);
+            return;
+        }
         String scene = System.getProperty("foglurker.scene", "");
         if (scene.equals("sword")) {
             swordScene(mc, server);
@@ -258,6 +262,30 @@ public final class ClientShowcase {
         FogLurkerMod.LOGGER.info("Showcase: world fog shown {} frames, Fog Lurker's own fog {} frames (last second), wisps {}",
                 com.foglurker.client.DepthFog.worldFogFramesLastSecond(), com.foglurker.client.DepthFog.framesLastSecond(),
                 com.foglurker.client.DepthFog.wispCount());
+    }
+
+    /** The fog-surge jumpscare: clear day, then the fog rushes in for no reason, then lifts. */
+    private static void surgeScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> {
+                mc.options.hideGui = true;
+                server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    p.serverLevel().setDayTime(6000);
+                    p.setGameMode(GameType.SURVIVAL);
+                });
+            }
+            case 100 -> shot(mc, "foglurker_surge_before.png");
+            case 110 -> server.execute(() -> FogLurkerMod.LOGGER.info("Showcase: surge sent={}",
+                    com.foglurker.brain.Hauntings.fogSurge(sp(server), net.minecraft.util.RandomSource.create(7))));
+            case 120, 135, 150, 200, 260, 330, 398 -> FogLurkerMod.LOGGER.info("Showcase: surge tick {} fog={} surgeLeft={}", ticks,
+                    ClientEffects.currentFog(), ClientEffects.surgeTicksLeft());
+            case 140 -> shot(mc, "foglurker_surge_in.png");
+            case 400 -> shot(mc, "foglurker_surge_after.png");
+            case 420 -> mc.stop();
+            default -> {
+            }
+        }
     }
 
     private static void scaresScene(Minecraft mc, MinecraftServer server) {

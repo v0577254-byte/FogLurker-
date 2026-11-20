@@ -192,6 +192,7 @@ public class FogLurkerEntity extends PathfinderMob {
             return;
         }
         brain.tick();
+        com.foglurker.brain.VillagersHide.tick(this); // villagers sense it and run inside
     }
 
     /** Like a spider: in its attacking form it climbs any wall it runs into, including the tower you built. */

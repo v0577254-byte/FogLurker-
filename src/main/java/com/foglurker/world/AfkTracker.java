@@ -40,6 +40,10 @@ public final class AfkTracker {
     static final int MANUAL_SETTLE_TICKS = 40;
     /** How often looking and walking are compared. */
     private static final int CHECK_EVERY = 20;
+    /** Turning the view this far (any direction) from where it pointed when you were last active counts: a nudge does not. */
+    public static final float LOOK_DEGREES = 45F;
+    /** Walking this far from where you were when last active counts: a tap of a key does not. */
+    public static final double MOVE_BLOCKS = 1.0;
 
     private static final Map<UUID, State> STATES = new ConcurrentHashMap<>();
 
@@ -56,6 +60,20 @@ public final class AfkTracker {
         double y;
         double z;
         boolean sneaking;
+        /** Where they looked and stood when they were last active: looking and walking are measured from here. */
+        float anchorYaw;
+        float anchorPitch;
+        double anchorX;
+        double anchorY;
+        double anchorZ;
+
+        void anchor(Player p) {
+            anchorYaw = p.getYRot();
+            anchorPitch = p.getXRot();
+            anchorX = p.getX();
+            anchorY = p.getY();
+            anchorZ = p.getZ();
+        }
     }
 
     private AfkTracker() {
@@ -94,6 +112,7 @@ public final class AfkTracker {
             s.y = p.getY();
             s.z = p.getZ();
             s.sneaking = p.isShiftKeyDown();
+            s.anchor(p);
             return s;
         });
     }
@@ -107,6 +126,7 @@ public final class AfkTracker {
             s.x = p.getX();
             s.y = p.getY();
             s.z = p.getZ();
+            s.anchor(p);
         }
     }
 
@@ -125,6 +145,7 @@ public final class AfkTracker {
         }
         State s = state(p, now);
         s.lastActive = now;
+        s.anchor(p); // the next look or walk is measured from here
         if (s.afk && (!s.manual || now - s.afkSince >= MANUAL_SETTLE_TICKS)) {
             setAfk(p, s, false, false, now);
         }
@@ -197,9 +218,10 @@ public final class AfkTracker {
             return; // on the death screen nothing is checked (no "went afk" while dead)
         }
         State s = state(p, now);
-        // Looking around is always the player: nothing else turns your head.
-        boolean looked = Math.abs(net.minecraft.util.Mth.wrapDegrees(p.getYRot() - s.yaw)) > 0.5F
-                || Math.abs(p.getXRot() - s.pitch) > 0.5F;
+        // Looking around is always the player: nothing else turns your head. It counts once the view has turned 45
+        // degrees (up, down or sideways) from where it pointed when they were last active: a nudge of the mouse is not
+        // "back".
+        boolean looked = degreesBetween(s.anchorYaw, s.anchorPitch, p.getYRot(), p.getXRot()) >= LOOK_DEGREES;
         // Moving yourself counts. A jump of more than 12 blocks in a second is a respawn or a teleport, never
         // walking. Knockback (hurtTime) and water currents do not count. (The server cannot see keys, so a
         // shove along the ground by a piston or a mob still wakes you.)
@@ -217,6 +239,17 @@ public final class AfkTracker {
         boolean climbed = ownPace && climbedUp > 0.5 && p.onClimbable() && !p.isPassenger();
         // Steering a horse, boat or pig counts (a minecart, which nobody steers, does not).
         boolean steered = ownPace && moved > 1.0 && vehicle != null && vehicle.getControllingPassenger() == p;
+        boolean ownMove = walked || climbed || steered;
+        if (!ownMove) {
+            // Standing, pushed, carried or teleported: where they are now is the new starting point, so small steps
+            // never add up across pauses, and being moved never counts.
+            s.anchorX = p.getX();
+            s.anchorY = p.getY();
+            s.anchorZ = p.getZ();
+        }
+        // ...and it counts once they have gone a whole block from where they started (a tap of a key does not).
+        double fromAnchor = Math.sqrt(p.distanceToSqr(s.anchorX, s.anchorY, s.anchorZ));
+        boolean movedEnough = ownMove && fromAnchor >= MOVE_BLOCKS;
         boolean sneaked = p.isShiftKeyDown() != s.sneaking;
         s.yaw = p.getYRot();
         s.pitch = p.getXRot();
@@ -224,8 +257,7 @@ public final class AfkTracker {
         s.y = p.getY();
         s.z = p.getZ();
         s.sneaking = p.isShiftKeyDown();
-        walked = walked || climbed || steered;
-        if (looked || walked || sneaked) {
+        if (looked || movedEnough || sneaked) {
             markActive(p, now);
         } else if (!s.afk && now - s.lastActive >= afkTicks()) {
             setAfk(p, s, true, false, now);
@@ -233,6 +265,13 @@ public final class AfkTracker {
         if (s.afk) {
             showAfk(p); // keep "AFK" above the hotbar for as long as it lasts
         }
+    }
+
+    /** The angle (degrees) between two view directions. */
+    static double degreesBetween(float yaw1, float pitch1, float yaw2, float pitch2) {
+        net.minecraft.world.phys.Vec3 a = net.minecraft.world.phys.Vec3.directionFromRotation(pitch1, yaw1);
+        net.minecraft.world.phys.Vec3 b = net.minecraft.world.phys.Vec3.directionFromRotation(pitch2, yaw2);
+        return Math.toDegrees(Math.acos(net.minecraft.util.Mth.clamp(a.dot(b), -1.0, 1.0)));
     }
 
     // ------------------------------------------------------------------ events

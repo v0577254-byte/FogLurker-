@@ -52,12 +52,15 @@ import java.util.UUID;
  *   <li>TORCH: a torch you are not looking at goes out (it drops as an item)</li>
  *   <li>GHOST_FRIEND: a friend who is not online "joins", says something in their style, and "leaves"</li>
  *   <li>BOOK: a book in one of your chests, written with your own words</li>
+ *   <li>FOG_SURGE (a jumpscare): the fog rushes in around you for no reason, something whispers, and it lifts again</li>
+ *   <li>JUMPSCARE: a sudden sound: a scream right behind you (with a jolt), a roar in the distance, a whisper at
+ *       your ear, your heartbeat speeding up and stopping, something running past behind you</li>
  * </ul>
  */
 public final class Hauntings {
 
     public enum Kind {
-        SOUND(40), APPARITION(22), TORCH(16), GHOST_FRIEND(12), BOOK(6);
+        SOUND(40), APPARITION(22), TORCH(16), GHOST_FRIEND(12), BOOK(6), FOG_SURGE(14), JUMPSCARE(18);
 
         final int weight;
 
@@ -201,7 +204,76 @@ public final class Hauntings {
             case TORCH -> snuffTorch(p, r);
             case GHOST_FRIEND -> FogLurkerConfig.COMMON.impersonateInChat.get() && ghostFriend(p, data, r);
             case BOOK -> leaveBook(p, data, r);
+            case FOG_SURGE -> FogLurkerConfig.COMMON.jumpscares.get() && fogSurge(p, r);
+            case JUMPSCARE -> FogLurkerConfig.COMMON.jumpscares.get() && jumpscare(p, r);
         };
+    }
+
+    // =================================================================== jumpscares
+
+    /** The fog rushes in around you (3 to 6 seconds), something whispers beside you in it, then it lifts. */
+    public static boolean fogSurge(ServerPlayer p, RandomSource r) {
+        if (!ModNetwork.CHANNEL.isRemotePresent(p.connection.connection)) {
+            return false; // a client without the mod has no fog to pull in
+        }
+        int hold = 60 + r.nextInt(61);
+        ModNetwork.send(p, new com.foglurker.network.FogSurgePacket(hold));
+        ServerLevel level = p.serverLevel();
+        Vec3 look = flatLook(p);
+        Vec3 side = new Vec3(-look.z, 0, look.x).scale(r.nextBoolean() ? 1 : -1);
+        later(p.server, 25 + r.nextInt(hold - 20), () -> play(p, level, SoundEvents.AMBIENT_CAVE.value(), SoundSource.AMBIENT,
+                p.position().add(side.scale(1.5)).add(0, 1.6, 0), 1.0F, 0.7F));
+        return true;
+    }
+
+    /** One sudden sound (vanilla sounds, so it works without the mod on the client too). */
+    public static boolean jumpscare(ServerPlayer p, RandomSource r) {
+        ServerLevel level = p.serverLevel();
+        MinecraftServer server = p.server;
+        Vec3 look = flatLook(p);
+        Vec3 behind = look.scale(-1);
+        Vec3 side = new Vec3(-look.z, 0, look.x).scale(r.nextBoolean() ? 1 : -1);
+        switch (r.nextInt(5)) {
+            case 0 -> {
+                // A scream right behind you, and a jolt (the camera shakes, the edges go dark: never a flash).
+                play(p, level, SoundEvents.ENDERMAN_SCREAM, SoundSource.HOSTILE, p.position().add(behind.scale(2)).add(0, 1.5, 0),
+                        1.0F, 0.5F);
+                if (ModNetwork.CHANNEL.isRemotePresent(p.connection.connection)) {
+                    ModNetwork.send(p, new com.foglurker.network.ScarePacket(24));
+                }
+            }
+            // Its roar, far off, from somewhere you are not looking.
+            case 1 -> play(p, level, SoundEvents.WARDEN_ROAR, SoundSource.HOSTILE, p.position().add(behind.scale(30)).add(side.scale(10)),
+                    3.0F, 1.35F);
+            // A whisper right at your ear.
+            case 2 -> play(p, level, SoundEvents.AMBIENT_CAVE.value(), SoundSource.AMBIENT, p.position().add(side.scale(0.8)).add(0, 1.6, 0),
+                    1.0F, 0.75F);
+            case 3 -> {
+                // Your heartbeat, faster and faster... then nothing.
+                int t = 0;
+                for (int gap : new int[]{20, 17, 14, 11, 9, 7, 6, 5, 4}) {
+                    t += gap;
+                    later(server, t, () -> play(p, level, SoundEvents.WARDEN_HEARTBEAT, SoundSource.HOSTILE,
+                            p.position().add(0, 1, 0), 1.0F, 1.0F));
+                }
+            }
+            default -> {
+                // Something runs past behind you, fast, and is gone.
+                for (int i = 0; i < 8; i++) {
+                    Vec3 at = p.position().add(behind.scale(4)).add(side.scale(-6 + i * 1.7));
+                    BlockState ground = level.getBlockState(BlockPos.containing(at).below());
+                    SoundEvent step = ground.isAir() ? SoundEvents.GRASS_STEP : ground.getSoundType().getStepSound();
+                    later(server, i * 3, () -> play(p, level, step, SoundSource.HOSTILE, at, 1.0F, 1.15F));
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Where they look, flat (never zero). */
+    private static Vec3 flatLook(ServerPlayer p) {
+        Vec3 look = p.getViewVector(1F).multiply(1, 0, 1);
+        return look.lengthSqr() < 1e-4 ? new Vec3(0, 0, 1) : look.normalize();
     }
 
     // =================================================================== sounds only you can hear

@@ -29,6 +29,24 @@ public final class FogLurkerConfig {
         EVERYONE
     }
 
+    /** The config revision this version writes (see {@link #update}). */
+    private static final int REVISION = 1;
+
+    /**
+     * Brings an older config file up to date, once: a setting still at an old default moves to the new default (a value
+     * someone chose stays as it is). Revision 1: spawnRollMinutes 5 -> 10.
+     */
+    public static void update(net.minecraftforge.fml.config.ModConfig config) {
+        if (config.getSpec() != COMMON_SPEC || COMMON.configRevision.get() >= REVISION) {
+            return;
+        }
+        if (COMMON.spawnRollMinutes.get() == 5) {
+            COMMON.spawnRollMinutes.set(10);
+        }
+        COMMON.configRevision.set(REVISION);
+        COMMON.configRevision.save();
+    }
+
     public static final class Common {
         public final ForgeConfigSpec.ConfigValue<String> defaultDifficulty;
         public final ForgeConfigSpec.IntValue spawnRollMinutes;
@@ -52,6 +70,9 @@ public final class FogLurkerConfig {
         public final ForgeConfigSpec.IntValue maxConcurrent;
         public final ForgeConfigSpec.BooleanValue afkProtection;
         public final ForgeConfigSpec.IntValue afkMinutes;
+        public final ForgeConfigSpec.BooleanValue jumpscares;
+        public final ForgeConfigSpec.BooleanValue villagersHide;
+        public final ForgeConfigSpec.IntValue configRevision;
 
         public final ForgeConfigSpec.ConfigValue<String> geminiModel;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> geminiFallbackModels;
@@ -67,9 +88,10 @@ public final class FogLurkerConfig {
             defaultDifficulty = b.comment("Mode used for new worlds: very_easy, easy, medium, hard, deathwish.",
                             "Change it in game with /foglurker difficulty <mode>.")
                     .define("defaultDifficulty", "medium", o -> o instanceof String s && LurkerDifficulty.byId(s) != null);
-            spawnRollMinutes = b.comment("After the grace period it rolls whether to appear every this many minutes.",
+            spawnRollMinutes = b.comment("After the grace period it rolls whether to appear every this many minutes (10 by default:",
+                            "time to take in what just happened before it can come again).",
                             "A roll that fails makes the next roll a guaranteed appearance.")
-                    .defineInRange("spawnRollMinutes", 5, 1, 600);
+                    .defineInRange("spawnRollMinutes", 10, 1, 600);
             spawnChance = b.comment("Chance that a normal roll makes it appear (0.5 = 50/50). 0 = it never appears on its own",
                             "in any world (hauntings still happen; /foglurker naturalspawning off stops those too).")
                     .defineInRange("spawnChance", 0.5, 0.0, 1.0);
@@ -81,6 +103,10 @@ public final class FogLurkerConfig {
                             "something at the edge of your vision, a torch going out, a message from a friend who is not online,",
                             "a book left in one of your chests.")
                     .define("hauntings", true);
+            jumpscares = b.comment("Random jumpscares among the hauntings (needs hauntings on): the fog suddenly rushes in around you and",
+                            "lifts again, a scream right behind you, a roar in the distance, a whisper at your ear, a heartbeat that",
+                            "speeds up and stops, something running past behind you. They never hurt you.")
+                    .define("jumpscares", true);
             hauntingMinSeconds = b.comment("Seconds between hauntings: a random wait between these two.",
                             "If the maximum is set below the minimum, the minimum is used every time.")
                     .defineInRange("hauntingMinSeconds", 90, 10, 36000);
@@ -96,6 +122,9 @@ public final class FogLurkerConfig {
             encounterMaxMinutes = b.comment("An appearance gives up and fades away after this long (a watcher that only",
                             "stares leaves after 2 minutes at most). Applies from the next appearance.")
                     .defineInRange("encounterMaxMinutes", 5, 1, 60);
+            villagersHide = b.comment("Villagers sense it: when it comes within 32 blocks of them (48 while it attacks), in any form, they",
+                            "run into their houses and hide, like when a bell rings. So villagers running inside is a warning.")
+                    .define("villagersHide", true);
             overworldOnly = b.comment("Only appear on its own in the Overworld (/foglurker spawn works everywhere).")
                     .define("overworldOnly", true);
             allowDoppelganger = b.comment("Let it copy the player it is hunting (used when nobody else is online).")
@@ -123,6 +152,8 @@ public final class FogLurkerConfig {
                     .define("afkProtection", true);
             afkMinutes = b.comment("Minutes without any activity before a player counts as AFK.")
                     .defineInRange("afkMinutes", 5, 1, 120);
+            configRevision = b.comment("Used to update old defaults when the mod is updated. Leave it alone.")
+                    .defineInRange("configRevision", 0, 0, 1000);
             b.pop();
 
             b.push("gemini");

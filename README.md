@@ -43,6 +43,13 @@ Between appearances (after the grace period) one player gets a small scare every
 - **A torch goes out.** An ordinary torch you are not looking at is put out and drops as an item. Never a soul torch.
 - **A friend who is not online.** "Alex joined the game", a line of chat in Alex's typing style, and later "Alex left the game". Alex was never there. (Check the player list.) Off when the server sets `impersonateInChat = false`.
 - **A book in your chest** (only a chest or barrel you have opened yourself, so nobody else can plant one by your bed to read it). Signed with your own name, quoting things you said in chat, and telling you where you sleep. With a Gemini key its last page is written in your own typing style. At most one every 20 minutes, only at your base.
+- **Jumpscares, for no reason at all** (config `jumpscares`):
+  - **The fog pulls in.** Out of nowhere the fog rushes in around you within a second, something whispers right beside you in it, your heartbeat picks up, and a few seconds later it lifts again as if nothing happened.
+  - **A scream right behind you**, and your view jolts (a short shake with dark edges, never a flash).
+  - **Its roar, far off**, from somewhere you are not looking.
+  - **A whisper at your ear.**
+  - **Your heartbeat**, faster and faster... then it stops.
+  - **Something running past behind you**, fast, and gone.
 
 ![At the edge of your vision](docs/images/apparition_edge.jpg)
 
@@ -169,6 +176,7 @@ Once it is attacking, most of the time it switches to whoever is easiest: someon
 It leaves players who are away from the keyboard alone: it never comes for them, never attacks them, and no hauntings happen to them. If it is already out there when its target goes AFK, it leaves.
 
 - **Automatic:** 5 minutes without doing anything (config `afkMinutes`) and you are AFK.
+- **A nudge does not count.** To come back (or to count as active) you have to look around properly, **45 degrees or more** in any direction, or **walk at least a block**. Bumping the mouse or tapping a key does not end AFK. (Typing in chat, hitting, mining, placing or using things also counts.)
 - **`/afk`** (or `/AFK`): AFK right now, without waiting. Type it again to come back. It is refused while it is already hunting you, so it cannot be used to escape.
 - **Coming back:** anything you do ends it: looking around, walking, swimming, climbing, steering a horse or boat, sneaking, chatting, breaking, placing, using items or attacking. Things that happen *to* you do not count: knockback, water currents, riding a minecart, respawning or being teleported.
 - When you go AFK, everyone sees **"*name* went afk"** in chat, and **AFK** stays above your hotbar until you are back. AFK players also show **[AFK]** after their name in the player list (Tab).
@@ -230,14 +238,15 @@ It is a coin flip whether it means it. It is less likely to mean it for each tim
 - Every bite gives Slowness I for 10 s. On Hard and Deathwish it also gives Mauled for 10 s: no jumping, no boats.
 - Deathwish kills in one bite, so it always announces itself: a deep scream when it starts hunting, then 1.5 seconds before it can bite.
 - The grace period counts real play time from the very first time a world starts with the mod. Nothing appears during it, but it is already learning how everyone plays.
-- **After the grace period it rolls every 5 minutes:**
-  1. 5 minutes after the grace period ends there is a **50/50** chance it appears.
-  2. If it did **not** appear, it is **guaranteed** to appear at the next roll 5 minutes later.
+- **After the grace period it rolls every 10 minutes** (so you have time to take in what just happened):
+  1. 10 minutes after the grace period ends there is a **50/50** chance it appears.
+  2. If it did **not** appear, it is **guaranteed** to appear at the next roll 10 minutes later.
   3. If it **did** appear, the next roll is a normal 50/50 again.
 
-  On a multiplayer server it can be after up to two players at once (`maxConcurrent`), but never two at once for the same player, and never straight back to someone it just left. With one player online the timer pauses while it is out hunting, and the next roll comes 5 minutes after it leaves. It also pauses while nobody it could visit is free (everyone AFK, being hunted, in their 15-minute peace, or outside the Overworld). `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
+  On a multiplayer server it can be after up to two players at once (`maxConcurrent`), but never two at once for the same player, and never straight back to someone it just left. With one player online the timer pauses while it is out hunting, and the next roll comes 10 minutes after it leaves. It also pauses while nobody it could visit is free (everyone AFK, being hunted, in their 15-minute peace, or outside the Overworld). `/foglurker spawntimer` shows the time to the next roll and whether that roll is guaranteed.
 - On vanilla Peaceful difficulty it never attacks, it only watches.
 - `/foglurker naturalspawning off` stops it appearing on its own in that world, and stops the hauntings too; it then only comes when summoned.
+- **Villagers sense it.** When it comes within 32 blocks of a village (48 while it attacks), in any form, even disguised, the villagers run into their houses and hide, as when a bell rings, and come back out after it has gone. Villagers suddenly running inside is a warning. (Config `villagersHide`.)
 
 ## Commands
 
@@ -256,7 +265,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker fog [0-100\|default]` | view: everyone · set: op / host | How thick the fog that is always there is, for everyone in this world (0 = none, 100 = thickest). By default it follows the mode: Very Easy 15, Easy 25, Medium 45, Hard 55, Deathwish 60. `default` goes back to that. Saved with the world |
 | `/foglurker force sleep-paralysis [player]` | cheats / op | The next time that player goes to sleep they get sleep paralysis: "Done! the next time you go to sleep you will experience sleep paralysis" |
 | `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
-| `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. Turning it back `on` starts a fresh 5-minute countdown |
+| `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. Turning it back `on` starts a fresh 10-minute countdown |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
 | `/foglurker setgeminiapikey <key>` | op / singleplayer host | Saves the Gemini API key (encrypted) and tests it. `clear` removes it |
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
@@ -346,7 +355,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.4.6.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.5.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -356,10 +365,12 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 | Option | Default | |
 |---|---|---|
 | `defaultDifficulty` | `medium` | Mode for new worlds |
-| `spawnRollMinutes` | 5 | Minutes between spawn rolls (a missed roll makes the next one guaranteed) |
+| `spawnRollMinutes` | 10 | Minutes between spawn rolls (a missed roll makes the next one guaranteed). A config file from an older version that still has the old default of 5 is moved to 10 once |
 | `spawnChance` | 0.5 | Chance a normal roll makes it appear. 0 = it never appears on its own in any world (no "guaranteed next roll" either) |
 | `breakBlocks` | true | Let the attacking form break blocks to reach you (never the protected list) |
 | `hauntings` | true | Small scares between appearances |
+| `jumpscares` | true | Random jumpscares among the hauntings: the fog rushing in, a scream behind you, a roar far off, a whisper, a heartbeat, something running past |
+| `villagersHide` | true | Villagers run into their houses and hide when it comes near (32 blocks, 48 while it attacks) |
 | `hauntingMinSeconds` / `MaxSeconds` | 90 / 240 | How often a haunting happens |
 | `sabotage` | true | Let hauntings put out torches (also needs `breakBlocks` and mobGriefing) and leave books in chests |
 | `wardRadius` | 6 | How far soul fire protects (0 turns wards off) |
@@ -386,7 +397,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.4.6.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.5.0.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -398,7 +409,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.4.6.jar
+./gradlew build               # -> build/libs/FogLurker-1.5.0.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
@@ -414,7 +425,7 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50; a 0% chance never spawns; `/foglurker naturalspawning off|on` is op-only, survives a save and restarts the countdown
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
-- AFK: 5 minutes of nothing makes you AFK (4:58 does not), knockback does not end it but looking around does, /afk and /AFK work at once and survive the jiggle of closing chat, /afk is refused mid-hunt, an AFK player is never picked, force commands refuse AFK players, and respawning does not end AFK
+- AFK: 5 minutes of nothing makes you AFK (4:58 does not), knockback does not end it, a nudge of the mouse (under 45 degrees) or half a block of walking does not, but looking around 45 degrees or walking a block does, /afk and /AFK work at once and survive the jiggle of closing chat, /afk is refused mid-hunt, an AFK player is never picked, force commands refuse AFK players, and respawning does not end AFK
 - the fog at every render distance from 2 to 32 chunks: always visibly closer than your normal view, never further for thicker fog, attack fog within about 12 blocks, and it eases in without popping
 - a summoned creature stays the pale crawler, a flopped one has a flat hitbox, looking for dry ground never loads a chunk, a grace period that has run out stays over, and voice snippets with no opt-in on record are deleted at start-up
 - the bite: Slowness I for 10 s on Easy; on Hard also Mauled, which cancels jumps, refuses boats and drags you out of the one you sit in, and both work again once it wears off
@@ -427,7 +438,8 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - the Protector: hits like a wooden sword and never wears out from hitting; a scare burst uses one charge, reaches the creature hunting you, and either scares it off or weakens it; you and friends next to you are feared, a far player is not; an empty sword cannot burst; recharging works one fog item at a time, only with the sword in the middle, and never takes more fog than it is missing; it cannot be enchanted or merged on an anvil (renaming works); the 3x3 sword recipe is exact
 - `/fglurk chatlearning off` forgets your messages, drops them from the Gemini context, stops learning, and survives a restart
 - the Gemini client against a fake Gemini server: falls back past missing (404), forbidden (403), refusing (400), broken (502) and rate-limited (429) models; only pauses the key when every model refuses it; retries without the thinking budget once and remembers it; stops at once on an invalid key and pauses (10 minutes, or until a key is set again); waits as long as Google asks after a rate limit; reports safety blocks and empty replies; never sends a malformed key; times out on a hung server; the key is only ever in the header; replies are cleaned of formatting codes, invisible characters and split emoji
-- hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests
+- hauntings: only the unseen ordinary torch goes out, a signed book lands in your chest once, an offline friend "joins", home tracking follows beds and chests; every jumpscare runs, and none happen with `jumpscares` off
+- villagers: a villager near it senses it and goes into hiding (the bell's signal)
 - indoors at home the watcher appears outside your roof; spotted in its real shape it flops flat
 - `/foglurker endgrace` and `/foglurker force hide|stalk|attack` work and are cheats-only; it finds tall grass, lies down with a low hitbox, drops flat when looked at while stalking, and attacks on command
 - voice snippets of a player unseen for 31 days are deleted, a player seen yesterday keeps theirs, and a mod unused for 31 days wipes everything on start

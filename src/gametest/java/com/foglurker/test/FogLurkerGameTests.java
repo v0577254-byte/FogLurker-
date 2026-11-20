@@ -562,10 +562,13 @@ public final class FogLurkerGameTests {
     }
 
     @GameTest(template = "empty", batch = "commands")
-    public static void spawnRollsEveryFiveMinutes(GameTestHelper h) {
+    public static void spawnRollsEveryTenMinutes(GameTestHelper h) {
         logged(h, () -> {
-            check(com.foglurker.config.FogLurkerConfig.COMMON.spawnRollMinutes.get() == 5, "rolls must be 5 minutes apart");
-            check(LurkerDirector.rollInterval() == 5 * 60 * 20, "roll interval in ticks");
+            // 10 minutes (a config file from before, still at the old default of 5, is moved up to 10 once).
+            check(com.foglurker.config.FogLurkerConfig.COMMON.spawnRollMinutes.get() == 10, "rolls must be 10 minutes apart, are "
+                    + com.foglurker.config.FogLurkerConfig.COMMON.spawnRollMinutes.get());
+            check(com.foglurker.config.FogLurkerConfig.COMMON.configRevision.get() >= 1, "the config should be marked as updated");
+            check(LurkerDirector.rollInterval() == 10 * 60 * 20, "roll interval in ticks");
             FogLurkerSavedData d = new FogLurkerSavedData();
             check(!d.rollSpawn(0.9, 0.5), "a 0.9 roll on a 50/50 must not spawn");
             check(d.nextIsGuaranteed(), "after a miss the next roll is guaranteed");
@@ -923,6 +926,26 @@ public final class FogLurkerGameTests {
         });
     }
 
+    // ------------------------------------------------------------------ villagers
+
+    @GameTest(template = "empty", batch = "villagers", timeoutTicks = 200)
+    public static void villagersRunInsideWhenItIsNear(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            net.minecraft.world.entity.npc.Villager near = h.spawn(net.minecraft.world.entity.EntityType.VILLAGER, 8, 1, 8);
+            FogLurkerEntity l = hunter(h, p, 14.5, 1.5);
+            // Within 32 blocks (any form): the bell's signal, so they run home and hide.
+            h.succeedWhen(() -> {
+                check(near.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HEARD_BELL_TIME).isPresent(),
+                        "the villager should have sensed it");
+                check(near.getBrain().isActive(net.minecraft.world.entity.schedule.Activity.HIDE), "the villager should be hiding");
+                l.brain().vanish(true);
+            });
+        });
+    }
+
     // ------------------------------------------------------------------ AFK
 
     @GameTest(template = "empty", batch = "afk", timeoutTicks = 400)
@@ -959,10 +982,16 @@ public final class FogLurkerGameTests {
                 com.foglurker.world.AfkTracker.onRespawn(new net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent(p, false));
                 com.foglurker.world.AfkTracker.check(p, now + wait + 60);
                 check(com.foglurker.world.AfkTracker.isAfk(p), "respawning must not end AFK");
-                // Looking around is.
-                p.setYRot(p.getYRot() + 40F);
+                // A nudge of the mouse is not "back": less than 45 degrees, even over a few seconds.
+                p.setYRot(p.getYRot() + 20F);
                 com.foglurker.world.AfkTracker.check(p, now + wait + 60);
-                check(!com.foglurker.world.AfkTracker.isAfk(p), "looking around should end AFK");
+                p.setXRot(p.getXRot() + 15F);
+                com.foglurker.world.AfkTracker.check(p, now + wait + 80);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "a nudge of the mouse (under 45 degrees) must not end AFK");
+                // Looking around is: 45 degrees or more from where they looked when they went quiet.
+                p.setYRot(p.getYRot() + 30F);
+                com.foglurker.world.AfkTracker.check(p, now + wait + 100);
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "looking around (45 degrees or more) should end AFK");
 
                 // /afk: AFK at once, and the jiggle of closing the chat does not undo it.
                 var cmds = server.getCommands().getDispatcher();
@@ -972,13 +1001,27 @@ public final class FogLurkerGameTests {
                 p.setYRot(p.getYRot() + 5F);
                 com.foglurker.world.AfkTracker.check(p, t0 + 5);
                 check(com.foglurker.world.AfkTracker.isAfk(p), "a twitch right after /afk must not undo it");
-                p.setYRot(p.getYRot() + 30F);
+                p.setYRot(p.getYRot() + 45F);
                 com.foglurker.world.AfkTracker.check(p, t0 + 60);
-                check(!com.foglurker.world.AfkTracker.isAfk(p), "moving after /afk should bring them back");
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "looking around after /afk should bring them back");
                 // /AFK works too, and typing it again comes back.
                 check(cmds.execute("AFK", p.createCommandSourceStack()) == 1 && com.foglurker.world.AfkTracker.isAfk(p), "/AFK should work");
                 check(cmds.execute("afk", p.createCommandSourceStack()) == 1 && !com.foglurker.world.AfkTracker.isAfk(p),
                         "/afk again should bring them back");
+                // Walking: half a block is a nudge; a whole block from where they stood is back.
+                check(cmds.execute("afk", p.createCommandSourceStack()) == 1 && com.foglurker.world.AfkTracker.isAfk(p),
+                        "/afk for the walking check");
+                long t1 = server.getTickCount();
+                p.hurtTime = 0;
+                p.invulnerableTime = 0;
+                p.teleportTo(p.getX() + 0.5, p.getY(), p.getZ());
+                p.setOnGround(true);
+                com.foglurker.world.AfkTracker.check(p, t1 + 60);
+                check(com.foglurker.world.AfkTracker.isAfk(p), "half a block of walking must not end AFK");
+                p.teleportTo(p.getX() + 0.6, p.getY(), p.getZ());
+                p.setOnGround(true);
+                com.foglurker.world.AfkTracker.check(p, t1 + 80);
+                check(!com.foglurker.world.AfkTracker.isAfk(p), "walking a block should end AFK");
 
                 // No hiding behind /afk once it is already after you.
                 FogLurkerEntity l = hunter(h, p, 14.5, 1.5);
@@ -2026,6 +2069,20 @@ public final class FogLurkerGameTests {
             // Sounds, the apparition request and the random picker must all run cleanly.
             check(com.foglurker.brain.Hauntings.sound(p, data, r), "sound haunting failed");
             com.foglurker.brain.Hauntings.apparition(p);
+            // Jumpscares: every one of the sudden sounds runs (seeds 0..19 cover all five), and the config switch stops them.
+            for (int seed = 0; seed < 20; seed++) {
+                check(com.foglurker.brain.Hauntings.jumpscare(p, net.minecraft.util.RandomSource.create(seed)), "jumpscare " + seed + " failed");
+            }
+            check(com.foglurker.brain.Hauntings.run(com.foglurker.brain.Hauntings.Kind.JUMPSCARE, p, data, r), "a jumpscare should run");
+            com.foglurker.config.FogLurkerConfig.COMMON.jumpscares.set(false);
+            try {
+                check(!com.foglurker.brain.Hauntings.run(com.foglurker.brain.Hauntings.Kind.JUMPSCARE, p, data, r),
+                        "with jumpscares off there must be none");
+                check(!com.foglurker.brain.Hauntings.run(com.foglurker.brain.Hauntings.Kind.FOG_SURGE, p, data, r),
+                        "with jumpscares off the fog must not rush in");
+            } finally {
+                com.foglurker.config.FogLurkerConfig.COMMON.jumpscares.set(true);
+            }
             check(com.foglurker.brain.Hauntings.haunt(p, data, r) != null, "no haunting could run");
             // Let the queued footsteps, chat line and "left the game" play out.
             h.runAfterDelay(120, h::succeed);

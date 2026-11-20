@@ -35,6 +35,8 @@ public final class FogLurkerMod {
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(this::commonSetup);
 
+        modBus.addListener((net.minecraftforge.fml.event.config.ModConfigEvent.Loading e) -> FogLurkerConfig.update(e.getConfig()));
+        modBus.addListener((net.minecraftforge.fml.event.config.ModConfigEvent.Reloading e) -> FogLurkerConfig.update(e.getConfig()));
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, FogLurkerConfig.COMMON_SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, FogLurkerConfig.CLIENT_SPEC);
     }
