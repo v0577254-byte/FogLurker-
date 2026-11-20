@@ -10,21 +10,30 @@ import net.minecraft.util.Mth;
 public final class SleepVision {
     private static final Identifier PICTURE = FogLurkerMod.id("textures/gui/sleep_paralysis.png");
     private static boolean showing;
+    /** Frames still allowed before the bed is reached (the packet can arrive a moment before you lie down). */
+    private static int waitFrames;
 
     private SleepVision() {
     }
 
     public static void show() {
         showing = true;
+        waitFrames = 120;
     }
 
     /** Drawn over the darkening sleep screen, so it is the last thing you see. */
     public static void render(GuiGraphics graphics, net.minecraft.client.DeltaTracker delta) {
         Minecraft mc = Minecraft.getInstance();
-        if (!showing || mc.player == null || !mc.player.isSleeping()) {
-            showing = showing && mc.player != null && mc.player.isSleeping();
+        if (!showing || mc.player == null) {
+            showing = false;
             return;
         }
+        if (!mc.player.isSleeping()) {
+            // Not in bed (yet): wait a moment for it, but once the sleep is over the picture goes.
+            showing = --waitFrames > 0;
+            return;
+        }
+        waitFrames = 0; // asleep now: from here on, waking up ends it
         float partialTick = delta.getGameTimeDeltaPartialTick(false);
         int width = graphics.guiWidth();
         int height = graphics.guiHeight();

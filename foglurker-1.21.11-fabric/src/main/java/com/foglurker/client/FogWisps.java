@@ -52,6 +52,7 @@ final class FogWisps {
     }
 
     private static final List<Wisp> WISPS = new ArrayList<>();
+    private static final Comparator<Wisp> FAR_FIRST = Comparator.comparingDouble((Wisp w) -> w.distSq).reversed();
     private static boolean broken;
 
     private FogWisps() {
@@ -233,7 +234,7 @@ final class FogWisps {
             double z = Mth.lerp(partialTick, w.oz, w.z) - cam.z;
             w.distSq = x * x + y * y + z * z;
         }
-        WISPS.sort(Comparator.comparingDouble((Wisp w) -> w.distSq).reversed()); // far ones first, for blending
+        WISPS.sort(FAR_FIRST); // far ones first, for blending
         // They thin out into the fog with distance like everything else does.
         float vanillaFar = Math.max(mc.gameRenderer.getRenderDistance(), 32F);
         float vanillaNear = vanillaFar - Mth.clamp(vanillaFar / 10F, 4F, 64F);

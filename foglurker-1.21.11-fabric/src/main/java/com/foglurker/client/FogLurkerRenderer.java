@@ -106,7 +106,7 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity, FogLurker
     @Override
     @SuppressWarnings("unchecked")
     public Vec3 getRenderOffset(State state) {
-        if (state.disguise != null && state.crawler == null) {
+        if (state.disguise instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState && state.crawler == null) {
             // (a crouching copy of a player sits a little lower, like the real one)
             EntityRenderer<?, EntityRenderState> renderer =
                     (EntityRenderer<?, EntityRenderState>) this.entityRenderDispatcher.getRenderer(state.disguise);
