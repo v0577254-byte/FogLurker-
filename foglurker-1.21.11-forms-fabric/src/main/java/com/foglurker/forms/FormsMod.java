@@ -30,9 +30,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * The Fog Lurker on Minecraft 1.21.11 (Fabric) as a still figure for videos, in any of its shapes: a copy of a player
- * (their skin), cow, sheep, pig, chicken, zombie, wolf, dog, or the pale crawler itself. It never moves or makes a
- * sound, and only its head turns, to look you in the eyes. {@code /foglurker spawn <type>} puts one at your feet.
+ * The Fog Lurker on Minecraft 1.21.11 (Fabric) as a still figure for videos, in any of its shapes (see {@link Form}):
+ * a copy of a player (their skin), the pale crawler itself, villagers in every job, animals, horses, golems or hostile
+ * mobs. It never moves or makes a sound, and only its head turns, to look you in the eyes.
+ * {@code /foglurker spawn <type>} puts one at your feet.
  */
 public final class FormsMod implements ModInitializer {
     public static final String MOD_ID = "foglurker";
@@ -111,8 +112,7 @@ public final class FormsMod implements ModInitializer {
         String what = switch (form) {
             case PLAYER -> "wearing " + (copied == src.getEntity() ? "your" : copied.getGameProfile().name() + "'s") + " face";
             case CRAWLER -> "as itself";
-            case DOG -> "as a dog";
-            default -> "as a " + form.id();
+            default -> "as " + form.described();
         };
         src.sendSuccess(() -> Component.literal("The Fog Lurker is here, " + what + ".").withStyle(ChatFormatting.DARK_RED), true);
         return 1;
