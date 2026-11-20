@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "foglurker",
+  "version": "${version}",
+  "name": "Fog Lurker: Forms",
+  "description": "The Fog Lurker as a still figure for videos, in any of its shapes: a copy of a player (their skin), cow, sheep, pig, chicken, zombie, wolf, dog, or the pale crawler itself. /foglurker spawn <type> puts one at your feet. It never moves or makes a sound; only its head turns, to look you in the eyes.",
+  "authors": ["FogLurker contributors"],
+  "license": "MIT",
+  "icon": "foglurker_logo.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.foglurker.forms.FormsMod"],
+    "client": ["com.foglurker.forms.client.FormsClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.20.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.11",
+    "java": ">=21"
+  }
+}

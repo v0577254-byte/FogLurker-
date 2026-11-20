@@ -1,0 +1,48 @@
+// Fog Lurker: Forms, for Minecraft 1.21.11 on Fabric: the Fog Lurker as a still figure for videos, in any of its
+// shapes (a copy of a player's skin, cow, sheep, pig, chicken, zombie, wolf, dog, or the crawler itself).
+// /foglurker spawn <type> puts one at your feet; it never moves or makes a sound, and only its head turns to you.
+// The same mod as ../foglurker-1.21.11-forms (Forge). A separate jar from the full Fabric port (../foglurker-1.21.11-fabric).
+// Gradle runs on Java 25 (Loom needs it); the mod itself is built for Java 21.
+plugins {
+    id 'fabric-loom' version '1.19.4'
+}
+
+version = project.mod_version
+group = 'com.foglurker'
+base { archivesName = 'FogLurker-Forms-1.21.11' } // -> FogLurker-Forms-1.21.11-0.1.0-fabric.jar
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+loom {
+    runs {
+        client {
+            // Dev only: ./gradlew runClient -Pshowcase  (makes a test world, spawns every type, checks, screenshots, quits)
+            if (project.hasProperty('showcase')) {
+                vmArg '-Dfoglurker.showcase=true'
+                programArgs '--width', '1280', '--height', '720'
+            }
+        }
+    }
+}
+
+// The dev showcase script never ships.
+jar { exclude 'com/foglurker/forms/dev/**' }
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand 'version': project.version }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    it.options.encoding = 'UTF-8'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}

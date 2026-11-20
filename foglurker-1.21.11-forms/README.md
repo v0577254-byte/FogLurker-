@@ -20,7 +20,7 @@ Each one spawns facing you; step back to see it. They stay after saving and relo
 
 This is its own jar, separate from the crawler-only showcase (`../foglurker-1.21.11-crawler`) and the Fabric
 port. It includes the crawler, so use it instead of the showcase jar, not alongside it (both are mod id
-`foglurker`).
+`foglurker`). The same mod for Fabric 1.21.11 is in `../foglurker-1.21.11-forms-fabric`.
 
 ## Building
 
