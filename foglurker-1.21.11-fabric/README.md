@@ -1,4 +1,4 @@
-# Fog Lurker for Minecraft 1.21.11 (Fabric) — 0.1.0 fabric beta
+# Fog Lurker for Minecraft 1.21.11 (Fabric) — 0.1.1 fabric beta
 
 The whole Fog Lurker mod (the same one as the Forge 1.20.1 version in the folder above, public line), ported to
 **Fabric** and **Minecraft 1.21.11**: the creature and its disguises, the fog and mist, hauntings, sleep paralysis,
@@ -8,7 +8,7 @@ opt-in voice snippets. Every command and config option works the same; see the m
 ## Installing
 
 1. Install **Fabric Loader 0.20.1 or newer** for Minecraft **1.21.11** (in Prism Launcher: a 1.21.11 instance with Fabric).
-2. Put **Fabric API** (0.141 or newer for 1.21.11) and `FogLurker-0.1.0-fabric-beta.jar` in `mods/`, on the server and
+2. Put **Fabric API** (0.141 or newer for 1.21.11) and `FogLurker-0.1.1-fabric-beta.jar` in `mods/`, on the server and
    every client.
 3. Optional, for voices: **Simple Voice Chat** (Fabric, 1.21.11) on the server and every client.
 
@@ -29,7 +29,7 @@ The config files are the same as on Forge: `config/foglurker-common.toml` and `c
 Gradle runs on **Java 25** (Fabric Loom needs it); the mod is built for Java 21.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-0.1.0-fabric-beta.jar
+./gradlew build               # -> build/libs/FogLurker-0.1.1-fabric-beta.jar
 ./gradlew runGametest         # all 52 in-game tests on a game-test server (build/gametest/junit.xml)
 ./gradlew runClient -Pshowcase   # dev check: makes a world, runs the commands, saves screenshots
 ```

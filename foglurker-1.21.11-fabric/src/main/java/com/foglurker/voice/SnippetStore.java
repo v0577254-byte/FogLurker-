@@ -54,9 +54,12 @@ public final class SnippetStore {
                 String name = System.currentTimeMillis() + "-" + Integer.toHexString(ThreadLocalRandom.current().nextInt()) + ".snip";
                 Path file = d.resolve(name);
                 byte[] bytes = toBytes(pcm);
-                SecureStorage.writeEncrypted(file, bytes);
-                java.util.Arrays.fill(pcm, (short) 0); // stored (encrypted): the plain copies in memory are zeroed
-                java.util.Arrays.fill(bytes, (byte) 0);
+                try {
+                    SecureStorage.writeEncrypted(file, bytes);
+                } finally {
+                    java.util.Arrays.fill(pcm, (short) 0); // stored (or failed): the plain copies in memory are zeroed
+                    java.util.Arrays.fill(bytes, (byte) 0);
+                }
                 if (!VoiceConsent.isOptedIn(player) || VoiceConsent.generation(player) != recordedUnder) {
                     Files.deleteIfExists(file); // they opted out while this was being written
                     return;

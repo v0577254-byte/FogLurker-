@@ -17,7 +17,8 @@ public final class ClientEffects {
     private static float ambient;
     private static float ambientPrev;
     /** What the server says the fog that is always there is (/foglurker fog), 0..1. */
-    private static float alwaysFog = com.foglurker.world.FogLurkerSavedData.DEFAULT_ALWAYS_FOG / 100F;
+    /** None until a server with the mod says so (a server without it never does, and leaving a world clears it). */
+    private static float alwaysFog = 0F;
 
     public static void setAlwaysFog(float level) {
         alwaysFog = Float.isNaN(level) ? 0F : Mth.clamp(level, 0F, 1F);
@@ -64,6 +65,7 @@ public final class ClientEffects {
         FogWisps.clear();
         fog = fogPrev = fogTarget = 0;
         ambient = ambientPrev = 0;
+        alwaysFog = 0F; // the next world's server says how thick its fog is
         scareTicks = 0;
         DisguiseCache.clear();
         Apparitions.clear();
