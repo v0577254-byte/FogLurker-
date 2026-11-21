@@ -2109,11 +2109,11 @@ public final class FogLurkerGameTests implements FabricGameTest {
             // A placed campfire leaves its barrel with the campfire loot in it.
             flatten(h, 24);
             var t = level.getStructureManager().get(fid("abandoned_campfire")).orElseThrow();
-            var at = rel(h, -4, 0, -4);
+            var at = rel(h, -6, 0, -6); // (13 x 13, the fire in the middle)
             t.placeInWorld(level, at, at, new net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings(),
                     level.getRandom(), 2);
             boolean found = false;
-            for (var pos : net.minecraft.core.BlockPos.betweenClosed(at, at.offset(8, 3, 8))) {
+            for (var pos : net.minecraft.core.BlockPos.betweenClosed(at, at.offset(12, 5, 12))) {
                 if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity barrel
                         && barrel.getLootTable() != null
                         && barrel.getLootTable().location().toString().equals("foglurker:chests/abandoned_campfire")) {
@@ -2121,8 +2121,8 @@ public final class FogLurkerGameTests implements FabricGameTest {
                 }
             }
             check(found, "the campfire's barrel has no loot table");
-            check(level.getBlockState(at.offset(4, 1, 4)).is(net.minecraft.world.level.block.Blocks.CAMPFIRE)
-                    && !level.getBlockState(at.offset(4, 1, 4)).getValue(net.minecraft.world.level.block.CampfireBlock.LIT),
+            check(level.getBlockState(at.offset(6, 1, 6)).is(net.minecraft.world.level.block.Blocks.CAMPFIRE)
+                    && !level.getBlockState(at.offset(6, 1, 6)).getValue(net.minecraft.world.level.block.CampfireBlock.LIT),
                     "the campfire should be there, and out");
             h.succeed();
         });

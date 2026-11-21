@@ -133,6 +133,8 @@ class Template:
 
 def to_nbt(v):
     """Python values to NBT: dict -> Compound, list -> List, bool -> Byte, int -> Int, float -> Double, str -> String."""
+    if isinstance(v, Byte):                                    # (an NBT number already: keep its type)
+        return v
     if isinstance(v, dict):
         return Compound({k: to_nbt(x) for k, x in v.items()})
     if isinstance(v, list):
@@ -146,6 +148,4 @@ def to_nbt(v):
         return Int(v)
     if isinstance(v, float):
         return Double(v)
-    if isinstance(v, Byte):
-        return v
     return String(str(v))

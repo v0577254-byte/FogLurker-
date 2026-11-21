@@ -28,6 +28,8 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity, FogLurker
         float jitterX;
         float jitterZ;
         float flop;
+        /** A copied player's offset (lower when crouching), kept through the flicker so the body doesn't jump. */
+        Vec3 offset = Vec3.ZERO;
     }
 
     public FogLurkerRenderer(EntityRendererProvider.Context ctx) {
@@ -81,6 +83,24 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity, FogLurker
         }
         // While it transforms it flickers between the stolen shape and the pale thing underneath.
         state.crawler = showTrue ? crawler.createRenderState(lurker, partialTick) : null;
+        state.offset = Vec3.ZERO;
+        if (disguise == Disguise.PLAYER) {
+            EntityRenderState copy = state.disguise;
+            if (copy == null) {
+                LivingEntity dummy = DisguiseCache.get(lurker);
+                copy = dummy == null ? null : this.entityRenderDispatcher.extractEntity(dummy, partialTick);
+            }
+            if (copy instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState) {
+                state.offset = offsetOf(copy);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Vec3 offsetOf(EntityRenderState copy) {
+        EntityRenderer<?, EntityRenderState> renderer =
+                (EntityRenderer<?, EntityRenderState>) this.entityRenderDispatcher.getRenderer(copy);
+        return renderer.getRenderOffset(copy);
     }
 
     @Override
@@ -107,15 +127,8 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity, FogLurker
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Vec3 getRenderOffset(State state) {
-        if (state.disguise instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState && state.crawler == null) {
-            // (a crouching copy of a player sits a little lower, like the real one)
-            EntityRenderer<?, EntityRenderState> renderer =
-                    (EntityRenderer<?, EntityRenderState>) this.entityRenderDispatcher.getRenderer(state.disguise);
-            return renderer.getRenderOffset(state.disguise);
-        }
-        return Vec3.ZERO;
+        return state.offset; // (a crouching copy of a player sits a little lower, like the real one)
     }
 
     @Override

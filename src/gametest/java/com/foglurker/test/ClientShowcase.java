@@ -82,6 +82,10 @@ public final class ClientShowcase {
             structuresScene(mc, server);
             return;
         }
+        if (System.getProperty("foglurker.scene", "").startsWith("wild")) {
+            wildScene(mc, server);
+            return;
+        }
         if ("newstuff".equals(System.getProperty("foglurker.scene"))) {
             newStuffScene(mc, server);
             return;
@@ -393,6 +397,114 @@ public final class ClientShowcase {
                         new net.minecraft.world.phys.Vec3(c.getX() + 0.5, lookY, c.getZ() + 0.5));
             });
             case 150 -> shot(mc, "foglurker_structure_" + name + ".png");
+            default -> {
+            }
+        }
+    }
+
+    /** Which to photograph: all six, or the ones listed in -Dfoglurker.wild=a,b (e.g. -PfoglurkerScene=wild:a,b). */
+    private static final String[] WILD = System.getProperty("foglurker.scene", "").startsWith("wild:")
+            ? System.getProperty("foglurker.scene").substring(5).split(",")
+            : new String[]{"hunters_bunker", "abandoned_campfire", "lookout_tower", "fog_well", "abandoned_castle", "fortified_castle"};
+    /** Somewhere new each run, so the land there has never been generated (an old run's buildings would be there). */
+    private static final int WILD_FROM = 40000 + new java.util.Random().nextInt(400) * 4000;
+    private static BlockPos wildAt;
+    private static net.minecraft.world.level.levelgen.structure.BoundingBox wildBox;
+    private static net.minecraft.world.level.block.Rotation wildTurn = net.minecraft.world.level.block.Rotation.NONE;
+
+    /**
+     * Each structure where world generation put it, in fresh land far from spawn (so the ground is shaped round it the
+     * way it really is: the bunker buried in its hill, the castles' ground filled in under them).
+     */
+    private static void wildScene(Minecraft mc, MinecraftServer server) {
+        if (ticks < 40) {
+            return;
+        }
+        int i = (ticks - 40) / 320;
+        int step = (ticks - 40) % 320;
+        if (i >= WILD.length) {
+            if (step == 0) {
+                mc.stop();
+            }
+            return;
+        }
+        String name = WILD[i];
+        switch (step) {
+            case 0 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                mc.options.hideGui = true;
+                level.setDayTime(6000);
+                p.setGameMode(GameType.SPECTATOR);
+                var holder = server.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
+                        .getHolderOrThrow(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE,
+                                FogLurkerMod.id(name)));
+                var found = level.getChunkSource().getGenerator().findNearestMapStructure(level,
+                        net.minecraft.core.HolderSet.direct(holder), new BlockPos(WILD_FROM + i * 3000, 64, WILD_FROM), 150, false);
+                wildAt = found == null ? null : found.getFirst();
+                wildBox = null;
+                FogLurkerMod.LOGGER.info("Showcase wild: {} found at {}", name, wildAt);
+                if (wildAt != null) {
+                    p.teleportTo(level, wildAt.getX() + 0.5, 220, wildAt.getZ() + 0.5, 0F, 90F);
+                }
+            });
+            case 120 -> server.execute(() -> {
+                if (wildAt == null) {
+                    return;
+                }
+                ServerLevel level = sp(server).serverLevel();
+                var structure = server.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
+                        .get(FogLurkerMod.id(name));
+                var start = level.getChunk(wildAt.getX() >> 4, wildAt.getZ() >> 4).getStartForStructure(structure);
+                if (start == null || !start.isValid()) {
+                    FogLurkerMod.LOGGER.info("Showcase wild: no start for {} at {}", name, wildAt);
+                    return;
+                }
+                var b = start.getBoundingBox();
+                int pad = name.equals("fog_well") ? 0 : 12;
+                wildBox = new net.minecraft.world.level.levelgen.structure.BoundingBox(b.minX() + pad, b.minY() + pad, b.minZ() + pad,
+                        b.maxX() - pad, b.maxY() - pad, b.maxZ() - pad);
+                wildTurn = start.getPieces().get(0) instanceof net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece pe
+                        ? pe.getRotation() : net.minecraft.world.level.block.Rotation.NONE;
+                for (var piece : start.getPieces()) { // make sure every piece is built before the photo
+                    var pb = piece.getBoundingBox();
+                    for (int cx = pb.minX() >> 4; cx <= pb.maxX() >> 4; cx++) {
+                        for (int cz = pb.minZ() >> 4; cz <= pb.maxZ() >> 4; cz++) {
+                            level.getChunk(cx, cz);
+                        }
+                    }
+                }
+                FogLurkerMod.LOGGER.info("Showcase wild: {} box {} turned {}", name, com.foglurker.world.FogStructures.box(wildBox), wildTurn);
+            });
+            case 140, 240 -> server.execute(() -> {
+                if (wildBox == null) {
+                    return;
+                }
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                var c = wildBox.getCenter();
+                int span = Math.max(wildBox.getXSpan(), wildBox.getZSpan());
+                double ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, c.getX(), c.getZ());
+                if (step == 140) {
+                    double back = span > 30 ? span * 0.45 + 4 : span * 0.8 + 6;
+                    double up = span > 30 ? span * 0.35 + 6 : span * 0.6 + 6;
+                    p.teleportTo(level, c.getX() - back, ground + up, c.getZ() - back, -45F, 30F);
+                    p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                            new net.minecraft.world.phys.Vec3(c.getX() + 0.5, ground + Math.min(6, wildBox.getYSpan() / 3.0), c.getZ() + 0.5));
+                } else {
+                    // The second photo from the side the way in faces (the bunker's steps, the castle's gate), low down.
+                    var out = wildTurn.rotate(net.minecraft.core.Direction.SOUTH);
+                    double d = span * 0.5 + (span > 30 ? 10 : 7);
+                    double x = c.getX() + 0.5 + out.getStepX() * d;
+                    double z = c.getZ() + 0.5 + out.getStepZ() * d;
+                    double y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) x, (int) z) + (span > 30 ? 9 : 4);
+                    p.teleportTo(level, x, y, z, 0F, 0F);
+                    p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                            new net.minecraft.world.phys.Vec3(c.getX() + 0.5, ground + 1, c.getZ() + 0.5));
+                }
+            });
+            case 230 -> shot(mc, "foglurker_wild_" + name + ".png");
+            case 315 -> shot(mc, "foglurker_wild_" + name + "_2.png");
             default -> {
             }
         }

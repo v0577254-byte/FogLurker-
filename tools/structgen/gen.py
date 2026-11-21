@@ -3,6 +3,7 @@
 usage: python gen.py <resources dir> <1.20.1|1.21.11|1.21.1> [--report]
 """
 import json
+from nbtlib.tag import Byte
 import os
 import sys
 
@@ -80,8 +81,7 @@ def entity_fix(version):
         armor = n.pop("_armor", None)
         if armor:
             if version == "1.20.1":
-                n["ArmorItems"] = [{"id": "minecraft:" + armor[0], "Count": 1}, {"id": "minecraft:" + armor[1], "Count": 1},
-                                   {"id": "minecraft:" + armor[2], "Count": 1}, {"id": "minecraft:" + armor[3], "Count": 1}]
+                n["ArmorItems"] = [{"id": "minecraft:" + a, "Count": Byte(1)} for a in armor]  # (a byte, as 1.20.1 saves it)
             elif version == "1.21.1":
                 n["ArmorItems"] = [{"id": "minecraft:" + a, "count": 1} for a in armor]
             else:
@@ -112,7 +112,7 @@ STRUCTURES = {
                          ["minecraft:dark_forest", "minecraft:plains", "#minecraft:is_taiga"]),
     "fortified_castle": ("foglurker:fortified_castle/keep", 3, "beard_thin", -5,
                          ["minecraft:plains", "minecraft:meadow", "#minecraft:is_forest"]),
-    "hunters_bunker": ("foglurker:hunters_bunker/start", 1, "bury", -6,
+    "hunters_bunker": ("foglurker:hunters_bunker/start", 1, "bury", -13,
                        ["#minecraft:is_hill", "#minecraft:is_mountain", "#minecraft:is_taiga"]),
     "fog_well": ("foglurker:fog_well/start", 1, "none", -13,
                  ["minecraft:plains", "minecraft:sunflower_plains", "#minecraft:is_taiga", "#minecraft:is_savanna"]),
