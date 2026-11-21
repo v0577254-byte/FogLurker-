@@ -9,7 +9,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
     /** 5: the sleep paralysis picture and the server's always-there fog (1.3.x). Both sides must match. */
-    private static final String VERSION = "6";
+    private static final String VERSION = "7";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             FogLurkerMod.id("main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -53,6 +53,11 @@ public final class ModNetwork {
                 .encoder(FogSurgePacket::encode)
                 .decoder(FogSurgePacket::decode)
                 .consumerMainThread(FogSurgePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(UnderBedPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(UnderBedPacket::encode)
+                .decoder(UnderBedPacket::decode)
+                .consumerMainThread(UnderBedPacket::handle)
                 .add();
     }
 

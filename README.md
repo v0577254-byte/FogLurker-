@@ -17,7 +17,8 @@ Something in the fog has been watching you play. It learns how you move and how 
 - **It kills time like them.** While it waits for you it holds the tool they use most and "mines" a block, cracks and all. Then it stops halfway, goes completely still, and stares. Before you can even see it, you may hear their voice calling from the trees.
 - **It behaves like them.** It copies their crouch-spam greeting, bunny hopping, sprint habits, idle swings, how far they stand from friends and how much they look around. All of this is learned by quietly watching each player.
 - **It lures you into the woods.** It finds the thickest tree cover nearby (away from the real friend), walks you there and waits when you fall behind. If you stop following, it gets impatient in chat.
-- **It hides among animals.** It can be a cow, sheep, pig or chicken in a real herd (or a wolf in a forest pack), or a zombie on its own. It wanders the way the real animals around you wander (it learns that too), but stares at you a little too often and creeps closer when you look away.
+- **It hides among animals and villagers.** It copies whatever is most common around you: a cow, sheep, pig, chicken, horse, donkey, llama, goat, rabbit, fox, cat or mooshroom in a real herd, or a villager in a village (any job, dressed for the biome) or a wandering trader. Wolves in forests, horses on plains, goats in the mountains. It wanders the way the real ones around you wander (it learns that too), but stares at you a little too often and creeps closer when you look away.
+- **In the dark it is a monster.** A zombie, skeleton (with its bow), creeper (silent, like a real one), spider, enderman, witch or pillager (with its crossbow), and a husk in the desert or a stray where it snows. It stalks you like one.
 - **It can be your dog.** It copies your tamed wolf's collar colour and name tag. It runs up to you, whines, then runs toward the trees and looks back, the way a dog that "found something" would.
 - **It watches.** Sometimes it is just itself, the pale crawler, crouched at the edge of your vision and staring. Look at it too long and it is gone.
 - **The fog rolls in** while it hunts you. When it reveals itself the screen shakes and you hear a heartbeat.
@@ -42,7 +43,8 @@ Between appearances (after the grace period) one player gets a small scare every
 - **The edge of your vision.** It crouches at the edge of your screen. The moment you turn to look straight at it, it is gone without a sound. (It only ever exists on your own screen.)
 - **A torch goes out.** An ordinary torch you are not looking at is put out and drops as an item. Never a soul torch.
 - **A friend who is not online.** "Alex joined the game", a line of chat in Alex's typing style, and later "Alex left the game". Alex was never there. (Check the player list.) Off when the server sets `impersonateInChat = false`.
-- **A book in your chest** (only a chest or barrel you have opened yourself, so nobody else can plant one by your bed to read it). Signed with your own name, quoting things you said in chat, and telling you where you sleep. With a Gemini key its last page is written in your own typing style. At most one every 20 minutes, only at your base.
+- **Haunted Books.** A book called "Haunted Book" (in dark red) turns up in a chest or barrel you have opened yourself, in the output slot of a furnace you used, open on an empty lectern, or on the floor right behind you (with a page turning). Inside: your name over and over, things you said in chat, how many times you have died, how many steps you have taken ("some of them were mine"), what you were holding, a tally of the nights it watched you, a name that will not stay still, and lines like "do not look under the bed" or "every chest you open, i opened first". Only a book in your own chest at your base says where you sleep (a book on the floor could be picked up by anyone). Signed with your own name, or by "the fog". With a Gemini key its last page is written in your own typing style. At most one every 4 minutes.
+- **Knocking.** Someone knocks on a door or a window near you: three knocks, two and two, slow ones, or five that wait for an answer. Sometimes again a few seconds later. Nobody is there.
 - **Jumpscares, for no reason at all** (config `jumpscares`):
   - **The fog pulls in.** Out of nowhere the fog rushes in around you within a second, something whispers right beside you in it, your heartbeat picks up, and a few seconds later it lifts again as if nothing happened.
   - **A scream right behind you**, and your view jolts (a short shake, and the screen goes dark red for a moment: never a bright flash).
@@ -52,6 +54,10 @@ Between appearances (after the grace period) one player gets a small scare every
   - **Something running past behind you**, fast, and gone.
 
 ![At the edge of your vision](docs/images/apparition_edge.jpg)
+
+## Under the bed
+
+Only while you sleep (about one sleep in three, after the grace period): a moment after you lie down, a copy of you, wearing your own skin, rises from under the foot of your bed. Only its head shows above the mattress, looking at you. One second later it is gone. It is only on your screen.
 
 ## It knows where you are
 
@@ -256,7 +262,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 
 | Command | Who | What it does |
 |---|---|---|
-| `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `zombie`, `wolf`, `crawler` (itself), `random` |
+| `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `wolf`, `horse`, `donkey`, `llama`, `goat`, `rabbit`, `fox`, `cat`, `mooshroom`, `villager`, `wandering_trader` (also `merchant`), `zombie`, `skeleton`, `creeper`, `spider`, `husk`, `stray`, `enderman`, `witch`, `pillager`, `crawler` (itself), `random` |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
 | `/foglurker endgrace` | cheats / op | Ends the grace period right now (stays ended even if you switch to a mode with a longer one). The first spawn roll comes `spawnRollMinutes` (5 by default) later |
 | `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
@@ -356,7 +362,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.5.1.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.6.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -398,7 +404,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.5.1.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.6.0.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -410,7 +416,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.5.1.jar
+./gradlew build               # -> build/libs/FogLurker-1.6.0.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

@@ -95,6 +95,7 @@ public final class ClientEffects {
         surgeTicks = 0;
         DisguiseCache.clear();
         Apparitions.clear();
+        UnderBed.clear();
     }
 
     @SubscribeEvent
@@ -152,6 +153,7 @@ public final class ClientEffects {
             DisguiseCache.cleanup(mc.level);
         }
         Apparitions.tick(mc);
+        UnderBed.tick(mc);
         // A heartbeat that gets faster and louder the closer it gets (the fog level is how close it is).
         if (fog > 0.3F && scareTicks <= 0 && FogLurkerConfig.CLIENT.screenEffects.get()) {
             if (--heartbeatIn <= 0) {

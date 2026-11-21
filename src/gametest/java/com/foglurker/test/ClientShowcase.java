@@ -78,6 +78,10 @@ public final class ClientShowcase {
             scaresScene(mc, server);
             return;
         }
+        if ("newstuff".equals(System.getProperty("foglurker.scene"))) {
+            newStuffScene(mc, server);
+            return;
+        }
         if ("keyhistory".equals(System.getProperty("foglurker.scene"))) {
             keyHistoryScene(mc);
             return;
@@ -266,6 +270,85 @@ public final class ClientShowcase {
         FogLurkerMod.LOGGER.info("Showcase: world fog shown {} frames, Fog Lurker's own fog {} frames (last second), wisps {}",
                 com.foglurker.client.DepthFog.worldFogFramesLastSecond(), com.foglurker.client.DepthFog.framesLastSecond(),
                 com.foglurker.client.DepthFog.wispCount());
+    }
+
+    private static BlockPos showcaseBed;
+
+    /**
+     * The new shapes standing in a row in daylight (villagers in their jobs, a horse, hostile mobs with their
+     * weapons), then a night in bed: for one second your own face rises from under the foot of the bed.
+     */
+    private static void newStuffScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> {
+                mc.options.hideGui = true;
+                server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    ServerLevel level = p.serverLevel();
+                    com.foglurker.brain.LurkerDirector.naturalSpawnsPaused = true;
+                    level.setDayTime(6000);
+                    p.setGameMode(GameType.CREATIVE);
+                    int y = 150;
+                    BlockPos c = new BlockPos(p.getBlockX(), y, p.getBlockZ());
+                    for (BlockPos b : BlockPos.betweenClosed(c.offset(-12, -1, -6), c.offset(12, -1, 12))) {
+                        level.setBlockAndUpdate(b, Blocks.GRASS_BLOCK.defaultBlockState());
+                    }
+                    for (BlockPos b : BlockPos.betweenClosed(c.offset(-12, 0, -6), c.offset(12, 6, 12))) {
+                        level.setBlockAndUpdate(b, Blocks.AIR.defaultBlockState());
+                    }
+                    p.teleportTo(level, c.getX() + 0.5, y, c.getZ() + 0.5 - 4, 0F, 10F); // facing +Z, the row ahead
+                    Disguise[] row = {Disguise.VILLAGER, Disguise.VILLAGER, Disguise.WANDERING_TRADER, Disguise.HORSE,
+                            Disguise.LLAMA, Disguise.SKELETON, Disguise.CREEPER, Disguise.SPIDER, Disguise.ENDERMAN,
+                            Disguise.WITCH, Disguise.PILLAGER};
+                    int[] variants = {4, 9, 0, 3, 1, 0, 0, 0, 0, 0, 0};
+                    for (int k = 0; k < row.length; k++) {
+                        FogLurkerEntity e = ModEntities.FOG_LURKER.get().create(level);
+                        e.setNoAi(true);
+                        e.setDisguise(row[k]);
+                        e.setVariant(variants[k]);
+                        double x = c.getX() + 0.5 + (k - row.length / 2) * 2.0;
+                        e.moveTo(x, y, c.getZ() + 6.5, 180F, 0F);
+                        e.setYHeadRot(180F);
+                        e.setYBodyRot(180F);
+                        level.addFreshEntity(e);
+                    }
+                    // A bed behind them, head to the south.
+                    showcaseBed = c.offset(0, 0, -9);
+                    var bed = Blocks.RED_BED.defaultBlockState()
+                            .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.NORTH);
+                    level.setBlockAndUpdate(showcaseBed, bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                            net.minecraft.world.level.block.state.properties.BedPart.HEAD));
+                    level.setBlockAndUpdate(showcaseBed.south(), bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                            net.minecraft.world.level.block.state.properties.BedPart.FOOT));
+                    FogLurkerMod.LOGGER.info("Showcase: new shapes placed");
+                });
+            }
+            case 140 -> shot(mc, "foglurker_new_shapes.png");
+            case 150 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.serverLevel().setDayTime(18000);
+                p.setGameMode(GameType.SURVIVAL);
+                var data = com.foglurker.world.FogLurkerSavedData.get(server);
+                if (data.inGrace()) {
+                    data.endGrace();
+                }
+                p.teleportTo(p.serverLevel(), showcaseBed.getX() + 0.5, showcaseBed.getY(), showcaseBed.getZ() + 0.5, 0F, 0F);
+                p.startSleeping(showcaseBed);
+            });
+            case 175 -> server.execute(() -> FogLurkerMod.LOGGER.info("Showcase: under the bed sent={}",
+                    com.foglurker.world.UnderTheBed.show(sp(server))));
+            case 178 -> {
+                FogLurkerMod.LOGGER.info("Showcase: under the bed showing={} sleeping={}",
+                        com.foglurker.client.UnderBed.showing(), mc.player.isSleeping());
+                shot(mc, "foglurker_under_bed.png");
+            }
+            case 200 -> FogLurkerMod.LOGGER.info("Showcase: under the bed after a second showing={}",
+                    com.foglurker.client.UnderBed.showing());
+            case 210 -> server.execute(() -> sp(server).stopSleeping());
+            case 230 -> mc.stop();
+            default -> {
+            }
+        }
     }
 
     /**
