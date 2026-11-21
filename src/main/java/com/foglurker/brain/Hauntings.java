@@ -532,7 +532,7 @@ public final class Hauntings {
         if (now - prof.lastBookAt < BOOK_GAP_TICKS) {
             return false;
         }
-        Placement where = pickBookSpot(level, p, prof, r, only);
+        Placement where = pickBookSpot(level, p, data, prof, r, only);
         if (where == null) {
             return false; // nowhere for one right now: let another kind of haunting happen instead
         }
@@ -567,7 +567,10 @@ public final class Hauntings {
                                 // (and they are still someone a haunting may visit: not AFK, hunted, at peace or in creative)
                                 && !p.hasDisconnected() && !com.foglurker.world.AfkTracker.isAfk(p) && !isBeingHunted(p)
                                 && LurkerDirector.leftAloneTicks(p) == 0 && !p.isCreative() && !p.isSpectator()
-                                && p.serverLevel() == level;
+                                && p.serverLevel() == level
+                                // (a floor or lectern spot only while they are still near it: they may have walked off)
+                                && (where.spot() == BookSpot.CONTAINER || where.spot() == BookSpot.FURNACE
+                                || where.pos().closerThan(p.blockPosition(), 16));
                         if (!allowed || !putBook(level, p, where, hauntedBook(author, pages))) {
                             prof.lastBookAt = previousBook;
                             count = Math.max(0, count - 1); // it was counted as a haunting, but nothing happened
@@ -587,7 +590,7 @@ public final class Hauntings {
     private static final String[] BOOK_AUTHORS = {"the fog", "???", "a friend", "you", "it", "the one behind you"};
 
     @Nullable
-    private static Placement pickBookSpot(ServerLevel level, ServerPlayer p, PlayerBehaviorProfile prof, RandomSource r,
+    private static Placement pickBookSpot(ServerLevel level, ServerPlayer p, FogLurkerSavedData data, PlayerBehaviorProfile prof, RandomSource r,
                                           @Nullable BookSpot only) {
         BlockPos at = p.blockPosition();
         String dim = level.dimension().location().toString();
@@ -601,7 +604,10 @@ public final class Hauntings {
                 chest = nearestContainer(level, home, 8, true, prof.openedContainers);
             }
             if (chest != null) {
-                options.add(new Placement(BookSpot.CONTAINER, chest, home != null && chest.closerThan(home, 16)));
+                // Where they sleep goes only in a chest by their own bed that nobody else has opened: never in a shared
+                // chest someone else could read it from.
+                boolean ownBase = home != null && chest.closerThan(home, 8) && !openedByOthers(data, p, chest);
+                options.add(new Placement(BookSpot.CONTAINER, chest, ownBase));
                 weights.add(4);
             }
         }
@@ -640,7 +646,18 @@ public final class Hauntings {
         return options.get(options.size() - 1);
     }
 
-    /** A furnace, smoker or blast furnace they used, with nothing in its output slot. */
+    /** Whether any other player has opened this container (as far as anyone's recent list goes). */
+    private static boolean openedByOthers(FogLurkerSavedData data, ServerPlayer p, BlockPos pos) {
+        long key = pos.asLong();
+        for (var e : data.profiles().entrySet()) {
+            if (!e.getKey().equals(p.getUUID()) && e.getValue().openedContainers.contains(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A furnace, smoker or blast furnace they used, idle: nothing waiting to smelt and nothing in its output slot. */
     @Nullable
     private static BlockPos nearestFurnace(ServerLevel level, BlockPos center, int range, java.util.Collection<Long> opened) {
         BlockPos best = null;
@@ -649,7 +666,7 @@ public final class Hauntings {
             BlockPos pos = BlockPos.of(key);
             if (!pos.closerThan(center, range) || !level.isLoaded(pos)
                     || !(level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity f)
-                    || !f.getItem(2).isEmpty()) {
+                    || !f.getItem(2).isEmpty() || !f.getItem(0).isEmpty()) { // (a book in the output would stall their smelting)
                 continue;
             }
             double d = pos.distSqr(center);

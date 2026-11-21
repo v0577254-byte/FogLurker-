@@ -2095,16 +2095,55 @@ public final class FogLurkerGameTests {
             MinecraftServer server = level.getServer();
             var reg = server.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
             var gen = level.getChunkSource().getGenerator();
-            // Each one assembles (the castles from all their pieces), on any terrain the generator gives it.
+            // Each one is kept off water, and assembles (the castles from all their pieces) somewhere on dry land.
+            var rs = level.getChunkSource().randomState();
             for (String n : com.foglurker.world.FogStructures.ALL) {
                 var structure = reg.getOrThrow(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, fid(n)));
-                var start = structure.value().generate(structure, level.dimension(), server.registryAccess(), gen, gen.getBiomeSource(), level.getChunkSource().randomState(),
-                        level.getStructureManager(), level.getSeed(), new net.minecraft.world.level.ChunkPos(400, 400), 0, level, b -> true);
-                check(start.isValid(), n + " did not assemble");
+                check(structure.value() instanceof com.foglurker.world.DryLandStructure, n + " is not kept off water");
+                net.minecraft.world.level.levelgen.structure.StructureStart start = null;
+                for (int k = 0; k < 80 && (start == null || !start.isValid()); k++) {
+                    var at = new net.minecraft.world.level.ChunkPos(400 + k * 9, 400 - k * 5);
+                    start = structure.value().generate(structure, level.dimension(), server.registryAccess(), gen, gen.getBiomeSource(), rs,
+                        level.getStructureManager(), level.getSeed(), at, 0, level, b -> true);
+                }
+                check(start.isValid(), n + " did not assemble anywhere on dry land");
                 int want = n.endsWith("castle") ? 6 : 1;
                 check(start.getPieces().size() >= want, n + " has " + start.getPieces().size() + " pieces, wanted " + want);
+                check(com.foglurker.world.DryLandStructure.onDryLand(gen, level, rs, start.getPieces()), n + " was laid out over water");
                 com.foglurker.FogLurkerMod.LOGGER.info("Structure {} assembled from {} pieces, {}", n, start.getPieces().size(),
                         com.foglurker.world.FogStructures.box(start.getBoundingBox()));
+            }
+            // Out at sea none of them is ever built: find open water (everything within 48 blocks of a chunk's corner,
+            // where a structure starts, is water) and try each one there.
+            net.minecraft.world.level.ChunkPos sea = null;
+            for (int r = 0; r <= 160 && sea == null; r += 4) {
+                for (int dx = -r; dx <= r && sea == null; dx += 4) {
+                    for (int dz = -r; dz <= r && sea == null; dz += 4) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                            continue; // (one ring at a time, nearest first)
+                        }
+                        boolean open = true;
+                        for (int ox = -48; ox <= 48 && open; ox += 24) {
+                            for (int oz = -48; oz <= 48 && open; oz += 24) {
+                                open = com.foglurker.world.DryLandStructure.wetAt(gen, level, rs, dx * 16 + ox, dz * 16 + oz);
+                            }
+                        }
+                        if (open) {
+                            sea = new net.minecraft.world.level.ChunkPos(dx, dz);
+                        }
+                    }
+                }
+            }
+            if (sea == null) {
+                com.foglurker.FogLurkerMod.LOGGER.info("No open water within 2500 blocks of the middle of the test world: sea check skipped");
+            } else {
+                for (String n : com.foglurker.world.FogStructures.ALL) {
+                    var structure = reg.getOrThrow(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, fid(n)));
+                    var start = structure.value().generate(structure, level.dimension(), server.registryAccess(), gen, gen.getBiomeSource(), rs,
+                        level.getStructureManager(), level.getSeed(), sea, 0, level, b -> true);
+                    check(!start.isValid(), n + " was built out at sea, at chunk " + sea);
+                }
+                com.foglurker.FogLurkerMod.LOGGER.info("None of the structures is built out at sea (chunk {})", sea);
             }
             // A placed campfire leaves its barrel with the campfire loot in it.
             flatten(h, 24);
@@ -2647,8 +2686,21 @@ public final class FogLurkerGameTests {
             VoiceConsent.optIn(active);
             SnippetStore.saveAsync(gone, pcm.clone());
             SnippetStore.saveAsync(active, pcm.clone());
-            h.runAfterDelay(30, () -> logged(h, () -> {
-                check(SnippetStore.count(gone) == 1 && SnippetStore.count(active) == 1, "snippets were not saved");
+            // (Saving runs on another thread: on a busy machine give it up to 7.5 seconds. All the checks are
+            // scheduled here, up front, and the first one that finds both saved runs the rest.)
+            boolean[] ran = {false};
+            for (int wait = 30; wait <= 150; wait += 30) {
+                final boolean last = wait == 150;
+                h.runAfterDelay(wait, () -> logged(h, () -> {
+                if (ran[0]) {
+                    return;
+                }
+                boolean saved = SnippetStore.count(gone) == 1 && SnippetStore.count(active) == 1;
+                if (!saved && !last) {
+                    return;
+                }
+                ran[0] = true;
+                check(saved, "snippets were not saved");
                 // "gone" removed the mod 31 days ago and never came back; "active" played yesterday.
                 VoiceConsent.touch(gone, now - 31 * day);
                 VoiceConsent.touch(active, now - day);
@@ -2693,6 +2745,7 @@ public final class FogLurkerGameTests {
                 check(note.contains("safe") || note.contains("delete it"), "the folder note is missing");
                 h.succeed();
             }));
+            }
         });
     }
 

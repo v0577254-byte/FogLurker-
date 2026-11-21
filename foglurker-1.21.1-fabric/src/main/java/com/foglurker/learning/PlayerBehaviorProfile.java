@@ -92,9 +92,9 @@ public final class PlayerBehaviorProfile {
         }
     }
 
-    /** Seen in the last 30 days (or not known): someone a fake "friend" line can name. */
+    /** Seen in the last 30 days: someone a fake "friend" line can name. (Not known, from an old save: not until they are back.) */
     public boolean recentlySeen(long nowMillis) {
-        return lastSeenMillis == 0 || nowMillis - lastSeenMillis < 30L * 24 * 60 * 60 * 1000;
+        return lastSeenMillis != 0 && nowMillis - lastSeenMillis < 30L * 24 * 60 * 60 * 1000;
     }
 
     public net.minecraft.core.BlockPos home() {

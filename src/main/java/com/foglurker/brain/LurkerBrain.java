@@ -445,7 +445,11 @@ public final class LurkerBrain {
 
     private void stalk(ServerPlayer t, double dist) {
         fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
-        watchProgress(t, dist);
+        // (Not for the shapes that keep their distance or wander on purpose: for them standing off is not being stuck.
+        // Their 90 seconds still run out.)
+        if (!(enc.mode() == Mode.ZOMBIE && keepsItsDistance(mob.getDisguise()))) {
+            watchProgress(t, dist);
+        }
         if (ended) {
             return; // it gave up on this one (watchProgress)
         }
@@ -850,8 +854,10 @@ public final class LurkerBrain {
             if (dist < herdBest - 1) {
                 herdBest = dist;
                 herdProgressAt = age;
-            } else if (age - herdProgressAt > 20 * 60 && dist > 10) {
-                vanish(false); // a minute without getting any closer (water or a wall between): it gives up
+            } else if (age - herdProgressAt > 20 * 60 && dist > 5) {
+                // A minute without getting any closer (water or a wall between, or you keep it in sight just out of
+                // reach): it gives up rather than standing there for the rest of the visit.
+                vanish(false);
                 return;
             }
             boolean backTurned = !lookedAtNow && t.getViewVector(1F).dot(mob.position().subtract(t.position()).normalize()) < 0;
@@ -903,6 +909,12 @@ public final class LurkerBrain {
      * and witches keep their distance and circle you, spiders are quick, a creeper walks up without a sound and hisses
      * before it shows what it really is, and an enderman wanders and only comes for you once you look at it.
      */
+    /** Hostile shapes that hang back (archers, witches) or wander (endermen) instead of walking straight at you. */
+    private static boolean keepsItsDistance(Disguise d) {
+        return d == Disguise.SKELETON || d == Disguise.STRAY || d == Disguise.PILLAGER || d == Disguise.WITCH
+                || d == Disguise.ENDERMAN;
+    }
+
     private void hostile(ServerPlayer t, double dist) {
         Disguise d = mob.getDisguise();
         boolean attack = enc.willAttack() && canAttack(t);

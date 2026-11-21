@@ -62,7 +62,9 @@ public final class UnderTheBed {
         FogLurkerSavedData data = FogLurkerSavedData.get(p.level().getServer());
         return FogLurkerConfig.COMMON.hauntings.get() && data.naturalSpawning() && !data.inGrace()
                 && !data.restingAt(p.level().getServer().overworld().getGameTime())
-                && !p.isCreative() && !p.isSpectator() && LurkerDirector.leftAloneTicks(p) == 0;
+                && !p.isCreative() && !p.isSpectator() && LurkerDirector.leftAloneTicks(p) == 0
+                // like every other haunting: not while it is hunting them, and not while they are AFK
+                && !LurkerDirector.isHunted(p.getUUID()) && !com.foglurker.world.AfkTracker.isAfk(p);
     }
 
     /** Sends it, if they are still asleep and this is not a sleep paralysis night. Public for the game tests. */

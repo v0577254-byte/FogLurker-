@@ -148,7 +148,9 @@ def worldgen(res, version):
              "max_distance_from_center": 80, "use_expansion_hack": False}
         if name == "hunters_bunker":
             s["step"] = "underground_structures"
-        write_json(os.path.join(d, "worldgen", "structure", name + ".json"), s)
+        # Wrapped so it is never built on water: the mod's "dry_land" type lays the jigsaw out, then refuses the spot
+        # if any of its pieces (or the ground a few blocks round them) is under water.
+        write_json(os.path.join(d, "worldgen", "structure", name + ".json"), {"type": "foglurker:dry_land", "structure": s})
         write_json(os.path.join(d, "tags", "worldgen", "biome", "has_structure", name + ".json"),
                    {"replace": False, "values": biomes})
     for name in ("lookout_tower", "abandoned_campfire", "hunters_bunker", "fog_well"):

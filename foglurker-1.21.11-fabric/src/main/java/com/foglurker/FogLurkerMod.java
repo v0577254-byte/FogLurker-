@@ -33,6 +33,7 @@ public final class FogLurkerMod implements ModInitializer {
         ModSounds.register();
         ModEffects.register();
         ModEntities.register();
+        com.foglurker.world.DryLandStructure.register();
         ModItems.register();
         ModNetwork.register();
         ServerLifecycleEvents.SERVER_STARTING.register(s -> server = s);

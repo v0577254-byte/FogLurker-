@@ -349,9 +349,15 @@ public final class BehaviorTracker {
     }
 
     /** Remembers which storage blocks a player opens with their own hands (a book only ever goes in one of those). */
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST) // (after claim mods have had their say: a refused click opens nothing)
     public static void onUseBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
-        var be = event.getEntity().level().getBlockEntity(event.getPos());
+        Player who = event.getEntity();
+        // A click that does not open it: refused, or sneaking with something in hand (that places or uses the item).
+        if (event.isCanceled() || event.getUseBlock() == net.minecraftforge.eventbus.api.Event.Result.DENY
+                || (who.isSecondaryUseActive() && !(who.getMainHandItem().isEmpty() && who.getOffhandItem().isEmpty()))) {
+            return;
+        }
+        var be = who.level().getBlockEntity(event.getPos());
         // Only storage and furnaces (where a book can go): hoppers and dispensers must not push their chests out of the list.
         if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)
                 && (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity

@@ -61,7 +61,7 @@ Only while you sleep (about one sleep in three, after the grace period): a momen
 
 ## Structures
 
-Six places in the world belong to it. Their chests hold the mod's own items.
+Six places in the world belong to it. Their chests hold the mod's own items. **None of them is ever built on water:** before one is built, the ground under every part of it (and 3 blocks round) is checked, and if any of it is sea, river or lake, it is built somewhere else instead.
 
 | Structure | Where | What is there |
 | --- | --- | --- |
@@ -285,7 +285,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 |---|---|---|
 | `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `wolf`, `horse`, `donkey`, `llama`, `goat`, `rabbit`, `fox`, `cat`, `mooshroom`, `villager`, `wandering_trader` (also `merchant`), `zombie`, `skeleton`, `creeper`, `spider`, `husk`, `stray`, `enderman`, `witch`, `pillager`, `crawler` (itself), `random` |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
-| `/foglurker endgrace` | cheats / op | Ends the grace period right now (stays ended even if you switch to a mode with a longer one). The first spawn roll comes `spawnRollMinutes` (5 by default) later |
+| `/foglurker endgrace` | cheats / op | Ends the grace period right now (stays ended even if you switch to a mode with a longer one). The first spawn roll comes `spawnRollMinutes` (10 by default) later |
 | `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
 | `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
 | `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
@@ -383,7 +383,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.6.0.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.6.1.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -425,7 +425,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.6.0.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.6.1.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -437,7 +437,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.6.0.jar
+./gradlew build               # -> build/libs/FogLurker-1.6.1.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

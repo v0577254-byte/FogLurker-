@@ -31,6 +31,7 @@ public final class FogLurkerMod {
         com.foglurker.registry.ModEffects.EFFECTS.register(modBus);
         com.foglurker.registry.ModItems.ITEMS.register(modBus);
         com.foglurker.registry.ModItems.RECIPES.register(modBus);
+        com.foglurker.world.DryLandStructure.TYPES.register(modBus);
         modBus.addListener(com.foglurker.registry.ModItems::addToCreativeTabs);
         modBus.addListener(ModEntities::registerAttributes);
         modBus.addListener(this::commonSetup);

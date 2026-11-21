@@ -932,7 +932,8 @@ public final class LurkerDirector {
         int[] counts = new int[Disguise.values().length];
         for (Mob m : mobs) {
             Disguise d = Disguise.of(m);
-            if (d != null && d != Disguise.DOG && d.isPassive()) {
+            // (a villager only counts in a village: a copy of one never turns up out in the woods)
+            if (d != null && d != Disguise.DOG && d.isPassive() && (d != Disguise.VILLAGER || level.isVillage(m.blockPosition()))) {
                 counts[d.ordinal()]++;
             }
         }
