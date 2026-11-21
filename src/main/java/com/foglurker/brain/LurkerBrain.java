@@ -286,6 +286,7 @@ public final class LurkerBrain {
     private void setPhase(Phase p) {
         phase = p;
         phaseAge = 0;
+        mob.setFlag(FogLurkerEntity.FLAG_GRAZING, false); // a sheep never keeps its head down into the next phase
         if (p == Phase.FLEE) {
             mob.setFlag(FogLurkerEntity.FLAG_SITTING, false); // a dog interrupted mid-greeting runs, not sits
         }
@@ -445,6 +446,9 @@ public final class LurkerBrain {
     private void stalk(ServerPlayer t, double dist) {
         fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         watchProgress(t, dist);
+        if (ended) {
+            return; // it gave up on this one (watchProgress)
+        }
         double speed = switch (enc.mode()) {
             case DOG -> speedFor(5.0);
             case ZOMBIE -> speedFor(2.3);
@@ -459,6 +463,13 @@ public final class LurkerBrain {
             goTo(t, speed);
         }
         if (enc.mode() == Mode.ZOMBIE) {
+            Disguise shape = mob.getDisguise();
+            if (shape == Disguise.ENDERMAN || shape == Disguise.CREEPER) {
+                if (phaseAge > 20 * 90) {
+                    vanish(false);
+                }
+                return; // they reveal themselves their own way (a stare, a hiss)
+            }
             if (phaseAge > 20 * 90) {
                 vanish(false); // even standing right next to someone in soul fire or water, it gives up eventually
             } else if (revealDistance(t, dist) < 3.0) {
@@ -486,6 +497,9 @@ public final class LurkerBrain {
     private void approach(ServerPlayer t, double dist) {
         fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         watchProgress(t, dist);
+        if (ended) {
+            return;
+        }
         if (dist < 10) {
             stare(t);
         }
@@ -776,6 +790,9 @@ public final class LurkerBrain {
     private int glanceUntil;
     /** Until this tick a sheep copy keeps its head down, eating. */
     private int grazeUntil;
+    /** The closest an attacking herd copy has got, and when. */
+    private double herdBest = Double.MAX_VALUE;
+    private int herdProgressAt;
 
     /**
      * A stolen animal or villager shape behaves like the real one: it wanders a few blocks, stands about, looks around,
@@ -824,6 +841,13 @@ public final class LurkerBrain {
         }
 
         if (enc.willAttack() && canAttack(t)) {
+            if (dist < herdBest - 1) {
+                herdBest = dist;
+                herdProgressAt = age;
+            } else if (age - herdProgressAt > 20 * 60 && dist > 10) {
+                vanish(false); // a minute without getting any closer (water or a wall between): it gives up
+                return;
+            }
             boolean backTurned = !lookedAtNow && t.getViewVector(1F).dot(mob.position().subtract(t.position()).normalize()) < 0;
             double near = revealDistance(t, dist);
             if ((near < 5 || (near < 10 && backTurned && phaseAge > 20 * 20 && isolated(t))) && canRevealNow(t)) {
@@ -863,6 +887,10 @@ public final class LurkerBrain {
     private int strafeSince = -1000;
     /** How long the player has been looking at an enderman shape. */
     private int staredAt;
+    /** When a creeper shape hissed (-1: not yet). */
+    private int hissedAt = -1;
+    /** A ranged shape was still walking in from further than 14 blocks. */
+    private boolean wasFar = true;
 
     /**
      * A stolen hostile shape moves like that mob: zombies and husks walk straight at you, skeletons, strays, pillagers
@@ -879,6 +907,11 @@ public final class LurkerBrain {
                 // Keeps 8 to 14 blocks away and side-steps around you, like it is lining up a shot.
                 if (dist > 14) {
                     goTo(t, speedFor(2.4));
+                    wasFar = true;
+                } else if (wasFar) {
+                    wasFar = false;
+                    halt(); // in range: stop walking at them and hold here
+                    strafeSince = age;
                 } else if (dist < 7) {
                     Vec3 away = mob.position().subtract(t.position()).multiply(1, 0, 1).normalize();
                     goTo(mob.position().add(away.scale(4)), speedFor(2.8));
@@ -893,16 +926,20 @@ public final class LurkerBrain {
                 }
             }
             case CREEPER -> {
-                goTo(t, speedFor(2.4));
                 stare(t);
-                if (revealDistance(t, dist) < 3.0) {
+                if (hissedAt < 0) {
+                    goTo(t, speedFor(2.4));
+                }
+                if (hissedAt < 0 && revealDistance(t, dist) < 3.0) {
+                    hissedAt = age;
+                    halt();
                     mob.playSound(SoundEvents.CREEPER_PRIMED, 1.0F, 0.5F); // the hiss... and then it is not a creeper
-                    if (attack) {
-                        if (canRevealNow(t)) {
-                            setPhase(Phase.TRANSFORM);
-                        }
-                    } else {
-                        vanish(false);
+                }
+                if (hissedAt >= 0 && age - hissedAt >= 15) {
+                    if (attack && canRevealNow(t)) {
+                        setPhase(Phase.TRANSFORM);
+                    } else if (!attack || age - hissedAt > 60) {
+                        vanish(false); // it cannot get at them (water, soul fire): gone instead of hissing forever
                     }
                 }
             }
@@ -925,9 +962,13 @@ public final class LurkerBrain {
                     staredAt = 0;
                     if (wanderTarget == null || mob.getNavigation().isDone() || age - wanderSince > 200) {
                         wanderSince = age;
-                        wanderTarget = herdStep(t, dist, false);
+                        Vec3 step = herdStep(t, dist, false);
+                        BlockPos g = SpotFinder.ground(level(), Mth.floor(step.x), Mth.floor(step.z), mob.getBlockY());
+                        wanderTarget = g == null ? null : Vec3.atBottomCenterOf(g);
                     }
-                    goTo(wanderTarget, speedFor(2.0));
+                    if (wanderTarget != null) {
+                        goTo(wanderTarget, speedFor(2.0));
+                    }
                 }
             }
             case SPIDER -> {
@@ -948,6 +989,15 @@ public final class LurkerBrain {
     private Vec3 lookAround;
     private int lookAroundUntil;
 
+    /**
+     * The chance each tick to start a glance, so that with 2-4 s glances it spends the same share of its time looking at
+     * players as the real ones it learned from: f / (D (1 - f)) for a share f and a mean glance of D ticks.
+     */
+    private float glanceChance() {
+        float f = Mth.clamp(animalStats.lookAtPlayer, 0F, 0.6F);
+        return f / (60F * (1F - f));
+    }
+
     /** Glances, looking around: what the real animal or villager does with its head. */
     private void behaveLikeTheRealOne(ServerPlayer t, double dist) {
         if (phaseAge == 1) {
@@ -959,8 +1009,8 @@ public final class LurkerBrain {
         }
         if (age < glanceUntil) {
             stare(t);
-        } else if (dist < 16 && random.nextFloat() < Mth.clamp(animalStats.lookAtPlayer, 0.02F, 0.6F) / 50F) {
-            glanceUntil = age + 30 + random.nextInt(40);
+        } else if (dist < 16 && random.nextFloat() < glanceChance()) {
+            glanceUntil = age + 40 + random.nextInt(41); // 2 to 4 seconds
         } else if (lookAround != null && age < lookAroundUntil) {
             mob.getLookControl().setLookAt(lookAround.x, lookAround.y, lookAround.z);
         } else if (random.nextInt(80) == 0) {

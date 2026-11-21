@@ -148,6 +148,30 @@
           "weight": 1
         }
       ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:foggy_stick",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:fog_of_the_day",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:fog_of_the_night",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:empty",
+          "weight": 94
+        }
+      ]
     }
   ]
 }

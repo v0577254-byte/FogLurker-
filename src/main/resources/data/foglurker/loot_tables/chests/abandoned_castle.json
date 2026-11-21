@@ -163,6 +163,40 @@
           ]
         }
       ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:ingot_of_the_fog",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:teeth_of_the_lurker",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:protector_of_the_fog",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_damage",
+              "damage": {
+                "type": "minecraft:uniform",
+                "min": 0.15,
+                "max": 0.4
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:empty",
+          "weight": 94
+        }
+      ]
     }
   ]
 }

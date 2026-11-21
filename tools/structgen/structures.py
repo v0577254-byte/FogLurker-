@@ -17,37 +17,49 @@ def pick(t, *weighted):
 
 # ===================================================================== lookout tower
 def lookout_tower():
-    t = Template(7, 21, 7, seed=11)
+    """A spindly ranger's tower: legs splayed at the foot, cross-braced, a ladder up the middle, a cabin on a deck."""
+    t = Template(9, 23, 9, seed=11)
     log_y = {"axis": "y"}
-    for x, z in ((0, 0), (6, 0), (0, 6), (6, 6)):
-        for y in range(0, 14):
-            t.set(x, y, z, "spruce_log", log_y)
+    stair = lambda f: {"facing": f, "half": "bottom", "shape": "straight", "waterlogged": "false"}
+    # legs: splayed out at the bottom, straight from y 5
+    for (x0, z0, x1, z1) in ((0, 0, 1, 1), (8, 0, 7, 1), (0, 8, 1, 7), (8, 8, 7, 7)):
+        for y in range(0, 5):
+            t.set(x0, y, z0, "spruce_log", log_y)
+        t.set(x0 + (1 if x1 > x0 else -1) * 0, 4, z0, "spruce_log", log_y)
+        t.set(x1, 4, z0 if False else z1, "spruce_log", log_y)
+        for y in range(5, 15):
+            t.set(x1, y, z1, "spruce_log", log_y)
     for y in range(0, 14):
-        t.set(3, y, 3, "stripped_spruce_log", log_y)          # the ladder pole
+        t.set(4, y, 4, "stripped_spruce_log", log_y)          # the ladder pole
     for y in range(1, 15):
-        t.set(3, y, 2, "ladder", {"facing": "north", "waterlogged": "false"})
-    for y in (5, 10):                                          # cross-bracing rails
-        for i in range(1, 6):
-            for (x, z) in ((i, 0), (i, 6), (0, i), (6, i)):
+        t.set(4, y, 3, "ladder", {"facing": "north", "waterlogged": "false"})
+    for y in (6, 11):                                          # cross-bracing rails
+        for i in range(2, 7):
+            for (x, z) in ((i, 1), (i, 7), (1, i), (7, i)):
                 t.set(x, y, z, "spruce_fence")
-    # observation deck floor (a few planks rotted away) and railing
-    for x in range(7):
-        for z in range(7):
-            if (x, z) == (3, 2):
+    for y in (3,):                                             # a low rail between the splayed feet
+        for i in range(1, 8):
+            for (x, z) in ((i, 0), (i, 8), (0, i), (8, i)):
+                if t.get(x, y, z) is None:
+                    t.set(x, y, z, "spruce_fence")
+    # deck (some planks rotted away), railing, and the cabin
+    for x in range(9):
+        for z in range(9):
+            if (x, z) == (4, 3):
                 continue  # the ladder hole
-            inner = 1 <= x <= 5 and 1 <= z <= 5
-            if inner or t.rng.random() < 0.55:
+            inner = 2 <= x <= 6 and 2 <= z <= 6
+            if inner or t.rng.random() < 0.7:
                 t.set(x, 14, z, "spruce_planks")
-    for i in range(7):
-        for (x, z) in ((i, 0), (i, 6), (0, i), (6, i)):
+    for i in range(9):
+        for (x, z) in ((i, 0), (i, 8), (0, i), (8, i)):
             t.set(x, 15, z, "spruce_fence")
-    # the cabin: 5x5, log corners, plank walls, windows on every side (some broken)
-    for x, z in ((1, 1), (5, 1), (1, 5), (5, 5)):
+    t.remove(4, 15, 8)                                         # the gap in the railing by the door
+    for x, z in ((2, 2), (6, 2), (2, 6), (6, 6)):
         for y in range(15, 18):
             t.set(x, y, z, "stripped_spruce_log", log_y)
     windows = []
-    for i in range(2, 5):
-        for (x, z) in ((i, 1), (i, 5), (1, i), (5, i)):
+    for i in range(3, 6):
+        for (x, z) in ((i, 2), (i, 6), (2, i), (6, i)):
             for y in range(15, 18):
                 if y == 16:
                     windows.append((x, y, z))
@@ -55,34 +67,41 @@ def lookout_tower():
                     t.set(x, y, z, "spruce_planks")
     t.rng.shuffle(windows)
     for k, (x, y, z) in enumerate(windows):
-        if k < 2:
-            t.set(x, y, z, "air")                              # smashed
-        elif k < 5:
-            t.set(x, y, z, "iron_bars")
-        else:
-            t.set(x, y, z, "glass_pane")
-    t.air(2, 15, 2, 4, 17, 4)
-    # pitched roof, dark oak, ridge running east-west
-    for x in range(7):
-        t.set(x, 18, 0, "dark_oak_stairs", {"facing": "south", "half": "bottom", "shape": "straight", "waterlogged": "false"})
-        t.set(x, 18, 6, "dark_oak_stairs", {"facing": "north", "half": "bottom", "shape": "straight", "waterlogged": "false"})
-        t.set(x, 19, 1, "dark_oak_stairs", {"facing": "south", "half": "bottom", "shape": "straight", "waterlogged": "false"})
-        t.set(x, 19, 5, "dark_oak_stairs", {"facing": "north", "half": "bottom", "shape": "straight", "waterlogged": "false"})
-        for z in (2, 3, 4):
-            t.set(x, 20, z, "spruce_slab", {"type": "bottom", "waterlogged": "false"})
-    for z in range(1, 6):                                      # gable trim
-        t.set(1, 18, z, "dark_oak_planks")
-        t.set(5, 18, z, "dark_oak_planks")
-    t.air(2, 18, 1, 4, 19, 5)
-    for x in (2, 3, 4):                                        # re-close the roof above the cabin
-        t.set(x, 18, 1, "spruce_planks")
-        t.set(x, 18, 5, "spruce_planks")
-    # props: a lantern, the "radio", a bed, the ranger's chest
-    t.bed(2, 15, 3, "south", "red")
-    t.chest(4, 15, 4, LOOT + "lookout_tower", facing="west")
-    t.set(3, 15, 4, "lantern", {"hanging": "false", "waterlogged": "false"})
-    t.set(4, 15, 3, "note_block", {"instrument": "harp", "note": "0", "powered": "false"})
-    t.set(4, 16, 3, "observer", {"facing": "west", "powered": "false"})
+        t.set(x, y, z, "air" if k < 2 else "iron_bars" if k < 5 else "glass_pane")
+    t.air(3, 15, 3, 5, 17, 5)
+    t.set(4, 15, 6, "spruce_door", {"facing": "south", "half": "lower", "hinge": "left", "open": "false", "powered": "false"})
+    t.set(4, 16, 6, "spruce_door", {"facing": "south", "half": "upper", "hinge": "left", "open": "false", "powered": "false"})
+    for (x, z, f) in ((3, 1, "north"), (5, 1, "north"), (1, 3, "west"), (7, 5, "east"), (1, 5, "west")):   # shutters
+        t.set(x, 16, z, "spruce_trapdoor", {"facing": f, "half": "top", "open": "true", "powered": "false", "waterlogged": "false"})
+    for x in range(3, 6):                                      # flat ceiling inside, to hang the lantern
+        for z in range(3, 6):
+            t.set(x, 18, z, "spruce_planks")
+    # pitched roof, dark oak, ridge running east-west, gables filled
+    for x in range(1, 8):
+        t.set(x, 18, 1, "dark_oak_stairs", stair("south"))
+        t.set(x, 18, 7, "dark_oak_stairs", stair("north"))
+        t.set(x, 19, 2, "dark_oak_stairs", stair("south"))
+        t.set(x, 19, 6, "dark_oak_stairs", stair("north"))
+        t.set(x, 20, 3, "dark_oak_stairs", stair("south"))
+        t.set(x, 20, 5, "dark_oak_stairs", stair("north"))
+        t.set(x, 21, 4, "dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+    for x in (2, 6):
+        for (y, zs) in ((18, range(2, 7)), (19, range(3, 6)), (20, (4,))):
+            for z in zs:
+                if t.get(x, y, z) is None:
+                    t.set(x, y, z, "dark_oak_planks")
+    for x in (0, 8):                                           # eaves
+        t.set(x, 18, 1, "dark_oak_slab", {"type": "top", "waterlogged": "false"})
+        t.set(x, 18, 7, "dark_oak_slab", {"type": "top", "waterlogged": "false"})
+    # inside: a bed, the chest, the ranger's maps, the "radio", a lantern, a web in the corner
+    t.bed(3, 15, 4, "south", "red")
+    t.chest(5, 15, 5, LOOT + "lookout_tower", facing="west")
+    t.set(3, 15, 3, "cartography_table")
+    t.set(5, 15, 3, "note_block", {"instrument": "harp", "note": "0", "powered": "false"})
+    t.set(5, 16, 3, "observer", {"facing": "west", "powered": "false"})
+    t.set(4, 17, 4, "lantern", {"hanging": "true", "waterlogged": "false"})
+    t.set(3, 17, 5, "cobweb")
+    t.set(5, 17, 3, "cobweb")
     return t
 
 
@@ -124,6 +143,16 @@ def abandoned_campfire():
     # the ward ring someone never finished
     t.set(2, 1, 1, "soul_lantern", {"hanging": "false", "waterlogged": "false"})
     t.set(0, 1, 3, "soul_torch")
+    # a woodpile, a pot left by the fire, a chopping block, a cracked jar, moss creeping in
+    for (x, y, z) in ((0, 1, 7), (0, 1, 8), (1, 1, 8), (0, 2, 8)):
+        t.set(x, y, z, "spruce_log", {"axis": "z"})
+    t.set(3, 1, 4, "cauldron")
+    t.set(6, 1, 1, "stripped_spruce_log", {"axis": "y"})
+    t.set(2, 1, 5, "decorated_pot", {"facing": "north", "cracked": "true", "waterlogged": "false"})
+    for (x, z) in ((1, 2), (7, 6), (2, 7), (6, 0), (8, 4), (3, 7)):
+        if t.get(x, 1, z) in (None, "minecraft:air"):
+            t.set(x, 1, z, "moss_carpet")
+    t.set(6, 3, 6, "cobweb")
     return t
 
 
@@ -165,6 +194,19 @@ def hunters_bunker():
     t.set(8, 2, 7, "lantern", {"hanging": "false", "waterlogged": "false"})
     t.bed(2, 1, 5, "south", "brown")
     t.chest(5, 1, 1, LOOT + "hunters_bunker", barrel=True)
+    # beams under the ceiling, a ward lantern, books, a trophy, supplies, a door
+    for x in range(1, 10):
+        t.set(x, 4, 5, "stripped_spruce_log", {"axis": "x"})
+    t.set(5, 3, 5, "soul_lantern", {"hanging": "true", "waterlogged": "false"})
+    for (x, y, z) in ((1, 1, 7), (1, 2, 7), (1, 1, 8), (1, 2, 8)):
+        t.set(x, y, z, "bookshelf")
+    t.set(9, 4, 4, "skeleton_skull", {"rotation": "12"})
+    t.set(9, 1, 3, "barrel", {"facing": "up", "open": "false"})
+    t.set(9, 1, 4, "barrel", {"facing": "west", "open": "false"})
+    t.set(4, 1, 1, "hay_block", {"axis": "y"})
+    t.set(6, 1, 1, "composter", {"level": "0"})
+    t.set(5, 1, 10, "spruce_door", {"facing": "south", "half": "lower", "hinge": "left", "open": "true", "powered": "false"})
+    t.set(5, 2, 10, "spruce_door", {"facing": "south", "half": "upper", "hinge": "left", "open": "true", "powered": "false"})
     # the way in: a trench of steps up to the surface (the hillside covers the rest)
     for k in range(1, 7):
         z = 10 + k
@@ -175,7 +217,7 @@ def hunters_bunker():
 
 # ===================================================================== fog well
 def fog_well(village=False):
-    t = Template(7, 18, 7, seed=44)
+    t = Template(7, 19, 7, seed=44)
     # the hidden chamber at the bottom
     t.air(1, 1, 1, 5, 3, 5)
     for x in range(1, 6):
@@ -215,9 +257,24 @@ def fog_well(village=False):
     for (x, z) in ((2, 2), (4, 2), (2, 4), (4, 4)):
         t.set(x, 15, z, "spruce_fence")
         t.set(x, 16, z, "spruce_fence")
-    for (x, z) in ((2, 2), (3, 2), (4, 2), (2, 3), (3, 3), (4, 4), (3, 4)):
-        t.set(x, 17, z, "spruce_planks")
-    t.remove(4, 17, 2)
+    for x in range(1, 6):                                      # a little pitched roof, one shingle gone
+        t.set(x, 17, 1, "spruce_stairs", {"facing": "south", "half": "bottom", "shape": "straight", "waterlogged": "false"})
+        t.set(x, 17, 5, "spruce_stairs", {"facing": "north", "half": "bottom", "shape": "straight", "waterlogged": "false"})
+        t.set(x, 17, 2, "spruce_planks")
+        t.set(x, 17, 4, "spruce_planks")
+        t.set(x, 18, 3, "spruce_slab", {"type": "bottom", "waterlogged": "false"})
+    t.set(3, 17, 3, "spruce_planks")
+    t.remove(4, 17, 1)
+    t.set(4, 18, 3, "air")
+    for x in range(7):                                         # a stone apron round it, mossy
+        for z in range(7):
+            if (x in (0, 6) or z in (0, 6) or x in (1, 5) or z in (1, 5)) and not (2 <= x <= 4 and 2 <= z <= 4):
+                if t.rng.random() < 0.8:
+                    t.set(x, 12, z, pick(t, ("cobblestone", 2), ("mossy_cobblestone", 2), ("gravel", 1)))
+    for (x, z) in ((1, 1), (5, 2), (0, 4), (6, 5), (2, 6)):
+        t.set(x, 13, z, "moss_carpet")
+    t.set(2, 16, 3, "cobweb")
+    t.set(4, 16, 4, "cobweb")
     if village:
         t.jigsaw(3, 13, 0, "north_up", "minecraft:building_entrance", "minecraft:building_entrance",
                  "minecraft:empty", "minecraft:air")
@@ -287,6 +344,12 @@ def castle_keep(kind, fortified):
             t.set(x, y, z, "deepslate_bricks")
     t.set(5, 1, 9, "deepslate_brick_stairs", dict(STAIR, facing="east"))
     t.set(9, 1, 5, "deepslate_brick_stairs", dict(STAIR, facing="west"))
+    t.set(7, 1, 6, "polished_deepslate")                          # a tomb down the middle
+    t.set(7, 1, 7, "polished_deepslate")
+    t.set(7, 2, 6, "deepslate_tile_slab", {"type": "bottom", "waterlogged": "false"})
+    t.set(7, 2, 7, "deepslate_tile_slab", {"type": "bottom", "waterlogged": "false"})
+    for (x, z, n) in ((9, 9, "3"), (5, 6, "2"), (9, 7, "1"), (5, 8, "4")):
+        t.set(x, 1, z, "candle", {"candles": n, "lit": "true" if fortified else "false", "waterlogged": "false"})
     # ground floor (y 4): cobble/andesite, deepslate tiles over the crypt; the crypt hatch with its ladder
     for x in range(1, 14):
         for z in range(1, 14):
@@ -327,8 +390,27 @@ def castle_keep(kind, fortified):
     for (x, z) in ((7, 14), (14, 7), (0, 7)):
         t.set(x, 6, z, "air")
     if fortified:
+        t.set(7, 5, 2, "oak_stairs", dict(STAIR, facing="north"))      # the lord's seat, facing the door
+        t.set(6, 5, 2, "gold_block")
+        t.set(8, 5, 2, "gold_block")
+        t.set(7, 7, 1, "red_wall_banner", {"facing": "south"})
+        for z in range(3, 14):
+            t.set(7, 5, z, "red_carpet")                                 # the runner from the door
+        for (tx, cw, ce) in ((4, 3, 5), (10, 9, 11)):                   # two long tables with chairs
+            for z in range(5, 10):
+                t.set(tx, 5, z, "oak_fence")
+                t.set(tx, 6, z, "white_carpet")
+                if z % 2 == 1:
+                    t.set(cw, 5, z, "oak_stairs", dict(STAIR, facing="west"))
+                    t.set(ce, 5, z, "oak_stairs", dict(STAIR, facing="east"))
+        for (bx, bz) in ((2, 3), (12, 3), (2, 7), (12, 7)):              # beds on the gallery for the people who live here
+            t.bed(bx, 9, bz, "south", "red")
+        for (x, z) in ((3, 7), (11, 7), (3, 3), (11, 11)):               # lanterns hung under the gallery
+            t.set(x, 7, z, "lantern", {"hanging": "true", "waterlogged": "false"})
+        for (x, y, z) in ((12, 5, 12), (12, 6, 12), (11, 5, 12), (11, 6, 12), (12, 5, 11), (12, 6, 11)):
+            t.set(x, y, z, "bookshelf")
         for z in range(3, 12):                                 # benches along the hall
-            if z != 7:
+            if z != 7 and t.get(1, 5, z) is None or t.get(1, 5, z) == "minecraft:air":
                 t.set(1, 5, z, "stone_brick_stairs", dict(STAIR, facing="west"))
                 t.set(13, 5, z, "stone_brick_stairs", dict(STAIR, facing="east"))
         t.chest(12, 5, 2, LOOT + "fortified_castle", facing="south")   # armory
@@ -355,6 +437,23 @@ def castle_keep(kind, fortified):
             t.set(x, y, z, "cobweb")
         for (x, z) in ((9, 3), (10, 3), (9, 2), (3, 9), (11, 11)):          # rubble
             t.set(x, 5, z, m.found())
+        for _ in range(18):                                    # moss creeping over the floor
+            x, z = t.rng.randint(1, 13), t.rng.randint(1, 13)
+            if t.get(x, 5, z) == "minecraft:air":
+                t.set(x, 5, z, "moss_carpet")
+        for _ in range(8):                                     # planks fallen from the floor above
+            x, z = t.rng.randint(2, 12), t.rng.randint(2, 12)
+            if t.get(x, 5, z) in ("minecraft:air", "minecraft:moss_carpet"):
+                t.set(x, 5, z, "dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+        t.set(7, 5, 2, "oak_stairs", dict(STAIR, facing="east"))       # the seat, knocked over
+        t.set(8, 5, 2, "cracked_stone_bricks")
+        t.set(6, 5, 3, "skeleton_skull", {"rotation": "6"})
+        t.set(5, 5, 8, "bone_block", {"axis": "x"})
+        for (x, y, z, side) in ((1, 9, 4, "west"), (1, 8, 4, "west"), (13, 9, 9, "east"), (13, 8, 9, "east"),
+                                (13, 7, 9, "east"), (5, 9, 1, "north"), (5, 8, 1, "north"), (9, 10, 13, "south")):
+            if t.get(x, y, z) in (None, "minecraft:air"):
+                t.set(x, y, z, "vine", {"north": str(side == "north").lower(), "south": str(side == "south").lower(),
+                                        "east": str(side == "east").lower(), "west": str(side == "west").lower(), "up": "false"})
     return t
 
 
@@ -384,7 +483,11 @@ def castle_wing(kind, fortified):
             t.set(0, 2, z, "iron_bars")
             t.set(4, 2, z, "iron_bars")
         t.set(2, 1, 4, "lantern", {"hanging": "false", "waterlogged": "false"})
+        t.set(1, 2, 3, "red_wall_banner", {"facing": "east"})
+        t.set(3, 2, 5, "red_wall_banner", {"facing": "west"})
     else:
+        for (x, z) in ((1, 2), (3, 6), (2, 7)):
+            t.set(x, 1, z, "moss_carpet")
         for (x, y, z) in ((1, 3, 3), (3, 2, 6), (3, 3, 1)):
             t.set(x, y, z, "cobweb")
         t.set(2, 1, 5, "mossy_cobblestone")
@@ -430,8 +533,14 @@ def castle_tower(kind, fortified):
         t.set(2, 1, 5, "stone_brick_stairs", dict(STAIR, facing="west"))
         t.set(2, 1, 4, "stone_brick_stairs", dict(STAIR, facing="west"))
         t.chest(5, 1, 5, LOOT + "fortified_castle", facing="north")
+        t.entity(5, 1, 3, {"id": "minecraft:armor_stand", "_armor": ["iron_boots", "iron_leggings", "iron_chestplate", "iron_helmet"]})
+        t.set(3, 1, 5, "barrel", {"facing": "up", "open": "false"})
     else:
         t.chest(5, 1, 5, LOOT + "abandoned_castle", barrel=True)
+        for (x, z) in ((2, 2), (3, 5), (5, 2)):
+            if t.get(x, 1, z) in (None, "minecraft:air"):
+                t.set(x, 1, z, "moss_carpet")
+        t.set(2, 1, 4, "bone_block", {"axis": "z"})
         for (x, y, z) in ((2, 3, 2), (6, 6, 6), (2, 2, 6), (5, 3, 2)):
             if t.get(x, y, z) == "minecraft:air":
                 t.set(x, y, z, "cobweb")
@@ -481,6 +590,8 @@ def castle_gatehouse(kind, fortified):
         t.set(4, 3, 4, "red_wall_banner", {"facing": "east"})
         t.set(6, 3, 4, "red_wall_banner", {"facing": "west"})
         t.chest(1, 1, 7, LOOT + "fortified_castle", facing="north")
+        t.set(9, 1, 7, "barrel", {"facing": "up", "open": "false"})
+        t.set(9, 2, 7, "hay_block", {"axis": "y"})
         t.entity(5, 1, 4, {"id": "minecraft:iron_golem", "PlayerCreated": True, "PersistenceRequired": True})
     else:
         t.set(4, 1, 3, "cobweb")

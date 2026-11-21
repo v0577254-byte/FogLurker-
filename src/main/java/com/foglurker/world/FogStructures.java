@@ -55,7 +55,54 @@ public final class FogStructures {
         if (test != null) {
             return test.test(pos, tag);
         }
-        return level.isLoaded(pos) && level.structureManager().getStructureWithPieceAt(pos, tag).isValid();
+        if (!level.isLoaded(pos)) {
+            return false;
+        }
+        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        return insideAny(level, pos, s -> registry.wrapAsHolder(s).is(tag));
+    }
+
+    /** Inside a piece of a structure that passes {@code which}, looking only at loaded chunks (never loads one). */
+    private static boolean insideAny(ServerLevel level, BlockPos pos, java.util.function.Predicate<Structure> which) {
+        for (StructureStart start : loadedStarts(level, new ChunkPos(pos), which)) {
+            if (start.getBoundingBox().isInside(pos)) {
+                for (StructurePiece piece : start.getPieces()) {
+                    if (piece.getBoundingBox().isInside(pos)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The starts of structures referenced by this (loaded) chunk, whose own start chunk is loaded too. Unlike the
+     * vanilla lookups this never loads (or generates) a chunk to find out.
+     */
+    private static List<StructureStart> loadedStarts(ServerLevel level, ChunkPos at, java.util.function.Predicate<Structure> which) {
+        List<StructureStart> out = new ArrayList<>();
+        if (!level.hasChunk(at.x, at.z)) {
+            return out;
+        }
+        var refs = level.getChunk(at.x, at.z).getAllReferences();
+        for (var e : refs.entrySet()) {
+            if (!which.test(e.getKey())) {
+                continue;
+            }
+            for (long origin : e.getValue()) {
+                int ox = ChunkPos.getX(origin);
+                int oz = ChunkPos.getZ(origin);
+                if (!level.hasChunk(ox, oz)) {
+                    continue;
+                }
+                StructureStart start = level.getChunk(ox, oz).getStartForStructure(e.getKey());
+                if (start != null && start.isValid() && !out.contains(start)) {
+                    out.add(start);
+                }
+            }
+        }
+        return out;
     }
 
     public static boolean inHotspot(ServerLevel level, BlockPos pos) {
@@ -68,16 +115,21 @@ public final class FogStructures {
      */
     public static boolean highInLookout(ServerLevel level, BlockPos pos) {
         BiPredicate<BlockPos, TagKey<Structure>> test = testInside;
+        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
         boolean inTower = test != null ? test.test(pos, LURKER_HOTSPOTS)
-                : level.isLoaded(pos) && level.structureManager().getStructureWithPieceAt(pos, LOOKOUT_TOWER).isValid();
+                : level.isLoaded(pos) && insideAny(level, pos, s -> registry.wrapAsHolder(s).is(LOOKOUT_TOWER));
         if (!inTower) {
             return false;
         }
         int ground = Integer.MAX_VALUE;
         for (int[] d : new int[][]{{8, 0}, {-8, 0}, {0, 8}, {0, -8}}) {
-            ground = Math.min(ground, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX() + d[0], pos.getZ() + d[1]));
+            int x = pos.getX() + d[0];
+            int z = pos.getZ() + d[1];
+            if (level.hasChunk(x >> 4, z >> 4)) { // (an unloaded chunk would answer "the bottom of the world")
+                ground = Math.min(ground, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z));
+            }
         }
-        return pos.getY() - ground >= 8;
+        return ground != Integer.MAX_VALUE && pos.getY() - ground >= 8;
     }
 
     /** Fog wells within {@code radius}: standalone ones, and the ones built into villages. Their middle. */
@@ -140,11 +192,8 @@ public final class FogStructures {
         ChunkPos c = new ChunkPos(pos);
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
-                if (!level.hasChunk(c.x + dx, c.z + dz)) {
-                    continue;
-                }
-                for (StructureStart s : level.structureManager().startsForStructure(new ChunkPos(c.x + dx, c.z + dz), which)) {
-                    if (s.isValid() && !out.contains(s) && s.getBoundingBox().inflatedBy(radius).isInside(pos)) {
+                for (StructureStart s : loadedStarts(level, new ChunkPos(c.x + dx, c.z + dz), which)) {
+                    if (!out.contains(s) && s.getBoundingBox().inflatedBy(radius).isInside(pos)) {
                         out.add(s);
                     }
                 }

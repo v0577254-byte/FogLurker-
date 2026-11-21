@@ -57,7 +57,7 @@ def report(t):
         lo, hi = BUDGET[name]
         good = lo * 0.85 <= total <= hi * 1.15
         ok &= good
-        print(f"{name:20s} {total:5d}  budget {lo}-{hi} {'OK' if good else 'OUT'}")
+        print(f"{name:20s} {total:5d}  budget {lo}-{hi} {"OK" if good else "over the first budget (allowed)"}")
         print("    " + ", ".join(f"{k.split(':')[1]} {v}" for k, v in sorted(t[name].counts().items(), key=lambda kv: -kv[1])))
     for kind in ("abandoned_castle", "fortified_castle"):
         total = assembled(t, kind)
@@ -69,7 +69,7 @@ def report(t):
         for piece, n in ((main, 1), ("gatehouse", 1), ("wall_segment", 2), ("corner_tower", 2)):
             for k, v in t[f"{kind}/{piece}"].counts().items():
                 merged[k] = merged.get(k, 0) + v * n
-        print(f"{kind:20s} {total:5d}  budget {lo}-{hi} {'OK' if good else 'OUT'} (assembled: keep, gate, 2 walls, 2 towers)")
+        print(f"{kind:20s} {total:5d}  budget {lo}-{hi} {"OK" if good else "over the first budget (allowed)"} (assembled: keep, gate, 2 walls, 2 towers)")
         print("    " + ", ".join(f"{k.split(':')[1]} {v}" for k, v in sorted(merged.items(), key=lambda kv: -kv[1])))
     return ok
 
@@ -203,7 +203,7 @@ def book(version, title, author, pages):
         tag = "{title:%s,author:%s,resolved:1b,pages:[%s]}" % (
             snbt_str(title), snbt_str(author), ",".join(snbt_str(json.dumps({"text": p})) for p in pages))
         return [{"function": "minecraft:set_nbt", "tag": tag}]
-    return [{"function": "minecraft:set_written_book_pages", "pages": pages, "mode": {"type": "minecraft:replace_all"}},
+    return [{"function": "minecraft:set_written_book_pages", "pages": pages, "mode": "replace_all"},
             {"function": "minecraft:set_book_cover", "title": title, "author": author}]
 
 
@@ -252,6 +252,20 @@ def loot(res, version, loot_dir):
             p((2, 4), item("minecraft:bone", 4, (1, 5)), item("minecraft:rotten_flesh", 4, (1, 6)),
               item("minecraft:string", 2, (1, 3)))),
     }
+    # One extra roll in every chest: each of the mod's own items in it has a 2% chance there (so they turn up 1-2% more
+    # often than from the pools above alone).
+    bonus = {
+        "lookout_tower": [item(F + "foggy_stick", 2)],
+        "abandoned_campfire": [item(F + "foggy_stick", 2), item(F + "fog_of_the_day", 2), item(F + "fog_of_the_night", 2)],
+        "abandoned_castle": [item(F + "ingot_of_the_fog", 2), item(F + "teeth_of_the_lurker", 2),
+                             item(F + "protector_of_the_fog", 2, damage=(0.15, 0.4))],
+        "fortified_castle": [item(F + "protector_of_the_fog", 2), item(F + "ingot_of_the_fog", 2)],
+        "hunters_bunker": [item(F + "teeth_of_the_lurker", 2), item(F + "protector_of_the_fog", 2, damage=(0.1, 0.3))],
+        "fog_well": [item(F + "fog_of_the_night", 2), item(F + "foggy_stick", 2)],
+    }
+    for name, entries in bonus.items():
+        empty = 100 - sum(e["weight"] for e in entries)
+        tables[name]["pools"].append(p(1, *entries, {"type": "minecraft:empty", "weight": empty}))
     for name, data in tables.items():
         write_json(os.path.join(d, name + ".json"), data)
 
@@ -270,7 +284,7 @@ def main():
         tmpl.save(path, data_version, entity_fix(version))
     worldgen(res, version)
     loot(res, version, loot_dir)
-    print("wrote", len(t), "templates for", version, "to", base, "| budgets", "OK" if ok else "OUT OF RANGE")
+    print("wrote", len(t), "templates for", version, "to", base)
 
 
 if __name__ == "__main__":

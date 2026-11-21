@@ -292,8 +292,22 @@ public final class ClientShowcase {
             return;
         }
         if (i >= SHOW.length) {
-            if (step == 0) {
-                mc.stop();
+            // Last: the Ingot of the Fog in your hand.
+            switch (step) {
+                case 0 -> server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    p.setGameMode(GameType.SURVIVAL);
+                    p.getInventory().selected = 0;
+                    p.getInventory().setItem(0, new ItemStack(com.foglurker.registry.ModItems.INGOT_OF_THE_FOG.get()));
+                    p.getInventory().setItem(1, new ItemStack(com.foglurker.registry.ModItems.FOGGY_STICK.get()));
+                    p.teleportTo(p.serverLevel(), showAt.getX() + 0.5, 200, showAt.getZ() + 0.5, 0F, 0F);
+                    p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.SLOW_FALLING, 400, 0, false, false));
+                });
+                case 30 -> mc.options.hideGui = false;
+                case 40 -> shot(mc, "foglurker_ingot_in_hand.png");
+                case 50 -> mc.stop();
+                default -> {
+                }
             }
             return;
         }

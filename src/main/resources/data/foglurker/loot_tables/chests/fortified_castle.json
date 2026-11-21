@@ -123,6 +123,25 @@
           ]
         }
       ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:protector_of_the_fog",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:ingot_of_the_fog",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:empty",
+          "weight": 96
+        }
+      ]
     }
   ]
 }

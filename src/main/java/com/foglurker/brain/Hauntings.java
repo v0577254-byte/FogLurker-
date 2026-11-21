@@ -464,7 +464,7 @@ public final class Hauntings {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (BlockPos pos : BlockPos.betweenClosed(center.offset(-range, -4, -range), center.offset(range, 4, range))) {
-            if (!level.isLoaded(pos) || onlyThese != null && !onlyThese.contains(pos.asLong())) {
+            if (!level.isLoaded(pos) || onlyThese != null && !onlyThese.contains(pos.asLong()) || !pos.closerThan(center, range)) {
                 continue;
             }
             BlockEntity be = level.getBlockEntity(pos);
@@ -671,7 +671,7 @@ public final class Hauntings {
                 continue;
             }
             BlockState s = level.getBlockState(pos);
-            if (s.getBlock() instanceof net.minecraft.world.level.block.LecternBlock
+            if (s.getBlock() instanceof net.minecraft.world.level.block.LecternBlock && pos.closerThan(center, range)
                     && !s.getValue(net.minecraft.world.level.block.LecternBlock.HAS_BOOK)) {
                 double d = pos.distSqr(center);
                 if (d < bestD) {
@@ -759,8 +759,15 @@ public final class Hauntings {
             }
             case LECTERN -> {
                 BlockState s = level.getBlockState(pos);
-                return s.getBlock() instanceof net.minecraft.world.level.block.LecternBlock
-                        && net.minecraft.world.level.block.LecternBlock.tryPlaceBook(null, level, pos, s, book);
+                if (!(s.getBlock() instanceof net.minecraft.world.level.block.LecternBlock) || s.getValue(net.minecraft.world.level.block.LecternBlock.HAS_BOOK)
+                        || !(level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.LecternBlockEntity lectern)) {
+                    return false;
+                }
+                // (Not tryPlaceBook: that plays the book sound to everyone near. Only they hear this one.)
+                lectern.setBook(book.split(1));
+                net.minecraft.world.level.block.LecternBlock.resetBookState(null, level, pos, s, true);
+                play(p, level, SoundEvents.BOOK_PUT, SoundSource.BLOCKS, Vec3.atCenterOf(pos), 0.8F, 0.9F);
+                return true;
             }
             case GROUND -> {
                 if (!SpotFinder.isStandable(level, pos) || !level.getFluidState(pos).isEmpty()) {
@@ -952,7 +959,8 @@ public final class Hauntings {
             return false;
         }
         for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
-            if (level.getBlockState(pos.relative(dir)).isAir()) {
+            BlockPos n = pos.relative(dir);
+            if (level.isLoaded(n) && level.getBlockState(n).isAir()) {
                 return true;
             }
         }

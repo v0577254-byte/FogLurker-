@@ -467,7 +467,13 @@ public final class LurkerDirector {
         // Prefer whoever is furthest from everyone else: the one who wandered off alone. At night, before that: anyone
         // in one of its hotspots (a lookout tower, an abandoned castle, a hunters' bunker).
         candidates.sort((a, b) -> Double.compare(loneliness(b), loneliness(a)));
-        candidates.sort((a, b) -> Boolean.compare(inHotspotAtNight(b), inHotspotAtNight(a)));
+        java.util.Set<ServerPlayer> inHotspot = new java.util.HashSet<>();
+        for (ServerPlayer p : candidates) {
+            if (inHotspotAtNight(p)) {
+                inHotspot.add(p); // (looked up once each, not in every comparison)
+            }
+        }
+        candidates.sort((a, b) -> Boolean.compare(inHotspot.contains(b), inHotspot.contains(a)));
         ServerPlayer target = r.nextFloat() < 0.7F ? candidates.get(0) : candidates.get(r.nextInt(candidates.size()));
         // If they are in a group, it picks its victim inside the group.
         List<ServerPlayer> group = new ArrayList<>();
@@ -789,13 +795,17 @@ public final class LurkerDirector {
             case DOG -> {
                 copiedId = target.getUUID();
                 if (targetProfile.dogUuid != null) {
-                    variant = Math.max(0, targetProfile.dogCollar);
+                    variant = targetProfile.dogCollar >= 0 ? targetProfile.dogCollar : DyeColor.RED.getId(); // (an old save may not know the colour)
                     dogName = targetProfile.dogName;
                 } else {
                     variant = DyeColor.RED.getId();
                 }
             }
-            default -> variant = variantFor(pick.disguise(), r);
+            default -> {
+                // Among a real herd (or in a village) it copies the look of one of them: their coat, wool or job.
+                Integer real = pick.mode() == LurkerBrain.Mode.HERD ? variantNear(level, target, pick.disguise()) : null;
+                variant = real != null ? real : variantFor(pick.disguise(), r);
+            }
         }
         return new Encounter(target.getUUID(), pick.mode(), pick.disguise(), copiedId, copiedName, willAttack, diff,
                 variant, dogName);
@@ -836,6 +846,33 @@ public final class LurkerDirector {
             return Disguise.WITCH;
         }
         return Disguise.PILLAGER;
+    }
+
+    /** The look of a real mob of this kind near the player (null if none, or the kind has one look only). */
+    @Nullable
+    static Integer variantNear(ServerLevel level, ServerPlayer target, Disguise d) {
+        List<Mob> near = level.getEntitiesOfClass(Mob.class, target.getBoundingBox().inflate(48), m -> m.isAlive() && Disguise.of(m) == d);
+        for (Mob m : near) {
+            Integer v = null;
+            if (m instanceof net.minecraft.world.entity.animal.Sheep sheep) {
+                v = sheep.getColor().getId();
+            } else if (m instanceof net.minecraft.world.entity.animal.horse.Horse horse) {
+                v = horse.getVariant().getId();
+            } else if (m instanceof net.minecraft.world.entity.animal.horse.Llama llama) {
+                v = llama.getVariant().getId();
+            } else if (m instanceof net.minecraft.world.entity.animal.Rabbit rabbit) {
+                v = rabbit.getVariant().id();
+            } else if (m instanceof net.minecraft.world.entity.animal.MushroomCow cow) {
+                v = cow.getVariant() == net.minecraft.world.entity.animal.MushroomCow.MushroomType.BROWN ? 1 : 0;
+            } else if (m instanceof net.minecraft.world.entity.npc.Villager villager) {
+                int i = java.util.Arrays.asList(Disguise.VILLAGER_JOBS).indexOf(villager.getVillagerData().getProfession());
+                v = i >= 0 ? i : null;
+            }
+            if (v != null) {
+                return v;
+            }
+        }
+        return null;
     }
 
     /** The look of a stolen shape: a sheep's wool, a villager's job, a horse's coat... (0 for one look only) */
