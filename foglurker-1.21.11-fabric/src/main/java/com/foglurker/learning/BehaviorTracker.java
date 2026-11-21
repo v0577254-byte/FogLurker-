@@ -334,8 +334,12 @@ public final class BehaviorTracker {
 
     /** Remembers which storage blocks a player opens with their own hands (a book only ever goes in one of those). */
     public static void onUseBlock(net.minecraft.world.entity.player.Player player, net.minecraft.core.BlockPos pos) {
+        var be = player.level().getBlockEntity(pos);
+        // Only storage and furnaces (where a book can go): hoppers and dispensers must not push their chests out of the list.
         if (player instanceof ServerPlayer p && !(p instanceof FakePlayer)
-                && p.level().getBlockEntity(pos) instanceof net.minecraft.world.Container) {
+                && (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
+                || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
+                || be instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)) {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.level().getServer());
             data.profile(p.getUUID()).openedContainer(pos);
             data.setDirty();

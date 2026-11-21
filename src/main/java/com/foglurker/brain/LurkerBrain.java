@@ -1018,6 +1018,13 @@ public final class LurkerBrain {
             lookAround = new Vec3(mob.getX() + Math.cos(a) * 6, mob.getEyeY() + (random.nextDouble() - 0.5) * 2,
                     mob.getZ() + Math.sin(a) * 6);
             lookAroundUntil = age + 40 + random.nextInt(40);
+            if (mob.getNavigation().isDone()) {
+                // Standing about, it shuffles round to face where it looks, as real animals do (otherwise its head
+                // would drift back to wherever its body happened to point, which could be at you).
+                float yaw = (float) Math.toDegrees(a) - 90F;
+                mob.setYRot(yaw);
+                mob.setYBodyRot(yaw);
+            }
         }
     }
 

@@ -70,7 +70,7 @@ public final class PlayerBehaviorProfile {
     public boolean chatLearningOff;
     private int homeHits;
     private int awayHits;
-    /** Game time of the last book it left for them (saved, so the 20-minute limit survives a restart). */
+    /** Game time of the last book it left for them (saved, so the 4-minute limit survives a restart). */
     public long lastBookAt = Long.MIN_VALUE / 2;
     /** Game time the remembered dog was last seen with them (a dog unseen for a whole day may be gone). */
     public long dogSeenAt;

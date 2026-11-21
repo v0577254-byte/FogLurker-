@@ -18,9 +18,7 @@
                 "Day 11.\nIt wore Tom's face today. Tom left on day 2.",
                 "Day 12.\nIf the fog rushes in for no reason, do not wait for it to lift. Get to the light."
               ],
-              "mode": {
-                "type": "minecraft:replace_all"
-              }
+              "mode": "replace_all"
             },
             {
               "function": "minecraft:set_book_cover",
@@ -122,6 +120,20 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:foggy_stick",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:empty",
+          "weight": 98
         }
       ]
     }

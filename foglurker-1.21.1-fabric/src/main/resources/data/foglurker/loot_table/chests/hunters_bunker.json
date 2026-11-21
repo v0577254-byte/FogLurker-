@@ -15,9 +15,7 @@
                 "The blade is spent.\n\nFog of the day, or fog of the night, laid beside it on the bench, and it bites again.",
                 "Keep the teeth. It hates its own teeth."
               ],
-              "mode": {
-                "type": "minecraft:replace_all"
-              }
+              "mode": "replace_all"
             },
             {
               "function": "minecraft:set_book_cover",
@@ -109,6 +107,35 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:teeth_of_the_lurker",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:protector_of_the_fog",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_damage",
+              "damage": {
+                "type": "minecraft:uniform",
+                "min": 0.1,
+                "max": 0.3
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:empty",
+          "weight": 96
         }
       ]
     }

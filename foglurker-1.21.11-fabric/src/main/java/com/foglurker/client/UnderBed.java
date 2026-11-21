@@ -63,7 +63,7 @@ public final class UnderBed {
         if (e == null) {
             return;
         }
-        e.setId(-1_700_000);
+        e.setId(-2_000_000_000); // (far from the apparitions' own ids, which count down from -1 600 000)
         e.setDisguise(Disguise.PLAYER);
         e.setMimic(player.getUUID(), player.getGameProfile().name());
         // In the foot of the bed, a little towards its end, sunk into it so only the head shows above the mattress.
