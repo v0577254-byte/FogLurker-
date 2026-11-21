@@ -840,6 +840,7 @@ public final class LurkerDirector {
     @Nullable
     static Integer variantNear(ServerLevel level, ServerPlayer target, Disguise d) {
         List<Mob> near = level.getEntitiesOfClass(Mob.class, target.getBoundingBox().inflate(48), m -> m.isAlive() && Disguise.of(m) == d);
+        near.sort(java.util.Comparator.comparingDouble(m -> m.distanceToSqr(target))); // the herd they are standing among
         for (Mob m : near) {
             Integer v = null;
             if (m instanceof net.minecraft.world.entity.animal.Sheep sheep) {
@@ -849,7 +850,7 @@ public final class LurkerDirector {
             } else if (m instanceof net.minecraft.world.entity.animal.horse.Llama llama) {
                 v = llama.getVariant().getId();
             } else if (m instanceof net.minecraft.world.entity.animal.Rabbit rabbit) {
-                v = rabbit.getVariant().id();
+                v = rabbit.getVariant().id() < 6 ? rabbit.getVariant().id() : null; // (the toast rabbit is 99)
             } else if (m instanceof net.minecraft.world.entity.animal.MushroomCow cow) {
                 v = cow.getVariant() == net.minecraft.world.entity.animal.MushroomCow.MushroomType.BROWN ? 1 : 0;
             } else if (m instanceof net.minecraft.world.entity.npc.Villager villager) {

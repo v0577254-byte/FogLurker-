@@ -791,6 +791,7 @@ public final class LurkerBrain {
     /** The closest an attacking herd copy has got, and when. */
     private double herdBest = Double.MAX_VALUE;
     private int herdProgressAt;
+    private int herdAttackTick = -100;
 
     /**
      * A stolen animal or villager shape behaves like the real one: it wanders a few blocks, stands about, looks around,
@@ -839,6 +840,11 @@ public final class LurkerBrain {
         }
 
         if (enc.willAttack() && canAttack(t)) {
+            if (age - herdAttackTick > 2) {
+                herdBest = Double.MAX_VALUE; // it could not attack for a while (creative, AFK...): the minute starts again
+                herdProgressAt = age;
+            }
+            herdAttackTick = age;
             if (dist < herdBest - 1) {
                 herdBest = dist;
                 herdProgressAt = age;
@@ -996,8 +1002,24 @@ public final class LurkerBrain {
         return f / (60F * (1F - f));
     }
 
+    /** Where it is turning its body to while it stands about (null: not turning). */
+    @Nullable
+    private Float turnTo;
+
     /** Glances, looking around: what the real animal or villager does with its head. */
     private void behaveLikeTheRealOne(ServerPlayer t, double dist) {
+        if (turnTo != null) {
+            if (!mob.getNavigation().isDone()) {
+                turnTo = null; // walking: it faces where it walks
+            } else {
+                float yaw = Mth.approachDegrees(mob.getYRot(), turnTo, 9F);
+                mob.setYRot(yaw);
+                mob.setYBodyRot(yaw);
+                if (Math.abs(Mth.wrapDegrees(yaw - turnTo)) < 1F) {
+                    turnTo = null;
+                }
+            }
+        }
         if (phaseAge == 1) {
             // It turns up facing wherever, like any animal standing in a field: not towards you.
             float yaw = random.nextFloat() * 360F;
@@ -1016,13 +1038,9 @@ public final class LurkerBrain {
             lookAround = new Vec3(mob.getX() + Math.cos(a) * 6, mob.getEyeY() + (random.nextDouble() - 0.5) * 2,
                     mob.getZ() + Math.sin(a) * 6);
             lookAroundUntil = age + 40 + random.nextInt(40);
-            if (mob.getNavigation().isDone()) {
-                // Standing about, it shuffles round to face where it looks, as real animals do (otherwise its head
-                // would drift back to wherever its body happened to point, which could be at you).
-                float yaw = (float) Math.toDegrees(a) - 90F;
-                mob.setYRot(yaw);
-                mob.setYBodyRot(yaw);
-            }
+            // Standing about, it shuffles round to face where it looks, as real animals do (otherwise its head would
+            // drift back to wherever its body happened to point, which could be at you). A bit each tick, below.
+            turnTo = (float) Math.toDegrees(a) - 90F;
         }
     }
 
