@@ -159,15 +159,17 @@ public final class FabricShowcase {
             case 1340 -> mc.getSingleplayerServer().execute(() -> {
                 ServerPlayer me = mc.getSingleplayerServer().getPlayerList().getPlayers().get(0);
                 com.foglurker.entity.Disguise[] shapes = {com.foglurker.entity.Disguise.CRAWLER, com.foglurker.entity.Disguise.COW,
-                        com.foglurker.entity.Disguise.PLAYER, com.foglurker.entity.Disguise.DOG};
+                        com.foglurker.entity.Disguise.PLAYER, com.foglurker.entity.Disguise.DOG, com.foglurker.entity.Disguise.VILLAGER,
+                        com.foglurker.entity.Disguise.HORSE, com.foglurker.entity.Disguise.SKELETON, com.foglurker.entity.Disguise.PILLAGER};
                 for (int k = 0; k < shapes.length; k++) {
                     FogLurkerEntity e = com.foglurker.registry.ModEntities.FOG_LURKER.get().create(me.serverLevel());
                     e.setNoAi(true); // a statue: it never moves or hunts
                     e.setDisguise(shapes[k]);
+                    e.setVariant(shapes[k] == com.foglurker.entity.Disguise.VILLAGER ? 4 : shapes[k] == com.foglurker.entity.Disguise.HORSE ? 3 : 0);
                     if (shapes[k] == com.foglurker.entity.Disguise.PLAYER) {
                         e.setMimic(me.getUUID(), me.getGameProfile().getName());
                     }
-                    e.moveTo(me.getX() - 4.5 + k * 3, 150, me.getZ() - 6, 0F, 0F);
+                    e.moveTo(me.getX() - 7.7 + k * 2.2, 150, me.getZ() - 6, 0F, 0F);
                     e.setYHeadRot(0F);
                     e.setYBodyRot(0F);
                     me.serverLevel().addFreshEntity(e);
@@ -178,7 +180,33 @@ public final class FabricShowcase {
                 say("statues " + lurkers(mc).size());
                 shot(mc, "fabric_statues.png");
             }
-            case 1420 -> {
+            // A night in bed: for one second your own face rises from under the foot of the bed.
+            case 1410 -> mc.getSingleplayerServer().execute(() -> {
+                ServerPlayer me = mc.getSingleplayerServer().getPlayerList().getPlayers().get(0);
+                me.serverLevel().setDayTime(18000);
+                var data = com.foglurker.world.FogLurkerSavedData.get(mc.getSingleplayerServer());
+                if (data.inGrace()) {
+                    data.endGrace();
+                }
+                net.minecraft.core.BlockPos head = me.blockPosition().offset(0, 0, 3);
+                var bed = net.minecraft.world.level.block.Blocks.RED_BED.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.NORTH);
+                me.serverLevel().setBlockAndUpdate(head, bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                        net.minecraft.world.level.block.state.properties.BedPart.HEAD));
+                me.serverLevel().setBlockAndUpdate(head.south(), bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                        net.minecraft.world.level.block.state.properties.BedPart.FOOT));
+                me.teleportTo(me.serverLevel(), head.getX() + 0.5, head.getY(), head.getZ() + 0.5, 0F, 0F);
+                me.startSleeping(head);
+            });
+            case 1435 -> mc.gui.getChat().clearMessages(false); // (lying in bed shows the chat)
+            case 1440 -> mc.getSingleplayerServer().execute(() -> say("under the bed sent " + com.foglurker.world.UnderTheBed.show(
+                    mc.getSingleplayerServer().getPlayerList().getPlayers().get(0))));
+            case 1443 -> {
+                say("under the bed showing " + com.foglurker.client.UnderBed.showing() + " sleeping " + mc.player.isSleeping());
+                shot(mc, "fabric_under_bed.png");
+            }
+            case 1465 -> say("under the bed after a second showing " + com.foglurker.client.UnderBed.showing());
+            case 1470 -> {
                 say("RESULT done");
                 new Thread(() -> {
                     try {

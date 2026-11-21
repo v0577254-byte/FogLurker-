@@ -91,6 +91,11 @@ public final class SleepParalysis {
         LurkerDirector.leaveAlone(p, NO_VISIT_TICKS); // and it does not show up after it
     }
 
+    /** True while this sleep is going to be (or was) sleep paralysis: nothing else happens in it. */
+    public static boolean happensThisSleep(UUID id) {
+        return Boolean.TRUE.equals(THIS_SLEEP.get(id));
+    }
+
     /** /foglurker force sleep-paralysis: the next time they sleep, it happens. */
     public static void forceNext(ServerPlayer p) {
         FogLurkerSavedData data = FogLurkerSavedData.get(p.level().getServer());

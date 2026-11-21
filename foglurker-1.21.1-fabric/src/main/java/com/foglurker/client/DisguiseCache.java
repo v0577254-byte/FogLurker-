@@ -153,7 +153,38 @@ public final class DisguiseCache {
             wolf.setHealth(wolf.getMaxHealth()); // a healthy dog wags its tail high
             ((com.foglurker.mixin.WolfInvoker) wolf).foglurker$setCollarColor(DyeColor.byId(lurker.getVariant()));
         }
+        dress(level, lurker, living);
         return living;
+    }
+
+    /** The look of the shapes added later: a villager's job and clothes, a coat colour, a weapon in hand. */
+    private static void dress(ClientLevel level, FogLurkerEntity lurker, LivingEntity living) {
+        int v = lurker.getVariant();
+        var biome = level.getBiome(lurker.blockPosition());
+        if (living instanceof net.minecraft.world.entity.npc.Villager villager) {
+            var job = Disguise.VILLAGER_JOBS[Math.floorMod(v, Disguise.VILLAGER_JOBS.length)];
+            villager.setVillagerData(villager.getVillagerData()
+                    .setType(net.minecraft.world.entity.npc.VillagerType.byBiome(biome))
+                    .setProfession(job)
+                    .setLevel(2)); // (a level above novice: dressed for the job)
+        } else if (living instanceof net.minecraft.world.entity.animal.horse.Horse horse) {
+            horse.setVariant(net.minecraft.world.entity.animal.horse.Variant.byId(Math.floorMod(v, 7)));
+        } else if (living instanceof net.minecraft.world.entity.animal.horse.Llama llama) {
+            llama.setVariant(net.minecraft.world.entity.animal.horse.Llama.Variant.byId(Math.floorMod(v, 4)));
+        } else if (living instanceof net.minecraft.world.entity.animal.Rabbit rabbit) {
+            rabbit.setVariant(net.minecraft.world.entity.animal.Rabbit.Variant.byId(Math.floorMod(v, 6)));
+        } else if (living instanceof net.minecraft.world.entity.animal.MushroomCow cow) {
+            cow.setVariant(v == 1 ? net.minecraft.world.entity.animal.MushroomCow.MushroomType.BROWN
+                    : net.minecraft.world.entity.animal.MushroomCow.MushroomType.RED);
+        } else if (living instanceof net.minecraft.world.entity.animal.Fox fox) {
+            fox.setVariant(net.minecraft.world.entity.animal.Fox.Type.byBiome(biome));
+        }
+        Disguise d = lurker.getDisguise();
+        net.minecraft.world.item.Item weapon = d == Disguise.SKELETON || d == Disguise.STRAY ? net.minecraft.world.item.Items.BOW
+                : d == Disguise.PILLAGER ? net.minecraft.world.item.Items.CROSSBOW : null;
+        if (weapon != null) {
+            living.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(weapon));
+        }
     }
 
     // LivingEntity.swimAmount / swimAmountO (private): copied so a stolen player visibly sprint-swims.
@@ -207,6 +238,7 @@ public final class DisguiseCache {
             dst.walkAnimation.update(Math.min(moved * 4.0F, 1.0F), 0.4F);
         }
         if (dst instanceof MimicDummyPlayer player) {
+            player.hideNameTag = UnderBed.is(src);
             player.setLook(src.getSkinParts(), src.getMimicMainArm());
             dst.setSwimming(src.isSwimming());
             copySwimAmount(src, dst);

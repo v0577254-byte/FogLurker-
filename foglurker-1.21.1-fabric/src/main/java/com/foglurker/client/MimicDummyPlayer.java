@@ -21,6 +21,14 @@ import java.util.function.Supplier;
  * from Mojang. It never settles for a default skin while a real one can be found.</p>
  */
 public class MimicDummyPlayer extends RemotePlayer {
+    /** The copy under your bed shows no name tag (the name tag is the only thing this changes). */
+    public boolean hideNameTag;
+
+    @Override
+    public boolean isInvisibleTo(net.minecraft.world.entity.player.Player viewer) {
+        return hideNameTag || super.isInvisibleTo(viewer);
+    }
+
     private int lastLook = -1;
     /** Their profile with skin data, fetched from Mojang when they are not in the player list. */
     private volatile @Nullable GameProfile skinProfile;
