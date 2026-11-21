@@ -2820,6 +2820,47 @@ public final class FogLurkerGameTests {
         });
     }
 
+    @GameTest(template = "empty", batch = "herdlike", timeoutTicks = 500)
+    public static void stolenAnimalsActLikeTheRealOnes(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            FogLurkerEntity[] cowRef = new FogLurkerEntity[1];
+            int[] facing = {0};
+            int[] samples = {0};
+            h.runAfterDelay(40, () -> logged(h, () -> {
+                cowRef[0] = LurkerDirector.spawn(p, Disguise.COW, Boolean.FALSE);
+                check(cowRef[0] != null, "could not spawn a cow copy");
+            }));
+            for (int i = 41; i <= 340; i++) {
+                h.runAfterDelay(i, () -> {
+                    FogLurkerEntity cow = cowRef[0];
+                    if (cow == null || cow.isRemoved() || cow.distanceTo(p) > 40) {
+                        return;
+                    }
+                    double want = Math.toDegrees(Math.atan2(p.getZ() - cow.getZ(), p.getX() - cow.getX())) - 90;
+                    double off = Math.abs(net.minecraft.util.Mth.wrapDegrees(want - cow.getYHeadRot()));
+                    samples[0]++;
+                    if (off < 15) {
+                        facing[0]++;
+                    }
+                });
+            }
+            h.runAfterDelay(360, () -> logged(h, () -> {
+                // It used to stare almost all the time; a real cow only glances now and then.
+                check(samples[0] >= 100, "the cow copy was not around to watch (" + samples[0] + " ticks)");
+                check(facing[0] < samples[0] * 0.45,
+                        "the cow copy stared at the player " + facing[0] + " of " + samples[0] + " ticks");
+                FogLurkerMod.LOGGER.info("Herd copy faced the player {} of {} ticks", facing[0], samples[0]);
+                if (cowRef[0] != null && !cowRef[0].isRemoved()) {
+                    cowRef[0].brain().vanish(false);
+                }
+                h.succeed();
+            }));
+        });
+    }
+
     @GameTest(template = "empty", batch = "alwaysfog", timeoutTicks = 100)
     public static void fogCommandSetsTheWorldsFog(GameTestHelper h) {
         logged(h, () -> {

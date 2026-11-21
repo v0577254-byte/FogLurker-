@@ -192,6 +192,27 @@ public final class DisguiseCache {
         }
     }
 
+    // Sheep.eatAnimationTick (private): a grazing sheep copy keeps its head down, like a real one eating grass.
+    @Nullable
+    private static Field eatTick;
+    private static boolean eatReflectionFailed;
+
+    private static void graze(Sheep sheep, boolean grazing) {
+        if (eatReflectionFailed) {
+            return;
+        }
+        try {
+            if (eatTick == null) {
+                eatTick = ObfuscationReflectionHelper.findField(Sheep.class, "f_29802_");
+            }
+            int now = eatTick.getInt(sheep);
+            // 40 = just started (head still up), 4..36 = head down, counting down to 0 (head back up).
+            eatTick.setInt(sheep, grazing ? (now <= 4 ? 40 : Math.max(20, now - 1)) : Math.max(0, now - 1));
+        } catch (RuntimeException | IllegalAccessException e) {
+            eatReflectionFailed = true; // purely cosmetic
+        }
+    }
+
     // LivingEntity.swimAmount / swimAmountO (private): copied so a stolen player visibly sprint-swims.
     @Nullable
     private static Field swimAmount;
@@ -262,6 +283,9 @@ public final class DisguiseCache {
         }
         if (dst instanceof Mob mob) {
             mob.setAggressive(src.isAggressive());
+        }
+        if (dst instanceof Sheep sheep && ticking) {
+            graze(sheep, src.hasFlag(FogLurkerEntity.FLAG_GRAZING));
         }
         if (dst instanceof Wolf wolf) {
             wolf.setInSittingPose(src.hasFlag(FogLurkerEntity.FLAG_SITTING));

@@ -450,10 +450,15 @@ public final class LurkerBrain {
             case ZOMBIE -> speedFor(2.3);
             default -> sprintPref ? speedFor(5.6) : speedFor(4.3);
         };
-        goTo(t, speed);
         if (enc.mode() == Mode.ZOMBIE) {
-            mob.setAggressive(true);
-            stare(t);
+            hostile(t, dist);
+            if (phase != Phase.STALK || ended) {
+                return; // it revealed itself (or left) the way that mob would
+            }
+        } else {
+            goTo(t, speed);
+        }
+        if (enc.mode() == Mode.ZOMBIE) {
             if (phaseAge > 20 * 90) {
                 vanish(false); // even standing right next to someone in soul fire or water, it gives up eventually
             } else if (revealDistance(t, dist) < 3.0) {
@@ -727,13 +732,11 @@ public final class LurkerBrain {
     private void doppelganger(ServerPlayer t, double dist) {
         fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         stare(t);
-        // Mirror them: crouch when they crouch, hold what they hold, jump when they jump, swing when they swing.
+        // Mirror them: crouch when they crouch, hold what they hold, swing when they swing. (Never jump when they jump:
+        // it only jumps when its path needs it, up a block.)
         mob.setCrouching(t.isShiftKeyDown());
         if (age % 10 == 0) {
             mob.copyEquipmentOf(t);
-        }
-        if (lastTargetOnGround && !t.onGround() && t.getY() - lastTargetY > 0.2) {
-            mob.getJumpControl().jump();
         }
         if (t.swinging && !lastTargetSwinging) {
             mob.swing(InteractionHand.MAIN_HAND);
@@ -769,14 +772,22 @@ public final class LurkerBrain {
     /** When the current wander target was picked. */
     private int wanderSince;
 
+    /** A glance at the player, like the real ones give now and then: it looks at them until this tick. */
+    private int glanceUntil;
+    /** Until this tick a sheep copy keeps its head down, eating. */
+    private int grazeUntil;
+
+    /**
+     * A stolen animal or villager shape behaves like the real one: it wanders a few blocks, stands about, looks around,
+     * glances at players only as often as the real ones do (it learns that by watching them), and a sheep eats grass.
+     * It never walks straight at anyone: when it means to get close it only lets its wandering drift that way, while
+     * nobody is looking.
+     */
     private void herd(ServerPlayer t, double dist) {
         fog(t, QUIET); // no extra fog: the fog that is always there hides it, so nothing gives it away
         boolean lookedAtNow = isLookedAtBy(t);
         double walk = speedFor(Mth.clamp(animalStats.moveSpeed, 0.6F, 3.0F));
-        // Real animals glance at players now and then. This one stares a little too often.
-        if (dist < 24 && random.nextFloat() < Math.min(0.95F, animalStats.lookAtPlayer + 0.5F)) {
-            stare(t);
-        }
+        behaveLikeTheRealOne(t, dist);
         if (wanderTarget != null) {
             // Reached it, or stuck short of it (a fence): stop trying after 3 s of no path or 20 s in all.
             if (mob.position().distanceToSqr(wanderTarget) < 1.5 || mob.getNavigation().isDone() && age - wanderSince > 60
@@ -787,22 +798,14 @@ public final class LurkerBrain {
             } else {
                 goTo(wanderTarget, walk);
             }
-        } else if (age >= idleUntil) {
-            if (dist > 20 || (!lookedAtNow && random.nextFloat() < 0.6F)) {
-                // Creep closer while they are not looking.
-                Vec3 toward = t.position().subtract(mob.position()).normalize();
-                double step = 2 + random.nextDouble() * 4;
-                if (!enc.willAttack()) {
-                    step = Math.min(step, Math.max(0, dist - 6));
-                }
-                wanderSince = age;
-                wanderTarget = mob.position().add(toward.scale(step))
-                        .add((random.nextDouble() - 0.5) * 3, 0, (random.nextDouble() - 0.5) * 3);
-            } else if (random.nextFloat() < animalStats.moveFraction + 0.2F) {
-                wanderSince = age;
-                wanderTarget = mob.position().add((random.nextDouble() - 0.5) * 10, 0, (random.nextDouble() - 0.5) * 10);
+        } else if (age >= idleUntil && age >= grazeUntil) {
+            if (random.nextFloat() < animalStats.moveFraction + 0.25F) {
+                wanderTarget = herdStep(t, dist, lookedAtNow);
             } else {
-                idleUntil = age + 40 + random.nextInt(60);
+                idleUntil = age + 40 + random.nextInt(80);
+                if (mob.getDisguise() == Disguise.SHEEP && random.nextInt(3) == 0) {
+                    grazeUntil = age + 40; // head down, eating, like a real sheep
+                }
             }
             if (wanderTarget != null) {
                 BlockPos g = SpotFinder.ground(level(), Mth.floor(wanderTarget.x), Mth.floor(wanderTarget.z), mob.getBlockY());
@@ -813,16 +816,158 @@ public final class LurkerBrain {
                 }
             }
         }
+        if (wanderTarget != null || age >= grazeUntil) {
+            mob.setFlag(FogLurkerEntity.FLAG_GRAZING, false);
+        } else {
+            halt();
+            mob.setFlag(FogLurkerEntity.FLAG_GRAZING, true);
+        }
 
         if (enc.willAttack() && canAttack(t)) {
             boolean backTurned = !lookedAtNow && t.getViewVector(1F).dot(mob.position().subtract(t.position()).normalize()) < 0;
             double near = revealDistance(t, dist);
             if ((near < 5 || (near < 10 && backTurned && phaseAge > 20 * 20 && isolated(t))) && canRevealNow(t)) {
+                mob.setFlag(FogLurkerEntity.FLAG_GRAZING, false);
                 setPhase(Phase.TRANSFORM);
             }
         } else if (dist < 4) {
+            mob.setFlag(FogLurkerEntity.FLAG_GRAZING, false);
             mob.playSound(ModSounds.WHISPER.get(), 1.0F, 0.6F);
             setPhase(Phase.FLEE);
+        }
+    }
+
+    /**
+     * Where a stolen animal or villager wanders next: a few blocks in a random direction, like the real ones. It stays
+     * with the player (a long way off it drifts back), and when it means to attack, it picks the step that ends nearest
+     * them, but only while they are not looking, and never more than a few blocks at a time.
+     */
+    private Vec3 herdStep(ServerPlayer t, double dist, boolean lookedAt) {
+        boolean drift = dist > 28 || enc.willAttack() && canAttack(t) && !lookedAt && random.nextFloat() < 0.45F;
+        Vec3 best = null;
+        double bestD = Double.MAX_VALUE;
+        for (int i = 0; i < (drift ? 4 : 1); i++) {
+            double a = random.nextDouble() * Math.PI * 2;
+            double r = 2 + random.nextDouble() * 5;
+            Vec3 c = mob.position().add(Math.cos(a) * r, 0, Math.sin(a) * r);
+            double d = c.distanceToSqr(t.position());
+            if (best == null || d < bestD) {
+                best = c;
+                bestD = d;
+            }
+        }
+        return best;
+    }
+
+    /** When a ranged mob shape last picked where to stand. */
+    private int strafeSince = -1000;
+    /** How long the player has been looking at an enderman shape. */
+    private int staredAt;
+
+    /**
+     * A stolen hostile shape moves like that mob: zombies and husks walk straight at you, skeletons, strays, pillagers
+     * and witches keep their distance and circle you, spiders are quick, a creeper walks up without a sound and hisses
+     * before it shows what it really is, and an enderman wanders and only comes for you once you look at it.
+     */
+    private void hostile(ServerPlayer t, double dist) {
+        Disguise d = mob.getDisguise();
+        boolean attack = enc.willAttack() && canAttack(t);
+        switch (d) {
+            case SKELETON, STRAY, PILLAGER, WITCH -> {
+                mob.setAggressive(true);
+                stare(t);
+                // Keeps 8 to 14 blocks away and side-steps around you, like it is lining up a shot.
+                if (dist > 14) {
+                    goTo(t, speedFor(2.4));
+                } else if (dist < 7) {
+                    Vec3 away = mob.position().subtract(t.position()).multiply(1, 0, 1).normalize();
+                    goTo(mob.position().add(away.scale(4)), speedFor(2.8));
+                } else if (age - strafeSince > 40) {
+                    strafeSince = age;
+                    Vec3 to = t.position().subtract(mob.position()).multiply(1, 0, 1).normalize();
+                    Vec3 side = new Vec3(-to.z, 0, to.x).scale(random.nextBoolean() ? 3 : -3);
+                    goTo(mob.position().add(side), speedFor(2.4));
+                }
+                if (attack && dist < 14 && !isLookedAtBy(t) && phaseAge > 20 * 8 && canRevealNow(t)) {
+                    setPhase(Phase.TRANSFORM); // it stops pretending the moment you look away
+                }
+            }
+            case CREEPER -> {
+                goTo(t, speedFor(2.4));
+                stare(t);
+                if (revealDistance(t, dist) < 3.0) {
+                    mob.playSound(SoundEvents.CREEPER_PRIMED, 1.0F, 0.5F); // the hiss... and then it is not a creeper
+                    if (attack) {
+                        if (canRevealNow(t)) {
+                            setPhase(Phase.TRANSFORM);
+                        }
+                    } else {
+                        vanish(false);
+                    }
+                }
+            }
+            case ENDERMAN -> {
+                // Wanders, ignoring you, until you look at it.
+                if (isLookedAtBy(t) && dist < 32) {
+                    staredAt++;
+                    stare(t);
+                    halt();
+                    if (staredAt == 10) {
+                        mob.playSound(SoundEvents.ENDERMAN_STARE, 1.5F, 1.0F);
+                        if (attack && canRevealNow(t)) {
+                            setPhase(Phase.TRANSFORM);
+                        } else {
+                            mob.playSound(SoundEvents.ENDERMAN_TELEPORT, 1.0F, 1.0F);
+                            vanish(false);
+                        }
+                    }
+                } else {
+                    staredAt = 0;
+                    if (wanderTarget == null || mob.getNavigation().isDone() || age - wanderSince > 200) {
+                        wanderSince = age;
+                        wanderTarget = herdStep(t, dist, false);
+                    }
+                    goTo(wanderTarget, speedFor(2.0));
+                }
+            }
+            case SPIDER -> {
+                mob.setAggressive(true);
+                stare(t);
+                goTo(t, speedFor(3.4));
+            }
+            default -> { // zombies and husks: straight at you, arms out
+                mob.setAggressive(true);
+                stare(t);
+                goTo(t, speedFor(2.3));
+            }
+        }
+    }
+
+    /** Where it is looking around at, and until when. */
+    @Nullable
+    private Vec3 lookAround;
+    private int lookAroundUntil;
+
+    /** Glances, looking around: what the real animal or villager does with its head. */
+    private void behaveLikeTheRealOne(ServerPlayer t, double dist) {
+        if (phaseAge == 1) {
+            // It turns up facing wherever, like any animal standing in a field: not towards you.
+            float yaw = random.nextFloat() * 360F;
+            mob.setYRot(yaw);
+            mob.setYBodyRot(yaw);
+            mob.setYHeadRot(yaw);
+        }
+        if (age < glanceUntil) {
+            stare(t);
+        } else if (dist < 16 && random.nextFloat() < Mth.clamp(animalStats.lookAtPlayer, 0.02F, 0.6F) / 50F) {
+            glanceUntil = age + 30 + random.nextInt(40);
+        } else if (lookAround != null && age < lookAroundUntil) {
+            mob.getLookControl().setLookAt(lookAround.x, lookAround.y, lookAround.z);
+        } else if (random.nextInt(80) == 0) {
+            double a = random.nextDouble() * Math.PI * 2;
+            lookAround = new Vec3(mob.getX() + Math.cos(a) * 6, mob.getEyeY() + (random.nextDouble() - 0.5) * 2,
+                    mob.getZ() + Math.sin(a) * 6);
+            lookAroundUntil = age + 40 + random.nextInt(40);
         }
     }
 
@@ -1803,7 +1948,7 @@ public final class LurkerBrain {
         return false;
     }
 
-    /** Little human habits copied from the real player: crouch spam, idle swings, bunny hops, looking around. */
+    /** Little human habits copied from the real player: crouch spam, idle swings, looking around. */
     private void mannerisms(ServerPlayer t) {
         if (crouchSpam > 0) {
             crouchSpam--;
@@ -1817,10 +1962,7 @@ public final class LurkerBrain {
             mob.swing(InteractionHand.MAIN_HAND);
         }
         boolean moving = mob.getDeltaMovement().horizontalDistanceSqr() > 0.004;
-        float jumpRate = p != null ? p.jumpRate : 0.1F;
-        if (moving && sprintPref && mob.onGround() && random.nextFloat() < jumpRate / 20F) {
-            mob.getJumpControl().jump();
-        }
+        // (No bunny hops: it only jumps when its path needs it, up a block.)
         float jitter = p != null ? p.lookJitter : 3F;
         if (!moving && phase == Phase.LURE && random.nextFloat() < jitter / 400F) {
             Vec3 look = mob.getEyePosition().add((random.nextDouble() - 0.5) * 16, (random.nextDouble() - 0.6) * 4,
