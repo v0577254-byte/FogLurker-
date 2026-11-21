@@ -82,6 +82,10 @@ public final class ClientShowcase {
             structuresScene(mc, server);
             return;
         }
+        if ("tower".equals(System.getProperty("foglurker.scene"))) {
+            towerScene(mc, server);
+            return;
+        }
         if (System.getProperty("foglurker.scene", "").startsWith("wild")) {
             wildScene(mc, server);
             return;
@@ -505,6 +509,130 @@ public final class ClientShowcase {
             });
             case 230 -> shot(mc, "foglurker_wild_" + name + ".png");
             case 315 -> shot(mc, "foglurker_wild_" + name + "_2.png");
+            default -> {
+            }
+        }
+    }
+
+    private static BlockPos towerAt;
+    private static BlockPos towerOrigin;
+    private static net.minecraft.world.level.block.Rotation towerTurn = net.minecraft.world.level.block.Rotation.NONE;
+    private static final int TOWER_FROM = 60000 + new java.util.Random().nextInt(300) * 4000;
+
+    /** A point in the lookout tower's own coordinates (x east, z south: the door faces +z), in the world. */
+    private static net.minecraft.world.phys.Vec3 tw(double x, double y, double z) {
+        double rx;
+        double rz;
+        switch (towerTurn) {
+            case CLOCKWISE_90 -> { rx = 1 - z; rz = x; }
+            case COUNTERCLOCKWISE_90 -> { rx = z; rz = 1 - x; }
+            case CLOCKWISE_180 -> { rx = 1 - x; rz = 1 - z; }
+            default -> { rx = x; rz = z; }
+        }
+        return new net.minecraft.world.phys.Vec3(towerOrigin.getX() + rx, towerOrigin.getY() + y, towerOrigin.getZ() + rz);
+    }
+
+    private static void towerCamera(ServerPlayer p, net.minecraft.world.phys.Vec3 at, net.minecraft.world.phys.Vec3 look, boolean aboveGround) {
+        ServerLevel level = p.serverLevel();
+        double y = at.y;
+        if (aboveGround) {
+            y = Math.max(y, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(at.x), (int) Math.floor(at.z)) + 0.2);
+        }
+        p.teleportTo(level, at.x, y, at.z, 0F, 0F);
+        p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, look);
+        FogLurkerMod.LOGGER.info("Showcase tower: camera {} {} {} (asked {}) looking at {} -> yaw {} pitch {}", at.x, y, at.z, at.y, look,
+                p.getYRot(), p.getXRot());
+    }
+
+    /** A few photos of the lookout tower: the whole of it, from the foot, on the deck, inside, the view out, by night. */
+    private static void towerScene(Minecraft mc, MinecraftServer server) {
+        if (ticks < 40) {
+            return;
+        }
+        int t = ticks;
+        switch (t) {
+            case 40 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                com.foglurker.brain.LurkerDirector.naturalSpawnsPaused = true;
+                mc.options.hideGui = true;
+                p.serverLevel().setDayTime(5000);
+                p.setGameMode(GameType.SPECTATOR);
+                p.teleportTo(p.serverLevel(), TOWER_FROM, 200, TOWER_FROM, 0F, 60F);
+            });
+            case 140 -> server.execute(() -> {
+                // A tower the world generator built (on land, the ground shaped round it the real way).
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                var holder = server.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
+                        .getHolderOrThrow(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE,
+                                FogLurkerMod.id("lookout_tower")));
+                var found = level.getChunkSource().getGenerator().findNearestMapStructure(level,
+                        net.minecraft.core.HolderSet.direct(holder), new BlockPos(TOWER_FROM, 64, TOWER_FROM), 150, false);
+                towerAt = found.getFirst();
+                var start = level.getChunk(towerAt.getX() >> 4, towerAt.getZ() >> 4).getStartForStructure(holder.value());
+                var piece = (net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece) start.getPieces().get(0);
+                towerOrigin = piece.getPosition();
+                towerTurn = piece.getRotation();
+                var box = piece.getBoundingBox();
+                for (int cx = (box.minX() >> 4) - 3; cx <= (box.maxX() >> 4) + 3; cx++) {
+                    for (int cz = (box.minZ() >> 4) - 3; cz <= (box.maxZ() >> 4) + 3; cz++) {
+                        level.getChunk(cx, cz);
+                    }
+                }
+                FogLurkerMod.LOGGER.info("Showcase tower: at {} turned {}", towerOrigin, towerTurn);
+                // (For the photos only: the trees round it out of the way. Not the tower's own logs.)
+                var c = tw(4.5, 0, 4.5);
+                for (BlockPos b : BlockPos.betweenClosed(new BlockPos((int) c.x - 36, towerOrigin.getY() - 8, (int) c.z - 36),
+                        new BlockPos((int) c.x + 36, towerOrigin.getY() + 45, (int) c.z + 36))) {
+                    if (box.isInside(b)) {
+                        continue;
+                    }
+                    var st = level.getBlockState(b);
+                    if (st.is(net.minecraft.tags.BlockTags.LEAVES) || st.is(net.minecraft.tags.BlockTags.LOGS)) {
+                        level.setBlock(b, Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+                p.teleportTo(level, c.x, towerOrigin.getY() + 40, c.z, 0F, 60F);
+            });
+            // 1: the whole tower, from the side the door is on
+            case 800 -> server.execute(() -> towerCamera(sp(server), tw(19, 8, 25), tw(4.5, 14, 4.5), true));
+            case 860 -> shot(mc, "foglurker_tower_1.png");
+            // 2: from the foot, looking up the legs and the ladder
+            case 880 -> server.execute(() -> towerCamera(sp(server), tw(10.5, 0, 11.5), tw(4.5, 19, 4.5), true));
+            case 940 -> shot(mc, "foglurker_tower_2.png");
+            // 3: up on the deck, by the cabin door
+            case 960 -> server.execute(() -> towerCamera(sp(server), tw(9.5, 23.5, 14.5), tw(4.5, 22, 5), false));
+            case 1020 -> shot(mc, "foglurker_tower_3.png");
+            // 4: inside the cabin: the maps, the "radio", the bed, the chest
+            case 1040 -> server.execute(() -> towerCamera(sp(server), tw(4.5, 20.6, 5.7), tw(4.5, 21.9, 2.4), false));
+            case 1100 -> shot(mc, "foglurker_tower_4.png");
+            // 5: the view out from the deck, and what stands out there at the edge of the fog
+            case 1120 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                var out = tw(6.5, 0, 34.5);
+                int gy = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(out.x), (int) Math.floor(out.z));
+                FogLurkerEntity e = ModEntities.FOG_LURKER.get().create(level);
+                if (e != null) {
+                    e.setNoAi(true);
+                    e.setDisguise(Disguise.CRAWLER);
+                    e.moveTo(out.x, gy, out.z, 0F, 0F);
+                    e.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, tw(4.5, 22, 4.5));
+                    e.setYBodyRot(e.getYRot());
+                    e.setYHeadRot(e.getYRot());
+                    level.addFreshEntity(e);
+                }
+                towerCamera(p, tw(4.5, 21, 7.4), new net.minecraft.world.phys.Vec3(out.x, gy + 1, out.z), false);
+            });
+            case 1200 -> shot(mc, "foglurker_tower_5.png");
+            // 6: by night, lanterns lit
+            case 1220 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.serverLevel().setDayTime(18000);
+                towerCamera(p, tw(12.5, 14, 14.5), tw(4.5, 20, 4.5), true);
+            });
+            case 1320 -> shot(mc, "foglurker_tower_6.png");
+            case 1340 -> mc.stop();
             default -> {
             }
         }
