@@ -1,9 +1,24 @@
-# Fog Lurker for Minecraft 1.21.11 (Fabric) — 0.2.1 fabric beta
+# Fog Lurker for Minecraft 1.21.11 (Fabric) — 0.3.0 fabric beta
 
 The whole Fog Lurker mod (the same one as the Forge 1.20.1 version in the folder above, public line), ported to
 **Fabric** and **Minecraft 1.21.11**: the creature and its disguises, the fog and mist, hauntings, sleep paralysis,
 the night meeting, the Protector of the Fog, learning, the copied chat (with an optional Gemini key) and the
 opt-in voice snippets. Every command and config option works the same; see the main README for what it all does.
+
+## New in 0.3.0 (same as Forge 1.6.0)
+
+- **Haunted Books**: a book called "Haunted Book" (in dark red) turns up in a chest or barrel you opened, in a
+  furnace's output slot, open on an empty lectern, or on the floor right behind you. Inside: your name over and over,
+  things you said, how many times you died, your steps ("some of them were mine"), a tally of the nights it watched
+  you, a name that will not stay still... Far more often than the old book (at most one every 4 minutes, anywhere).
+  Only a book in your own chest at your base says where you sleep.
+- **Knocking** on a door or a window near you. Nobody is there.
+- **Under the bed**: about one sleep in three, a copy of you (your own skin) rises from under the foot of your bed and
+  looks at you, for one second.
+- **New shapes**: villagers (any job, dressed for the biome), the wandering trader, horses, donkeys, llamas, goats,
+  rabbits, foxes, cats and mooshrooms, and in the dark skeletons, creepers, spiders, husks, strays, endermen, witches
+  and pillagers.
+- It **copies players more often**.
 
 ## New in 0.2.1
 
@@ -25,7 +40,7 @@ opt-in voice snippets. Every command and config option works the same; see the m
 ## Installing
 
 1. Install **Fabric Loader 0.20.1 or newer** for Minecraft **1.21.11** (in Prism Launcher: a 1.21.11 instance with Fabric).
-2. Put **Fabric API** (0.141 or newer for 1.21.11) and `FogLurker-0.2.1-fabric-beta.jar` in `mods/`, on the server and
+2. Put **Fabric API** (0.141 or newer for 1.21.11) and `FogLurker-0.3.0-fabric-beta.jar` in `mods/`, on the server and
    every client.
 3. Optional, for voices: **Simple Voice Chat** (Fabric, 1.21.11) on the server and every client.
 
@@ -46,7 +61,7 @@ The config files are the same as on Forge: `config/foglurker-common.toml` and `c
 Gradle runs on **Java 25** (Fabric Loom needs it); the mod is built for Java 21.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-0.2.1-fabric-beta.jar
+./gradlew build               # -> build/libs/FogLurker-0.3.0-fabric-beta.jar
 ./gradlew runGametest         # all 53 in-game tests on a game-test server (build/gametest/junit.xml)
 ./gradlew runClient -Pshowcase   # dev check: makes a world, runs the commands, saves screenshots
 ```

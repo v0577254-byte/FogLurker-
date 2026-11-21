@@ -1259,7 +1259,7 @@ public final class LurkerBrain {
         fog(t, 0.4F);
         Vec3 away = mob.position().subtract(t.position()).multiply(1, 0, 1);
         away = away.lengthSqr() < 1e-4 ? new Vec3(1, 0, 0) : away.normalize();
-        double speed = mob.getDisguise().isAnimal() ? speedFor(4.5) : speedFor(8.0 * difficulty().speedMultiplier());
+        double speed = mob.getDisguise().isPassive() ? speedFor(4.5) : speedFor(8.0 * difficulty().speedMultiplier());
         goTo(mob.position().add(away.scale(16)), speed);
         if (phaseAge > 60 || (phaseAge > 15 && !SpotFinder.canSee(t, mob.getEyePosition()))) {
             vanish(false);

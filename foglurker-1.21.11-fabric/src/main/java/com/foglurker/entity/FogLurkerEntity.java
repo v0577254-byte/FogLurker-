@@ -373,8 +373,8 @@ public class FogLurkerEntity extends PathfinderMob {
         if (this.getNavigation() instanceof GroundPathNavigation nav) {
             nav.setCanFloat(!attackForm);
         }
-        this.setPathfindingMalus(PathType.WATER, attackForm ? -1.0F : d.isAnimal() ? 8.0F : 0.0F);
-        this.setPathfindingMalus(PathType.WATER_BORDER, attackForm ? 16.0F : d.isAnimal() ? 8.0F : 0.0F);
+        this.setPathfindingMalus(PathType.WATER, attackForm ? -1.0F : d.isPassive() ? 8.0F : 0.0F);
+        this.setPathfindingMalus(PathType.WATER_BORDER, attackForm ? 16.0F : d.isPassive() ? 8.0F : 0.0F);
     }
 
     // ------------------------------------------------------------------ swimming (human forms)
@@ -725,6 +725,7 @@ public class FogLurkerEntity extends PathfinderMob {
                     : this.random.nextInt(3) == 0 ? SoundEvents.WOLF_SOUNDS.get(net.minecraft.world.entity.animal.wolf.WolfSoundVariants.SoundSet.CLASSIC).whineSound().value() : SoundEvents.WOLF_SOUNDS.get(net.minecraft.world.entity.animal.wolf.WolfSoundVariants.SoundSet.CLASSIC).pantSound().value();
             case CRAWLER -> ModSounds.WHISPER.get();
             case PLAYER -> null; // players do not make idle noises
+            default -> getDisguise().ambientSound();
         };
     }
 
@@ -749,6 +750,7 @@ public class FogLurkerEntity extends PathfinderMob {
             case WOLF, DOG -> SoundEvents.WOLF_SOUNDS.get(net.minecraft.world.entity.animal.wolf.WolfSoundVariants.SoundSet.CLASSIC).hurtSound().value();
             case PLAYER -> SoundEvents.PLAYER_HURT;
             case CRAWLER -> ModSounds.HURT.get();
+            default -> getDisguise().hurtSound() != null ? getDisguise().hurtSound() : SoundEvents.GENERIC_HURT;
         };
     }
 
@@ -777,7 +779,7 @@ public class FogLurkerEntity extends PathfinderMob {
             case CHICKEN -> SoundEvents.CHICKEN_STEP;
             case ZOMBIE -> SoundEvents.ZOMBIE_STEP;
             case WOLF, DOG -> SoundEvents.WOLF_STEP;
-            default -> null;
+            default -> getDisguise().stepSound();
         };
         if (step != null) {
             this.playSound(step, 0.15F, 1.0F);

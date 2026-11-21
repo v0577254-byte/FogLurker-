@@ -136,6 +136,17 @@ public final class FogLurkerGameTests {
      * The test world has real terrain and pits dug for other tests. Behaviour tests flatten a field
      * around the player so they test the creature, not the scenery.
      */
+    /** A written book called "Haunted Book" with an opener, two to four middle pages and a last page. */
+    private static void checkHauntedBook(ItemStack book, String where) {
+        check(book.is(Items.WRITTEN_BOOK), "no written book " + where + ": " + book);
+        var content = book.get(net.minecraft.core.component.DataComponents.WRITTEN_BOOK_CONTENT);
+        check(content != null && content.title().raw().equals(com.foglurker.brain.Hauntings.BOOK_TITLE)
+                && book.getHoverName().getString().equals(com.foglurker.brain.Hauntings.BOOK_TITLE), "the book " + where + " is not a Haunted Book");
+        int pages = content.pages().size();
+        check(pages >= 4 && pages <= 6, "the book " + where + " has " + pages + " pages");
+        check(!content.author().isEmpty(), "the book " + where + " has no author");
+    }
+
     private static void flatten(GameTestHelper h, int radius) {
         // The test world is ordinary generated terrain and the tests run deep underground, so a fresh
         // world brings its own caves, aquifers, lava and gravel. Carve a sealed room (stone walls, ceiling
@@ -2016,6 +2027,92 @@ public final class FogLurkerGameTests {
         });
     }
 
+    @GameTest(environment = "foglurker:underbed", maxTicks = 200)
+    public void underTheBedOnlyWhileAsleep(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            MinecraftServer server = h.getLevel().getServer();
+            FogLurkerSavedData data = FogLurkerSavedData.get(server);
+            if (data.inGrace()) {
+                data.endGrace();
+            }
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            h.runAfterDelay(20, () -> logged(h, () -> {
+                check(!com.foglurker.world.UnderTheBed.show(p), "never while they are awake");
+                var head = rel(h, 3, 0, 4);
+                var foot = head.north();
+                var bed = net.minecraft.world.level.block.Blocks.RED_BED.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.SOUTH);
+                h.getLevel().setBlockAndUpdate(foot, bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                        net.minecraft.world.level.block.state.properties.BedPart.FOOT));
+                h.getLevel().setBlockAndUpdate(head, bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                        net.minecraft.world.level.block.state.properties.BedPart.HEAD));
+                p.startSleeping(head);
+                check(p.isSleeping(), "the test player did not lie down");
+                check(com.foglurker.world.UnderTheBed.lieDown(p, 0.0, 15), "a low roll should bring it this sleep");
+                check(!com.foglurker.world.UnderTheBed.lieDown(p, 0.99, 15), "a high roll should be a quiet sleep");
+                check(com.foglurker.world.UnderTheBed.show(p), "it should show while they sleep");
+                // Never in a sleep that is sleep paralysis.
+                check(com.foglurker.world.SleepParalysis.lieDown(p, 0.0), "the test needs a sleep paralysis sleep");
+                check(!com.foglurker.world.UnderTheBed.show(p), "not in a sleep paralysis sleep");
+                com.foglurker.world.SleepParalysis.lieDown(p, 0.99);
+                // Nor with hauntings off.
+                com.foglurker.config.FogLurkerConfig.COMMON.hauntings.set(false);
+                try {
+                    check(!com.foglurker.world.UnderTheBed.lieDown(p, 0.0, 15), "with hauntings off it never comes");
+                } finally {
+                    com.foglurker.config.FogLurkerConfig.COMMON.hauntings.set(true);
+                }
+                p.stopSleeping();
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(environment = "foglurker:newshapes", maxTicks = 100)
+    public void newShapesLookAndActRight(GameTestHelper h) {
+        logged(h, () -> {
+            // Every real mob of a new kind maps to its shape (a trader llama is a llama), and back.
+            check(Disguise.byName("merchant") == Disguise.WANDERING_TRADER, "merchant should be the wandering trader");
+            for (Disguise d : Disguise.values()) {
+                if (d.renderType() != null && d != Disguise.DOG) {
+                    var e = d.renderType().create(h.getLevel(), net.minecraft.world.entity.EntitySpawnReason.LOAD);
+                    check(e != null && Disguise.of(e) == d, d + " is not recognised from a real " + d.renderType());
+                }
+                check(d.isPassive() != (d.isHostile() || d == Disguise.PLAYER || d == Disguise.CRAWLER),
+                        d + " must be exactly one of passive, hostile, a player copy or its true form");
+            }
+            check(Disguise.of(net.minecraft.world.entity.EntityType.TRADER_LLAMA.create(h.getLevel(), net.minecraft.world.entity.EntitySpawnReason.LOAD)) == Disguise.LLAMA,
+                    "a trader llama should count as a llama");
+            // Hostile shapes stalk like a zombie; villagers and animals blend in like a herd.
+            flatten(h, 24);
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(h.getLevel().getServer(), p);
+            h.runAfterDelay(40, () -> logged(h, () -> {
+                FogLurkerEntity skeleton = LurkerDirector.spawn(p, Disguise.SKELETON, Boolean.FALSE);
+                check(skeleton != null && skeleton.brain().encounter().mode() == LurkerBrain.Mode.ZOMBIE,
+                        "a skeleton shape should stalk like a hostile mob");
+                FogLurkerEntity villager = LurkerDirector.spawn(p, Disguise.VILLAGER, Boolean.FALSE);
+                check(villager != null && villager.brain().encounter().mode() == LurkerBrain.Mode.HERD,
+                        "a villager shape should blend in");
+                check(villager.getVariant() >= 0 && villager.getVariant() < Disguise.VILLAGER_JOBS.length,
+                        "a villager shape needs a job, got " + villager.getVariant());
+                // In the dark it is any of the hostile kinds, not only a zombie.
+                java.util.Set<Disguise> dark = java.util.EnumSet.noneOf(Disguise.class);
+                RandomSource rr = RandomSource.create(1);
+                for (int i = 0; i < 200; i++) {
+                    dark.add(LurkerDirector.darkShapeForTests(h.getLevel(), p.blockPosition(), rr));
+                }
+                check(dark.size() >= 6 && dark.stream().allMatch(Disguise::isHostile), "dark shapes: " + dark);
+                for (FogLurkerEntity l : List.of(skeleton, villager)) {
+                    l.brain().vanish(false);
+                }
+                h.succeed();
+            }));
+        });
+    }
+
     @GameTest(environment = "foglurker:haunt", maxTicks = 400)
     public void hauntings(GameTestHelper h) {
         logged(h, () -> {
@@ -2057,22 +2154,78 @@ public final class FogLurkerGameTests {
             prof.sleptAt("o", a);
             check(prof.home().equals(a) && prof.isNearHome("o", a.offset(5, 0, 5), 32), "a bed sets home");
 
-            // A book appears in a chest at your base, in your own words. Then not again for 20 minutes.
+            // Haunted books. In a chest they opened themselves (never one they did not), with their home in it at base.
             var chestPos = rel(h, 5, 0, 1);
             level.setBlockAndUpdate(chestPos, net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState());
             var mine = data.profile(p.getUUID());
             mine.sleptAt(level.dimension().identifier().toString(), chestPos);
             mine.addChat("anyone seen my pickaxe");
             mine.addChat("brb getting wood");
-            check(!com.foglurker.brain.Hauntings.leaveBook(p, data, r), "never a book in a chest they have not opened themselves");
+            check(!com.foglurker.brain.Hauntings.leaveBook(p, data, r, com.foglurker.brain.Hauntings.BookSpot.CONTAINER),
+                    "never a book in a chest they have not opened themselves");
             mine.openedContainer(chestPos);
-            check(com.foglurker.brain.Hauntings.leaveBook(p, data, r), "it should leave a book in the chest");
+            check(com.foglurker.brain.Hauntings.leaveBook(p, data, r, com.foglurker.brain.Hauntings.BookSpot.CONTAINER),
+                    "it should leave a book in the chest");
             var chest = (net.minecraft.world.Container) level.getBlockEntity(chestPos);
             ItemStack book = chest.getItem(0);
-            var content = book.get(net.minecraft.core.component.DataComponents.WRITTEN_BOOK_CONTENT);
-            check(book.is(Items.WRITTEN_BOOK) && content != null && content.pages().size() >= 3, "no written book in the chest: " + book);
-            check(content.author().equals(p.getGameProfile().name()), "the book should be signed with your name");
-            check(!com.foglurker.brain.Hauntings.leaveBook(p, data, r), "only one book every 20 minutes");
+            checkHauntedBook(book, "in the chest");
+            check(!com.foglurker.brain.Hauntings.leaveBook(p, data, r), "only one book every 4 minutes");
+            // In a furnace they used: in its output slot, as if the furnace made it.
+            mine.lastBookAt = Long.MIN_VALUE / 2;
+            var furnacePos = rel(h, -4, 0, 2);
+            level.setBlockAndUpdate(furnacePos, net.minecraft.world.level.block.Blocks.FURNACE.defaultBlockState());
+            mine.openedContainer(furnacePos);
+            check(com.foglurker.brain.Hauntings.leaveBook(p, data, r, com.foglurker.brain.Hauntings.BookSpot.FURNACE),
+                    "it should leave a book in the furnace");
+            checkHauntedBook(((net.minecraft.world.Container) level.getBlockEntity(furnacePos)).getItem(2), "in the furnace");
+            // On an empty lectern.
+            mine.lastBookAt = Long.MIN_VALUE / 2;
+            var lecternPos = rel(h, 3, 0, -3);
+            level.setBlockAndUpdate(lecternPos, net.minecraft.world.level.block.Blocks.LECTERN.defaultBlockState());
+            check(com.foglurker.brain.Hauntings.leaveBook(p, data, r, com.foglurker.brain.Hauntings.BookSpot.LECTERN),
+                    "it should leave a book on the lectern");
+            check(level.getBlockState(lecternPos).getValue(net.minecraft.world.level.block.LecternBlock.HAS_BOOK)
+                    && level.getBlockEntity(lecternPos) instanceof net.minecraft.world.level.block.entity.LecternBlockEntity lectern
+                    && lectern.getBook().getHoverName().getString().equals(com.foglurker.brain.Hauntings.BOOK_TITLE),
+                    "no haunted book on the lectern");
+            // On the floor behind them, and never with their home written in it (anyone could pick it up).
+            mine.lastBookAt = Long.MIN_VALUE / 2;
+            for (var e : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, p.getBoundingBox().inflate(16))) {
+                e.discard();
+            }
+            check(com.foglurker.brain.Hauntings.leaveBook(p, data, r, com.foglurker.brain.Hauntings.BookSpot.GROUND),
+                    "it should leave a book on the floor");
+            var dropped = level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, p.getBoundingBox().inflate(6),
+                    e -> e.getItem().is(Items.WRITTEN_BOOK));
+            check(dropped.size() == 1, "expected one book on the floor, found " + dropped.size());
+            checkHauntedBook(dropped.get(0).getItem(), "on the floor");
+            var floorBook = dropped.get(0);
+            Vec3 toBook = floorBook.position().subtract(p.position());
+            check(toBook.z < 0 && toBook.horizontalDistance() <= 5, "the floor book should be behind them (they face +Z): " + toBook);
+            String coords = mine.homeX + " " + mine.homeY + " " + mine.homeZ;
+            check(floorBook.getItem().get(net.minecraft.core.component.DataComponents.WRITTEN_BOOK_CONTENT).pages().stream()
+                            .noneMatch(f -> f.raw().getString().contains(coords)),
+                    "a book on the floor must never say where they live");
+            // And with anything to put it in or on, one always appears.
+            for (int seed = 0; seed < 8; seed++) {
+                mine.lastBookAt = Long.MIN_VALUE / 2;
+                chest.clearContent();
+                check(com.foglurker.brain.Hauntings.leaveBook(p, data, RandomSource.create(seed)), "no book with seed " + seed);
+            }
+
+            // Knocking: nothing to knock on, then a window, then a door.
+            check(com.foglurker.brain.Hauntings.knockSpot(level, p, r) == null, "nothing to knock on yet");
+            var glass = rel(h, -6, 1, -1);
+            level.setBlockAndUpdate(glass, net.minecraft.world.level.block.Blocks.GLASS_PANE.defaultBlockState());
+            check(glass.equals(com.foglurker.brain.Hauntings.knockSpot(level, p, r)), "the window should be knocked on");
+            level.setBlockAndUpdate(glass, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            var door = rel(h, -6, 0, 3);
+            level.setBlockAndUpdate(door, net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState());
+            level.setBlockAndUpdate(door.above(), net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState()
+                    .setValue(net.minecraft.world.level.block.DoorBlock.HALF,
+                            net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER));
+            check(door.equals(com.foglurker.brain.Hauntings.knockSpot(level, p, r)), "the door should be knocked on");
+            check(com.foglurker.brain.Hauntings.knock(p, r), "knocking failed");
 
             // The test area is a pocket deep under real terrain, so right here it is "underground".
             check(com.foglurker.brain.SpotFinder.placeOf(level, p, null) == com.foglurker.brain.SpotFinder.Place.UNDERGROUND,

@@ -21,6 +21,7 @@ import java.util.function.Supplier;
  * from Mojang. It never settles for a default skin while a real one can be found.</p>
  */
 public class MimicDummyPlayer extends RemotePlayer {
+
     private int lastLook = -1;
     /** Their profile with skin data, fetched from Mojang when they are not in the player list. */
     private volatile @Nullable GameProfile skinProfile;

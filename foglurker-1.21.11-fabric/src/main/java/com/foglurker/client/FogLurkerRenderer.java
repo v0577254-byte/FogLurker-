@@ -71,6 +71,9 @@ public class FogLurkerRenderer extends EntityRenderer<FogLurkerEntity, FogLurker
                     puppet.nameTagAttachment = lurker.getAttachments().getNullable(
                             net.minecraft.world.entity.EntityAttachment.NAME_TAG, 0, lurker.getYRot(partialTick));
                 } // (a copied player keeps their real name tag, drawn by the player renderer itself)
+                if (UnderBed.is(lurker)) {
+                    puppet.nameTag = null; // the copy under your bed has no name over its head
+                }
                 state.disguise = puppet;
             } else {
                 showTrue = true;

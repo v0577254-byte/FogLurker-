@@ -697,10 +697,11 @@ public final class LurkerDirector {
             if (!willAttack && r.nextDouble() < diff.pureWatchChance()) {
                 options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.CRAWLER, 1));
             } else {
+                // Copying a player is its favourite trick: a friend if one is online, otherwise you.
                 if (friend != null) {
-                    options.add(new Option(LurkerBrain.Mode.MIMIC, Disguise.PLAYER, 55));
+                    options.add(new Option(LurkerBrain.Mode.MIMIC, Disguise.PLAYER, 80));
                 } else if (FogLurkerConfig.COMMON.allowDoppelganger.get()) {
-                    options.add(new Option(LurkerBrain.Mode.DOPPELGANGER, Disguise.PLAYER, 14));
+                    options.add(new Option(LurkerBrain.Mode.DOPPELGANGER, Disguise.PLAYER, 35));
                 }
                 if (dogAvailable) {
                     options.add(new Option(LurkerBrain.Mode.DOG, Disguise.DOG, 22));
@@ -712,13 +713,20 @@ public final class LurkerDirector {
                     Disguise[] farm = {Disguise.COW, Disguise.SHEEP, Disguise.PIG, Disguise.CHICKEN};
                     options.add(new Option(LurkerBrain.Mode.HERD, farm[r.nextInt(farm.length)], 8));
                 }
-                if (level.getBiome(target.blockPosition()).is(BiomeTags.IS_TAIGA)
-                        || level.getBiome(target.blockPosition()).is(BiomeTags.IS_FOREST)) {
+                var biome = level.getBiome(target.blockPosition());
+                if (biome.is(BiomeTags.IS_TAIGA) || biome.is(BiomeTags.IS_FOREST)) {
                     options.add(new Option(LurkerBrain.Mode.HERD, Disguise.WOLF, 8));
+                }
+                if (biome.is(BiomeTags.IS_SAVANNA) || biome.is(net.minecraft.world.level.biome.Biomes.PLAINS)
+                        || biome.is(net.minecraft.world.level.biome.Biomes.SUNFLOWER_PLAINS)) {
+                    options.add(new Option(LurkerBrain.Mode.HERD, r.nextInt(4) == 0 ? Disguise.DONKEY : Disguise.HORSE, 6));
+                }
+                if (biome.is(BiomeTags.IS_MOUNTAIN)) {
+                    options.add(new Option(LurkerBrain.Mode.HERD, Disguise.GOAT, 6));
                 }
                 boolean dark = level.isDarkOutside() || level.getBrightness(LightLayer.SKY, target.blockPosition()) < 6;
                 if (dark) {
-                    options.add(new Option(LurkerBrain.Mode.ZOMBIE, Disguise.ZOMBIE, 12));
+                    options.add(new Option(LurkerBrain.Mode.ZOMBIE, darkShape(level, target.blockPosition(), r), 12));
                 }
                 options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.CRAWLER, willAttack ? 0 : 6));
             }
@@ -752,13 +760,7 @@ public final class LurkerDirector {
                     variant = DyeColor.RED.getId();
                 }
             }
-            default -> {
-                if (pick.disguise() == Disguise.SHEEP) {
-                    // The colour sheep have where it is (1.21 colours sheep by biome), from the plan's own dice.
-                    variant = net.minecraft.world.entity.animal.sheep.SheepColorSpawnRules.getSheepColor(
-                            level.getBiome(target.blockPosition()), r).getId();
-                }
-            }
+            default -> variant = variantFor(pick.disguise(), r);
         }
         return new Encounter(target.getUUID(), pick.mode(), pick.disguise(), copiedId, copiedName, willAttack, diff,
                 variant, dogName);
@@ -770,7 +772,54 @@ public final class LurkerDirector {
             case DOG -> LurkerBrain.Mode.DOG;
             case ZOMBIE -> LurkerBrain.Mode.ZOMBIE;
             case CRAWLER -> LurkerBrain.Mode.WATCHER;
-            default -> LurkerBrain.Mode.HERD;
+            default -> d.isHostile() ? LurkerBrain.Mode.ZOMBIE : LurkerBrain.Mode.HERD;
+        };
+    }
+
+    /** For the game tests. */
+    public static Disguise darkShapeForTests(ServerLevel level, BlockPos at, RandomSource r) {
+        return darkShape(level, at, r);
+    }
+
+    /** Which hostile mob it is in the dark: a zombie most often, the local kind in a desert or where it snows. */
+    static Disguise darkShape(ServerLevel level, BlockPos at, RandomSource r) {
+        var biome = level.getBiome(at);
+        boolean desert = biome.is(net.minecraft.world.level.biome.Biomes.DESERT);
+        boolean snowy = biome.value().coldEnoughToSnow(at, level.getSeaLevel());
+        int roll = r.nextInt(20);
+        if (roll < 6) {
+            return desert ? Disguise.HUSK : Disguise.ZOMBIE;
+        } else if (roll < 10) {
+            return snowy ? Disguise.STRAY : Disguise.SKELETON;
+        } else if (roll < 13) {
+            return Disguise.CREEPER;
+        } else if (roll < 16) {
+            return Disguise.SPIDER;
+        } else if (roll < 18) {
+            return Disguise.ENDERMAN;
+        } else if (roll < 19) {
+            return Disguise.WITCH;
+        }
+        return Disguise.PILLAGER;
+    }
+
+    /** A colour sheep naturally have: mostly white, sometimes grey, black, brown, rarely pink. */
+    private static DyeColor sheepColor(RandomSource r) {
+        int i = r.nextInt(100);
+        return i < 5 ? DyeColor.BLACK : i < 10 ? DyeColor.GRAY : i < 15 ? DyeColor.LIGHT_GRAY : i < 18 ? DyeColor.BROWN
+                : r.nextInt(500) == 0 ? DyeColor.PINK : DyeColor.WHITE;
+    }
+
+    /** The look of a stolen shape: a sheep's wool, a villager's job, a horse's coat... (0 for one look only) */
+    public static int variantFor(Disguise d, RandomSource r) {
+        return switch (d) {
+            case SHEEP -> sheepColor(r).getId();
+            case VILLAGER -> r.nextInt(Disguise.VILLAGER_JOBS.length);
+            case HORSE -> r.nextInt(7);
+            case LLAMA -> r.nextInt(4);
+            case RABBIT -> r.nextInt(6);
+            case MOOSHROOM -> r.nextInt(10) == 0 ? 1 : 0; // brown ones are rare
+            default -> 0;
         };
     }
 
@@ -817,7 +866,7 @@ public final class LurkerDirector {
         int[] counts = new int[Disguise.values().length];
         for (Mob m : mobs) {
             Disguise d = Disguise.of(m);
-            if (d != null && d != Disguise.DOG && d != Disguise.ZOMBIE) {
+            if (d != null && d != Disguise.DOG && d.isPassive()) {
                 counts[d.ordinal()]++;
             }
         }

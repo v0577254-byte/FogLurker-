@@ -154,7 +154,42 @@ public final class DisguiseCache {
             wolf.setHealth(wolf.getMaxHealth()); // a healthy dog wags its tail high
             ((com.foglurker.mixin.WolfInvoker) wolf).foglurker$setCollarColor(DyeColor.byId(lurker.getVariant()));
         }
+        dress(level, lurker, living);
         return living;
+    }
+
+    /** The look of the shapes added later: a villager's job and clothes, a coat colour, a weapon in hand. */
+    private static void dress(ClientLevel level, FogLurkerEntity lurker, LivingEntity living) {
+        int v = lurker.getVariant();
+        var biome = level.getBiome(lurker.blockPosition());
+        if (living instanceof net.minecraft.world.entity.npc.villager.Villager villager) {
+            var job = Disguise.VILLAGER_JOBS[Math.floorMod(v, Disguise.VILLAGER_JOBS.length)];
+            villager.setVillagerData(villager.getVillagerData()
+                    .withType(level.registryAccess(), net.minecraft.world.entity.npc.villager.VillagerType.byBiome(biome))
+                    .withProfession(level.registryAccess(), job)
+                    .withLevel(2)); // (a level above novice: dressed for the job)
+        } else if (living instanceof net.minecraft.world.entity.animal.equine.Horse horse) {
+            horse.setComponent(net.minecraft.core.component.DataComponents.HORSE_VARIANT,
+                    net.minecraft.world.entity.animal.equine.Variant.byId(Math.floorMod(v, 7)));
+        } else if (living instanceof net.minecraft.world.entity.animal.equine.Llama llama) {
+            llama.setComponent(net.minecraft.core.component.DataComponents.LLAMA_VARIANT,
+                    net.minecraft.world.entity.animal.equine.Llama.Variant.byId(Math.floorMod(v, 4)));
+        } else if (living instanceof net.minecraft.world.entity.animal.rabbit.Rabbit rabbit) {
+            rabbit.setComponent(net.minecraft.core.component.DataComponents.RABBIT_VARIANT,
+                    net.minecraft.world.entity.animal.rabbit.Rabbit.Variant.byId(Math.floorMod(v, 6)));
+        } else if (living instanceof net.minecraft.world.entity.animal.cow.MushroomCow cow) {
+            cow.setComponent(net.minecraft.core.component.DataComponents.MOOSHROOM_VARIANT, v == 1
+                    ? net.minecraft.world.entity.animal.cow.MushroomCow.Variant.BROWN : net.minecraft.world.entity.animal.cow.MushroomCow.Variant.RED);
+        } else if (living instanceof net.minecraft.world.entity.animal.fox.Fox fox) {
+            fox.setComponent(net.minecraft.core.component.DataComponents.FOX_VARIANT,
+                    net.minecraft.world.entity.animal.fox.Fox.Variant.byBiome(biome));
+        }
+        Disguise d = lurker.getDisguise();
+        net.minecraft.world.item.Item weapon = d == Disguise.SKELETON || d == Disguise.STRAY ? net.minecraft.world.item.Items.BOW
+                : d == Disguise.PILLAGER ? net.minecraft.world.item.Items.CROSSBOW : null;
+        if (weapon != null) {
+            living.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(weapon));
+        }
     }
 
     // LivingEntity.swimAmount / swimAmountO (private): copied so a stolen player visibly sprint-swims.

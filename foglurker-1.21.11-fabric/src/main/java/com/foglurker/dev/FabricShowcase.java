@@ -151,7 +151,67 @@ public final class FabricShowcase {
             case 1075, 1090, 1150, 1230, 1300 -> say("surge fog " + com.foglurker.client.ClientEffects.currentFog() + " left "
                     + com.foglurker.client.ClientEffects.surgeTicksLeft());
             case 1085 -> shot(mc, "fabric_fog_surge.png");
-            case 1310 -> {
+            // Up in the open sky, in daylight: the new shapes standing still in a row.
+            case 1320 -> {
+                cmd(mc, "fill ~-10 149 ~-10 ~10 149 ~10 minecraft:stone");
+                cmd(mc, "tp @s ~ 150 ~ 180 12");
+            }
+            case 1340 -> mc.getSingleplayerServer().execute(() -> {
+                ServerPlayer me = mc.getSingleplayerServer().getPlayerList().getPlayers().get(0);
+                com.foglurker.entity.Disguise[] shapes = {com.foglurker.entity.Disguise.VILLAGER, com.foglurker.entity.Disguise.WANDERING_TRADER,
+                        com.foglurker.entity.Disguise.HORSE, com.foglurker.entity.Disguise.LLAMA, com.foglurker.entity.Disguise.SKELETON,
+                        com.foglurker.entity.Disguise.CREEPER, com.foglurker.entity.Disguise.SPIDER, com.foglurker.entity.Disguise.PILLAGER};
+                for (int k = 0; k < shapes.length; k++) {
+                    FogLurkerEntity e = com.foglurker.registry.ModEntities.FOG_LURKER.get().create(me.level(),
+                            net.minecraft.world.entity.EntitySpawnReason.EVENT);
+                    e.setNoAi(true); // a statue: it never moves or hunts
+                    e.setDisguise(shapes[k]);
+                    e.setVariant(shapes[k] == com.foglurker.entity.Disguise.VILLAGER ? 4 : shapes[k] == com.foglurker.entity.Disguise.HORSE ? 3 : 0);
+                    e.snapTo(me.getX() - 7.7 + k * 2.2, 150, me.getZ() - 6, 0F, 0F);
+                    e.setYHeadRot(0F);
+                    e.setYBodyRot(0F);
+                    me.level().addFreshEntity(e);
+                }
+            });
+            case 1345 -> mc.options.hideGui = true;
+            case 1400 -> {
+                say("statues " + lurkers(mc).size());
+                shot(mc, "fabric_statues.png");
+            }
+            // A night in bed: for one second your own face rises from under the foot of the bed.
+            case 1410 -> mc.getSingleplayerServer().execute(() -> {
+                ServerPlayer me = mc.getSingleplayerServer().getPlayerList().getPlayers().get(0);
+                me.level().setDayTime(18000);
+                var data = com.foglurker.world.FogLurkerSavedData.get(mc.getSingleplayerServer());
+                if (data.inGrace()) {
+                    data.endGrace();
+                }
+                net.minecraft.core.BlockPos head = me.blockPosition().offset(0, 0, 3);
+                var bed = net.minecraft.world.level.block.Blocks.RED_BED.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.NORTH);
+                me.level().setBlockAndUpdate(head, bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                        net.minecraft.world.level.block.state.properties.BedPart.HEAD));
+                me.level().setBlockAndUpdate(head.south(), bed.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                        net.minecraft.world.level.block.state.properties.BedPart.FOOT));
+                me.teleportTo(me.level(), head.getX() + 0.5, head.getY(), head.getZ() + 0.5, java.util.Set.of(), 0F, 0F, true);
+                me.startSleeping(head);
+            });
+            case 1435 -> mc.gui.getChat().clearMessages(false); // (lying in bed shows the chat)
+            case 1440 -> mc.getSingleplayerServer().execute(() -> say("under the bed sent " + com.foglurker.world.UnderTheBed.show(
+                    mc.getSingleplayerServer().getPlayerList().getPlayers().get(0))));
+            case 1443 -> {
+                say("under the bed showing " + com.foglurker.client.UnderBed.showing() + " sleeping " + mc.player.isSleeping());
+                var fig = com.foglurker.client.UnderBed.figure();
+                if (fig != null) {
+                    say("under the bed figure at " + fig.position() + " old " + new net.minecraft.world.phys.Vec3(fig.xOld, fig.yOld, fig.zOld)
+                            + " disguise " + fig.getDisguise() + " dummy " + com.foglurker.client.DisguiseCache.get(fig)
+                            + " in level " + (mc.level.getEntity(fig.getId()) == fig) + " camera " + mc.gameRenderer.getMainCamera().position()
+                            + " yaw " + mc.gameRenderer.getMainCamera().yRot() + " pitch " + mc.gameRenderer.getMainCamera().xRot());
+                }
+                shot(mc, "fabric_under_bed.png");
+            }
+            case 1465 -> say("under the bed after a second showing " + com.foglurker.client.UnderBed.showing());
+            case 1470 -> {
                 say("RESULT done");
                 new Thread(() -> {
                     try {

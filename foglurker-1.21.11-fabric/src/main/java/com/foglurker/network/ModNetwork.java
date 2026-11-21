@@ -22,6 +22,7 @@ public final class ModNetwork {
         // TEMPORARY: /foglurker debugeverything (remove before release)
         PayloadTypeRegistry.playS2C().register(DebugPacket.TYPE, DebugPacket.CODEC);
         PayloadTypeRegistry.playS2C().register(FogSurgePacket.TYPE, FogSurgePacket.CODEC);
+        PayloadTypeRegistry.playS2C().register(UnderBedPacket.TYPE, UnderBedPacket.CODEC);
     }
 
     public static void send(ServerPlayer player, CustomPacketPayload msg) {

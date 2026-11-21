@@ -39,6 +39,7 @@ public final class ModEvents {
             LurkerDirector.onServerStopped();
             AfkTracker.onServerStopped();
             SleepParalysis.onServerStopped();
+            com.foglurker.world.UnderTheBed.onServerStopped();
             BehaviorTracker.onServerStopped();
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
@@ -56,6 +57,7 @@ public final class ModEvents {
             PlayerEvents.onLogout(p);
             AfkTracker.onLogout(p);
             SleepParalysis.onLogout(p);
+            com.foglurker.world.UnderTheBed.onLogout(p);
             BehaviorTracker.onLogout(p);
         });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> AfkTracker.onMovedByGame(newPlayer));
@@ -110,6 +112,7 @@ public final class ModEvents {
     public static void onServerPlayerTick(ServerPlayer p) {
         BehaviorTracker.onPlayerTick(p);
         SleepParalysis.onPlayerTick(p);
+        com.foglurker.world.UnderTheBed.onPlayerTick(p);
     }
 
     /** A block was placed by a player (BlockItemMixin): counts as activity. */
