@@ -65,6 +65,13 @@ public final class EntityBehaviorStats {
             case "chicken" -> new Stats(0.35F, 1.2F, 4F, 0.15F);
             case "zombie" -> new Stats(0.55F, 1.4F, 3F, 0.6F);
             case "wolf", "dog" -> new Stats(0.4F, 2.2F, 5F, 0.35F);
+            case "villager", "wandering_trader" -> new Stats(0.45F, 1.0F, 5F, 0.35F); // villagers look at people a lot
+            case "horse", "donkey", "llama", "mooshroom" -> new Stats(0.3F, 1.0F, 6F, 0.1F);
+            case "goat" -> new Stats(0.3F, 1.1F, 6F, 0.1F);
+            case "rabbit" -> new Stats(0.4F, 1.6F, 4F, 0.1F);
+            case "fox" -> new Stats(0.35F, 1.5F, 6F, 0.15F);
+            case "cat" -> new Stats(0.3F, 1.1F, 8F, 0.25F);
+            case "skeleton", "stray", "husk", "creeper", "spider", "enderman", "witch", "pillager" -> new Stats(0.5F, 1.4F, 3F, 0.5F);
             default -> new Stats(0.25F, 0.9F, 7F, 0.2F); // cow, sheep, pig
         };
     }

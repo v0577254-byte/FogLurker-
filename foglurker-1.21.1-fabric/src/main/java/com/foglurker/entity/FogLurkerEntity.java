@@ -76,6 +76,8 @@ public class FogLurkerEntity extends PathfinderMob {
     public static final int FLAG_FLOPPED = 16;
     /** Lying down in cover with its legs tucked under it (a watcher hiding in grass and bushes). */
     public static final int FLAG_LYING = 32;
+    /** A sheep copy with its head down, eating grass (shown on the client like a real sheep). */
+    public static final int FLAG_GRAZING = 64;
     private static final int FLOP_TICKS = 24;
 
     /** Replaced by the client setup so the entity can drive its client-side disguise model. */

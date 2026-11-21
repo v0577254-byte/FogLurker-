@@ -20,7 +20,8 @@
     "FogRendererMixin",
     "GameRendererMixin",
     "ChatComponentMixin",
-    "CommandHistoryMixin"
+    "CommandHistoryMixin",
+    "SheepAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

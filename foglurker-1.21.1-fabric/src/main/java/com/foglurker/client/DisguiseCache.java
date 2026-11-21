@@ -187,6 +187,14 @@ public final class DisguiseCache {
         }
     }
 
+    /** A grazing sheep copy keeps its head down, like a real one eating grass. */
+    private static void graze(Sheep sheep, boolean grazing) {
+        var acc = (com.foglurker.mixin.SheepAccessor) sheep;
+        int now = acc.foglurker$eatAnimationTick();
+        // 40 = just started (head still up), 4..36 = head down, counting down to 0 (head back up).
+        acc.foglurker$setEatAnimationTick(grazing ? (now <= 4 ? 40 : Math.max(20, now - 1)) : Math.max(0, now - 1));
+    }
+
     // LivingEntity.swimAmount / swimAmountO (private): copied so a stolen player visibly sprint-swims.
     private static boolean swimReflectionFailed;
 
@@ -251,6 +259,9 @@ public final class DisguiseCache {
         }
         if (dst instanceof Mob mob) {
             mob.setAggressive(src.isAggressive());
+        }
+        if (dst instanceof Sheep sheep && ticking) {
+            graze(sheep, src.hasFlag(FogLurkerEntity.FLAG_GRAZING));
         }
         if (dst instanceof Wolf wolf) {
             wolf.setInSittingPose(src.hasFlag(FogLurkerEntity.FLAG_SITTING));

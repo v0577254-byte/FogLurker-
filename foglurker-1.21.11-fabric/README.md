@@ -19,6 +19,11 @@ opt-in voice snippets. Every command and config option works the same; see the m
   rabbits, foxes, cats and mooshrooms, and in the dark skeletons, creepers, spiders, husks, strays, endermen, witches
   and pillagers.
 - It **copies players more often**.
+- **Stolen shapes act like the real mob**: animals and villagers wander, stand about, look around and only glance
+  at you as often as the real ones do (a sheep grazes); no more creeping straight at you and staring. Hostile shapes
+  move like their mob (skeletons keep their distance and circle, a creeper walks up silently and hisses, an enderman
+  ignores you until you look at it).
+- A **copy of a player only jumps when its path needs it**, never just because you jumped.
 
 ## New in 0.2.1
 
