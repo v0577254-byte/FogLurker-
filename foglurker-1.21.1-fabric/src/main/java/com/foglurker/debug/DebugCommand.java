@@ -158,6 +158,7 @@ public final class DebugCommand {
         learning(r, player, server);
         voiceAndSecurity(r, player);
         gemini(r, server, src);
+        structures(r, player);
         runtime(r);
 
         r.send(Component.literal("Server: " + r.passed + " passed, " + r.failed + " failed, " + r.skipped + " skipped")
@@ -517,6 +518,52 @@ public final class DebugCommand {
                 + FogLurkerConfig.COMMON.hauntingMaxSeconds.get() + "s" : "off") + ", chat "
                 + FogLurkerConfig.COMMON.chatVisibility.get().name().toLowerCase(Locale.ROOT) + ", overworld only "
                 + FogLurkerConfig.COMMON.overworldOnly.get());
+    }
+
+    /** The six structures: registered, their loot, the village wells, where you are, and the nearest of each kind. */
+    private static void structures(Report r, ServerPlayer player) {
+        r.section("Structures");
+        ServerLevel level = player.serverLevel();
+        var server = level.getServer();
+        r.run("Registered", (rep, what) -> {
+            var reg = server.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+            List<String> missing = com.foglurker.world.FogStructures.ALL.stream()
+                    .filter(n -> reg.get(FogLurkerMod.id(n)) == null).toList();
+            rep.check(what, missing.isEmpty(), missing.isEmpty() ? "all 6 structures" : "missing: " + missing);
+        });
+        r.run("Loot tables", (rep, what) -> {
+            List<String> empty = new java.util.ArrayList<>();
+            for (String n : com.foglurker.world.FogStructures.ALL) {
+                if (server.reloadableRegistries().getLootTable(net.minecraft.resources.ResourceKey.create(
+                        net.minecraft.core.registries.Registries.LOOT_TABLE, FogLurkerMod.id("chests/" + n)))
+                        == net.minecraft.world.level.storage.loot.LootTable.EMPTY) {
+                    empty.add(n);
+                }
+            }
+            rep.check(what, empty.isEmpty(), empty.isEmpty() ? "all 6 chest loot tables load" : "not found: " + empty);
+        });
+        r.run("Village wells", (rep, what) -> {
+            StringBuilder sb = new StringBuilder();
+            long total = 0;
+            for (String v : com.foglurker.world.VillageWells.VILLAGES) {
+                long n = com.foglurker.world.VillageWells.count(server, v);
+                total += n;
+                sb.append(v).append(' ').append(n).append(' ');
+            }
+            rep.check(what, total > 0, "in the village house pools (weight each): " + sb.toString().trim());
+        });
+        r.pass("Where you are", com.foglurker.world.FogStructures.describe(level, player.blockPosition()));
+        r.run("Nearest", (rep, what) -> {
+            StringBuilder sb = new StringBuilder();
+            for (var tag : List.of(com.foglurker.world.FogStructures.LURKER_HOTSPOTS, com.foglurker.world.FogStructures.WARDED_STRONGHOLDS,
+                    com.foglurker.world.FogStructures.FOG_WELLS)) {
+                BlockPos found = level.findNearestMapStructure(tag, player.blockPosition(), 16, false);
+                sb.append(tag.location().getPath().replace('_', ' ')).append(": ")
+                        .append(found == null ? "none within 256 blocks" : Math.round(Math.sqrt(found.distSqr(player.blockPosition())))
+                                + " blocks (" + found.getX() + " " + found.getZ() + ")").append("; ");
+            }
+            rep.pass(what, sb.toString());
+        });
     }
 
     private static BlockPos nearestWater(ServerLevel level, BlockPos center, int radius) {

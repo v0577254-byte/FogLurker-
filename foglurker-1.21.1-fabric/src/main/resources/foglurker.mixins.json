@@ -14,7 +14,8 @@
     "ProjectileMixin",
     "ServerPlayerMixin",
     "TridentItemMixin",
-    "WolfInvoker"
+    "WolfInvoker",
+    "StructureTemplatePoolAccessor"
   ],
   "client": [
     "FogRendererMixin",

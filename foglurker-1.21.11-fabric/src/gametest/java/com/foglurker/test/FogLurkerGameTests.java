@@ -2027,6 +2027,176 @@ public final class FogLurkerGameTests {
         });
     }
 
+    private static net.minecraft.resources.Identifier fid(String path) {
+        return com.foglurker.FogLurkerMod.id(path);
+    }
+
+    @GameTest(environment = "foglurker:structures", maxTicks = 200)
+    public void structuresAreRegisteredWithLootAndTemplates(GameTestHelper h) {
+        logged(h, () -> {
+            MinecraftServer server = h.getLevel().getServer();
+            var reg = server.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+            for (String n : com.foglurker.world.FogStructures.ALL) {
+                check(reg.getValue(fid(n)) != null, n + " is not registered");
+            }
+            var sets = server.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+            for (String n : List.of("castles", "wilderness", "fog_wells")) {
+                check(sets.getValue(fid(n)) != null, "structure set " + n + " is not registered");
+            }
+            java.util.function.BiFunction<String, net.minecraft.tags.TagKey<net.minecraft.world.level.levelgen.structure.Structure>, Boolean> in =
+                    (n, tag) -> reg.getOrThrow(net.minecraft.resources.ResourceKey.create(
+                            net.minecraft.core.registries.Registries.STRUCTURE, fid(n))).is(tag);
+            for (String n : List.of("lookout_tower", "abandoned_castle", "hunters_bunker")) {
+                check(in.apply(n, com.foglurker.world.FogStructures.LURKER_HOTSPOTS), n + " should be a lurker hotspot");
+            }
+            check(in.apply("fortified_castle", com.foglurker.world.FogStructures.WARDED_STRONGHOLDS), "the fortified castle should be warded");
+            check(in.apply("fog_well", com.foglurker.world.FogStructures.FOG_WELLS), "the fog well should be tagged");
+            check(!in.apply("abandoned_campfire", com.foglurker.world.FogStructures.LURKER_HOTSPOTS), "a campfire is not a hotspot");
+            // Every chest's loot resolves and rolls, with the mod's own items in it.
+            java.util.Map<String, net.minecraft.world.item.Item> must = java.util.Map.of(
+                    "lookout_tower", com.foglurker.registry.ModItems.FOGGY_STICK.get(),
+                    "abandoned_campfire", com.foglurker.registry.ModItems.FOGGY_STICK.get(),
+                    "abandoned_castle", com.foglurker.registry.ModItems.TEETH_OF_THE_LURKER.get(),
+                    "fortified_castle", com.foglurker.registry.ModItems.PROTECTOR_OF_THE_FOG.get(),
+                    "hunters_bunker", com.foglurker.registry.ModItems.TEETH_OF_THE_LURKER.get(),
+                    "fog_well", com.foglurker.registry.ModItems.FOG_OF_THE_NIGHT.get());
+            for (String n : com.foglurker.world.FogStructures.ALL) {
+                var table = server.reloadableRegistries().getLootTable(net.minecraft.resources.ResourceKey.create(
+                        net.minecraft.core.registries.Registries.LOOT_TABLE, fid("chests/" + n)));
+                check(table != net.minecraft.world.level.storage.loot.LootTable.EMPTY, "loot table chests/" + n + " not found");
+                java.util.Set<net.minecraft.world.item.Item> seen = new java.util.HashSet<>();
+                for (int seed = 0; seed < 40; seed++) {
+                    var params = new net.minecraft.world.level.storage.loot.LootParams.Builder(h.getLevel())
+                            .withParameter(net.minecraft.world.level.storage.loot.parameters.LootContextParams.ORIGIN, Vec3.ZERO)
+                            .create(net.minecraft.world.level.storage.loot.parameters.LootContextParamSets.CHEST);
+                    for (ItemStack st : table.getRandomItems(params, seed)) {
+                        seen.add(st.getItem());
+                    }
+                }
+                check(seen.contains(must.get(n)), "chests/" + n + " never gave " + must.get(n) + " in 40 rolls: " + seen);
+            }
+            // Every template loads.
+            var templates = server.getStructureManager();
+            for (String n : List.of("lookout_tower", "abandoned_campfire", "hunters_bunker", "fog_well", "fog_well_village",
+                    "abandoned_castle/courtyard_keep", "abandoned_castle/gatehouse", "abandoned_castle/wall_segment",
+                    "abandoned_castle/corner_tower", "fortified_castle/main_keep", "fortified_castle/gatehouse",
+                    "fortified_castle/wall_segment", "fortified_castle/corner_tower")) {
+                var t = templates.get(fid(n));
+                check(t.isPresent() && t.get().getSize().getX() > 0, "template " + n + " did not load");
+            }
+            h.succeed();
+        });
+    }
+
+    @GameTest(environment = "foglurker:structures2", maxTicks = 300)
+    public void structuresAssembleAndPlace(GameTestHelper h) {
+        logged(h, () -> {
+            ServerLevel level = h.getLevel();
+            MinecraftServer server = level.getServer();
+            var reg = server.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+            var gen = level.getChunkSource().getGenerator();
+            // Each one assembles (the castles from all their pieces), on any terrain the generator gives it.
+            for (String n : com.foglurker.world.FogStructures.ALL) {
+                var structure = reg.getOrThrow(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, fid(n)));
+                var start = structure.value().generate(structure, level.dimension(), server.registryAccess(), gen, gen.getBiomeSource(), level.getChunkSource().randomState(),
+                        level.getStructureManager(), level.getSeed(), new net.minecraft.world.level.ChunkPos(400, 400), 0, level, b -> true);
+                check(start.isValid(), n + " did not assemble");
+                int want = n.endsWith("castle") ? 6 : 1;
+                check(start.getPieces().size() >= want, n + " has " + start.getPieces().size() + " pieces, wanted " + want);
+                com.foglurker.FogLurkerMod.LOGGER.info("Structure {} assembled from {} pieces, {}", n, start.getPieces().size(),
+                        com.foglurker.world.FogStructures.box(start.getBoundingBox()));
+            }
+            // A placed campfire leaves its barrel with the campfire loot in it.
+            flatten(h, 24);
+            var t = level.getStructureManager().get(fid("abandoned_campfire")).orElseThrow();
+            var at = rel(h, -4, 0, -4);
+            t.placeInWorld(level, at, at, new net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings(),
+                    level.getRandom(), 2);
+            boolean found = false;
+            for (var pos : net.minecraft.core.BlockPos.betweenClosed(at, at.offset(8, 3, 8))) {
+                if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity barrel
+                        && barrel.getLootTable() != null
+                        && barrel.getLootTable().identifier().toString().equals("foglurker:chests/abandoned_campfire")) {
+                    found = true;
+                }
+            }
+            check(found, "the campfire's barrel has no loot table");
+            check(level.getBlockState(at.offset(4, 1, 4)).is(net.minecraft.world.level.block.Blocks.CAMPFIRE)
+                    && !level.getBlockState(at.offset(4, 1, 4)).getValue(net.minecraft.world.level.block.CampfireBlock.LIT),
+                    "the campfire should be there, and out");
+            h.succeed();
+        });
+    }
+
+    @GameTest(environment = "foglurker:structhooks", maxTicks = 200)
+    public void structureHooksWork(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerLevel level = h.getLevel();
+            MinecraftServer server = level.getServer();
+            FogLurkerSavedData data = FogLurkerSavedData.get(server);
+            if (data.inGrace()) {
+                data.endGrace();
+            }
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            long dayWas = level.getDayTime();
+            double base = com.foglurker.config.FogLurkerConfig.COMMON.spawnChance.get();
+            Runnable cleanUp = () -> {
+                com.foglurker.world.FogStructures.testInside = null;
+                com.foglurker.world.FogStructures.testWells = null;
+                level.setDayTime(dayWas);
+            };
+            h.runAfterDelay(20, () -> logged(h, () -> {
+                // Sleep paralysis: 25% in a bed in a hotspot, 5% anywhere else.
+                com.foglurker.world.FogStructures.testInside = (pos, tag) -> tag == com.foglurker.world.FogStructures.LURKER_HOTSPOTS;
+                check(com.foglurker.world.SleepParalysis.chance(p) == 0.25, "sleep paralysis in a hotspot should be 25%");
+                check(com.foglurker.world.SleepParalysis.lieDown(p, 0.2), "a 0.2 roll in a hotspot should be sleep paralysis");
+                com.foglurker.world.SleepParalysis.lieDown(p, 0.99);
+                // Underground there is no lookout-tower view, even "inside" one.
+                check(!com.foglurker.world.FogStructures.highInLookout(level, p.blockPosition()), "deep underground is not high up a tower");
+                level.setDayTime(18000); // (the level notices it is night on its next tick)
+            }));
+            h.runAfterDelay(24, () -> logged(h, () -> {
+                // The spawn roll: half again as likely with someone in a hotspot at night...
+                check(Math.abs(LurkerDirector.spawnChance(server) - Math.min(1.0, base * 1.5)) < 1e-9,
+                        "at night in a hotspot the roll should be " + Math.min(1.0, base * 1.5) + ", was " + LurkerDirector.spawnChance(server));
+                // ...but not for someone outside one.
+                com.foglurker.world.FogStructures.testInside = (pos, tag) -> false;
+                check(Math.abs(LurkerDirector.spawnChance(server) - base) < 1e-9, "outside a hotspot the roll should stay " + base);
+                check(com.foglurker.world.SleepParalysis.chance(p) == com.foglurker.world.SleepParalysis.CHANCE, "outside a hotspot it is 5%");
+                com.foglurker.world.FogStructures.testInside = (pos, tag) -> tag == com.foglurker.world.FogStructures.LURKER_HOTSPOTS;
+                level.setDayTime(6000);
+            }));
+            h.runAfterDelay(28, () -> logged(h, () -> {
+                check(Math.abs(LurkerDirector.spawnChance(server) - base) < 1e-9, "by day the roll should stay " + base);
+                // Villagers by a fog well hide; the one further off does not.
+                var well = rel(h, 6, 0, 6);
+                com.foglurker.world.FogStructures.testWells = List.of(well);
+                check(com.foglurker.world.FogStructures.fogWellsNear(level, p.blockPosition(), 64).contains(well), "the well was not found");
+                for (var old : level.getEntitiesOfClass(net.minecraft.world.entity.npc.villager.Villager.class,
+                        new net.minecraft.world.phys.AABB(well).inflate(48))) {
+                    old.discard(); // (left over from other tests)
+                }
+                var near = net.minecraft.world.entity.EntityType.VILLAGER.create(level, net.minecraft.world.entity.EntitySpawnReason.LOAD);
+                var far = net.minecraft.world.entity.EntityType.VILLAGER.create(level, net.minecraft.world.entity.EntitySpawnReason.LOAD);
+                near.snapTo(well.getX() + 3.5, well.getY(), well.getZ() + 0.5);
+                far.snapTo(well.getX() - 20.5, well.getY(), well.getZ() + 0.5);
+                level.addFreshEntity(near);
+                level.addFreshEntity(far);
+                int hid = com.foglurker.brain.VillagersHide.hideAround(level, well, com.foglurker.brain.VillagersHide.PLACE_RADIUS, level.getGameTime());
+                check(hid >= 1 && near.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.HEARD_BELL_TIME)
+                        && !far.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.HEARD_BELL_TIME),
+                        "only the villager by the well should hide (" + hid + " hid)");
+                near.discard();
+                far.discard();
+                cleanUp.run();
+                h.succeed();
+            }));
+            h.runAfterDelay(190, cleanUp); // (a failed step above still leaves nothing pretended behind)
+        });
+    }
+
     @GameTest(environment = "foglurker:herdlike", maxTicks = 500)
     public void stolenAnimalsActLikeTheRealOnes(GameTestHelper h) {
         logged(h, () -> {

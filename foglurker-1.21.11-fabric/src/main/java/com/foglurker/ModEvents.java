@@ -33,6 +33,7 @@ public final class ModEvents {
     }
 
     public static void register() {
+        ServerLifecycleEvents.SERVER_STARTING.register(com.foglurker.world.VillageWells::onServerStarting);
         ServerLifecycleEvents.SERVER_STARTED.register(s -> PlayerEvents.onServerStarted());
         ServerLifecycleEvents.SERVER_STOPPING.register(LurkerDirector::onServerStopping);
         ServerLifecycleEvents.SERVER_STOPPED.register(s -> {

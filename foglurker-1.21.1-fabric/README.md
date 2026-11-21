@@ -27,6 +27,10 @@ modpacks are. Use the jar that matches your Minecraft version.
   move like their mob (skeletons keep their distance and circle, a creeper walks up silently and hisses, an enderman
   ignores you until you look at it).
 - A **copy of a player only jumps when its path needs it**, never just because you jumped.
+- **Six structures** (same as Forge 1.6.0): a lookout tower, an abandoned campfire, an abandoned castle and a warded
+  fortified castle, a hunters' bunker and a fog-choked well (also inside plains, taiga and savanna villages), with
+  their own loot. Its hotspots draw it at night, sleep paralysis is 25% in a hotspot bed, it shows itself at the fog
+  line from up a lookout tower, and villagers by a fog well or a fortified castle's gate hide. See the main README.
 
 ## New in 0.2.1
 

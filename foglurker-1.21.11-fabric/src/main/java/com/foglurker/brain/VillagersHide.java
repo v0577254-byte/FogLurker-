@@ -32,6 +32,31 @@ public final class VillagersHide {
                 v -> v.isAlive() && !v.isSleeping() && v.distanceToSqr(mob) <= range * range)) {
             v.getBrain().setMemory(MemoryModuleType.HEARD_BELL_TIME, now);
         }
+        // At night, while it is about: the villagers by a fog well, and those at a warded stronghold's gate, go inside.
+        if (level.isDarkOutside() && mob.tickCount % 40 == 0) {
+            java.util.List<net.minecraft.core.BlockPos> places = new java.util.ArrayList<>(
+                    com.foglurker.world.FogStructures.fogWellsNear(level, mob.blockPosition(), STRUCTURE_RANGE));
+            places.addAll(com.foglurker.world.FogStructures.strongholdGatesNear(level, mob.blockPosition(), STRUCTURE_RANGE));
+            for (net.minecraft.core.BlockPos at : places) {
+                hideAround(level, at, PLACE_RADIUS, now);
+            }
+        }
+    }
+
+    /** It is this close to a fog well or a stronghold's gate: the villagers there hide. */
+    public static final int STRUCTURE_RANGE = 64;
+    /** ...within this many blocks of the well or the gate. */
+    public static final double PLACE_RADIUS = 16;
+
+    /** Every villager within {@code radius} of {@code at} hides, as when a bell rings. @return how many */
+    public static int hideAround(ServerLevel level, net.minecraft.core.BlockPos at, double radius, long now) {
+        int n = 0;
+        for (Villager v : level.getEntitiesOfClass(Villager.class, new net.minecraft.world.phys.AABB(at).inflate(radius),
+                v -> v.isAlive() && !v.isSleeping() && v.distanceToSqr(at.getX() + 0.5, at.getY(), at.getZ() + 0.5) <= radius * radius)) {
+            v.getBrain().setMemory(MemoryModuleType.HEARD_BELL_TIME, now);
+            n++;
+        }
+        return n;
     }
 
     /** Its attacking form, or about to be. */

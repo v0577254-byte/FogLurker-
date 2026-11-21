@@ -23,6 +23,14 @@ import java.util.UUID;
  */
 public final class SleepParalysis {
     public static final double CHANCE = 0.05;
+    /** In a bed inside one of its hotspots (a lookout tower, an abandoned castle, a hunters' bunker). */
+    public static final double HOTSPOT_CHANCE = 0.25;
+
+    /** 5%, or 25% in a bed inside one of its hotspots. */
+    public static double chance(ServerPlayer p) {
+        return FogStructures.inHotspot(p.level(), p.getSleepingPos().orElse(p.blockPosition())) ? HOTSPOT_CHANCE : CHANCE;
+    }
+
     /** How far into the sleep it strikes (2 s: you are lying down, the screen is darkening). */
     public static final int STRIKE_AT_TICKS = 40;
     /** After it happens, sleeping again in this time is always a normal sleep. */
@@ -65,7 +73,7 @@ public final class SleepParalysis {
         long now = p.level().getServer().overworld().getGameTime();
         boolean calm = CALM_UNTIL.getOrDefault(p.getUUID(), Long.MIN_VALUE) > now;
         boolean happens = prof.sleepParalysisForced
-                || !calm && data.naturalSpawning() && !p.isCreative() && !p.isSpectator() && roll < CHANCE;
+                || !calm && data.naturalSpawning() && !p.isCreative() && !p.isSpectator() && roll < chance(p);
         THIS_SLEEP.put(p.getUUID(), happens);
         if (!happens && prof.sleepParalysisSeen) {
             ModNetwork.send(p, SleepVisionPacket.INSTANCE); // it is still there when they close their eyes

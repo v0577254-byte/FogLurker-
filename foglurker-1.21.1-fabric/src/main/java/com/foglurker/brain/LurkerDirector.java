@@ -101,7 +101,7 @@ public final class LurkerDirector {
         data.countDownSpawn();
         if (data.nextSpawnTicks() == 0) {
             // Every 5 minutes: 50/50. If it did not come, the next roll is guaranteed.
-            boolean spawn = data.rollSpawn(server.overworld().getRandom().nextDouble(), FogLurkerConfig.COMMON.spawnChance.get());
+            boolean spawn = data.rollSpawn(server.overworld().getRandom().nextDouble(), spawnChance(server));
             if (spawn && !trySpawnNaturally(server, data)) {
                 // It wanted to come but nobody was eligible / there was no room: keep it owed, retry in 30 s.
                 data.setGuaranteedNext(true);
@@ -452,8 +452,10 @@ public final class LurkerDirector {
             return false;
         }
         RandomSource r = server.overworld().getRandom();
-        // Prefer whoever is furthest from everyone else: the one who wandered off alone.
+        // Prefer whoever is furthest from everyone else: the one who wandered off alone. At night, before that: anyone
+        // in one of its hotspots (a lookout tower, an abandoned castle, a hunters' bunker).
         candidates.sort((a, b) -> Double.compare(loneliness(b), loneliness(a)));
+        candidates.sort((a, b) -> Boolean.compare(inHotspotAtNight(b), inHotspotAtNight(a)));
         ServerPlayer target = r.nextFloat() < 0.7F ? candidates.get(0) : candidates.get(r.nextInt(candidates.size()));
         // If they are in a group, it picks its victim inside the group.
         List<ServerPlayer> group = new ArrayList<>();
@@ -476,6 +478,22 @@ public final class LurkerDirector {
             }
         }
         return false;
+    }
+
+    /** The chance a roll brings it: half again as likely while someone it could visit is in one of its hotspots at night. */
+    public static double spawnChance(MinecraftServer server) {
+        double base = FogLurkerConfig.COMMON.spawnChance.get();
+        for (ServerPlayer p : freeCandidates(server, false)) {
+            if (inHotspotAtNight(p)) {
+                return Math.min(1.0, base * 1.5);
+            }
+        }
+        return base;
+    }
+
+    /** At night, inside a lookout tower, an abandoned castle or a hunters' bunker. */
+    public static boolean inHotspotAtNight(ServerPlayer p) {
+        return p.serverLevel().isNight() && com.foglurker.world.FogStructures.inHotspot(p.serverLevel(), p.blockPosition());
     }
 
     /** Players this close to each other count as a group. */
@@ -728,6 +746,11 @@ public final class LurkerDirector {
                 if (dark) {
                     options.add(new Option(LurkerBrain.Mode.ZOMBIE, darkShape(level, target.blockPosition(), r), 12));
                 }
+                if (inHotspotAtNight(target)) {
+                    // In its hotspots at night it stalks more: its own shape at the edge of the light, or something hostile.
+                    options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.CRAWLER, willAttack ? 0 : 12));
+                    options.add(new Option(LurkerBrain.Mode.ZOMBIE, darkShape(level, target.blockPosition(), r), 8));
+                }
                 options.add(new Option(LurkerBrain.Mode.WATCHER, Disguise.CRAWLER, willAttack ? 0 : 6));
             }
         }
@@ -923,6 +946,13 @@ public final class LurkerDirector {
                 return SpotFinder.findSpawn(level, target, 18, 30, null, true, false, r);
             }
             case WATCHER -> {
+                if (com.foglurker.world.FogStructures.highInLookout(level, target.blockPosition())) {
+                    // Up a lookout tower: it stands out at the edge of the fog, 60 to 80 blocks away, where you can see it.
+                    Vec3 far = SpotFinder.findSpawn(level, target, 60, 80, null, false, false, r);
+                    if (far != null) {
+                        return far;
+                    }
+                }
                 PlayerBehaviorProfile prof = FogLurkerSavedData.get(target.level().getServer()).profileOrNull(target.getUUID());
                 BlockPos home = prof != null && prof.isNearHome(level.dimension().location().toString(), target.blockPosition(), 48)
                         ? prof.home() : null;
