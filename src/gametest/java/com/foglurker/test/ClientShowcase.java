@@ -78,6 +78,10 @@ public final class ClientShowcase {
             scaresScene(mc, server);
             return;
         }
+        if ("structures".equals(System.getProperty("foglurker.scene"))) {
+            structuresScene(mc, server);
+            return;
+        }
         if ("newstuff".equals(System.getProperty("foglurker.scene"))) {
             newStuffScene(mc, server);
             return;
@@ -270,6 +274,114 @@ public final class ClientShowcase {
         FogLurkerMod.LOGGER.info("Showcase: world fog shown {} frames, Fog Lurker's own fog {} frames (last second), wisps {}",
                 com.foglurker.client.DepthFog.worldFogFramesLastSecond(), com.foglurker.client.DepthFog.framesLastSecond(),
                 com.foglurker.client.DepthFog.wispCount());
+    }
+
+    private static final String[] SHOW = {"lookout_tower", "abandoned_campfire", "hunters_bunker", "fog_well",
+            "abandoned_castle", "fortified_castle"};
+    private static BlockPos showAt;
+    private static net.minecraft.world.level.levelgen.structure.BoundingBox showBox;
+
+    /**
+     * Each structure placed out in the world for real (as world generation would), and photographed. The bunker and the
+     * well are mostly underground, so they are also shown as a cut-out up in the sky.
+     */
+    private static void structuresScene(Minecraft mc, MinecraftServer server) {
+        int i = (ticks - 40) / 160;
+        int step = (ticks - 40) % 160;
+        if (ticks < 40) {
+            return;
+        }
+        if (i >= SHOW.length) {
+            if (step == 0) {
+                mc.stop();
+            }
+            return;
+        }
+        String name = SHOW[i];
+        boolean inSky = name.equals("hunters_bunker") || name.equals("fog_well");
+        var cmds = server.createCommandSourceStack().withPermission(4);
+        switch (step) {
+            case 0 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                mc.options.hideGui = true;
+                level.setDayTime(6000);
+                p.setGameMode(GameType.SPECTATOR);
+                showAt = new BlockPos(i * 160, 0, 300); // around the spawn, which is on land
+                p.teleportTo(level, showAt.getX(), 160, showAt.getZ(), 0F, 60F);
+            });
+            case 60 -> server.execute(() -> {
+                ServerLevel level = sp(server).serverLevel();
+                BlockPos best = null;
+                for (int r = 0; r <= 48 && best == null; r += 8) {
+                    for (int dx = -r; dx <= r && best == null; dx += 8) {
+                        for (int dz = -r; dz <= r && best == null; dz += 8) {
+                            int x = showAt.getX() + dx;
+                            int z = showAt.getZ() + dz;
+                            int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
+                            if (level.getFluidState(new BlockPos(x, y - 1, z)).isEmpty() && y > level.getSeaLevel()) {
+                                best = new BlockPos(x, y, z);
+                            }
+                        }
+                    }
+                }
+                showAt = best != null ? best : showAt;
+                if (inSky) {
+                    var t = level.getStructureManager().get(FogLurkerMod.id(name)).orElseThrow();
+                    BlockPos at = new BlockPos(showAt.getX(), 175, showAt.getZ());
+                    showBox = net.minecraft.world.level.levelgen.structure.BoundingBox.fromCorners(at, at.offset(t.getSize()).offset(-1, -1, -1));
+                    return;
+                }
+                // Where it will really be: /place builds it from the corner of the chunk, the same way as this. (Its box
+                // includes 12 blocks round it for blending the ground in: not part of the build.)
+                var structure = server.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
+                        .get(FogLurkerMod.id(name));
+                var gen = level.getChunkSource().getGenerator();
+                var start = structure.generate(server.registryAccess(), gen, gen.getBiomeSource(), level.getChunkSource().randomState(),
+                        level.getStructureManager(), level.getSeed(), new net.minecraft.world.level.ChunkPos(showAt), 0, level, b -> true);
+                var b = start.getBoundingBox();
+                showBox = new net.minecraft.world.level.levelgen.structure.BoundingBox(b.minX() + 12, b.minY() + 12, b.minZ() + 12,
+                        b.maxX() - 12, b.maxY() - 12, b.maxZ() - 12);
+            });
+            case 70 -> server.execute(() -> {
+                // (For the photo only: the trees round it out of the way.)
+                ServerLevel level = sp(server).serverLevel();
+                var c = showBox.getCenter();
+                int rad = Math.max(showBox.getXSpan(), showBox.getZSpan()) / 2 + 14;
+                for (BlockPos b : BlockPos.betweenClosed(new BlockPos(c.getX() - rad, showAt.getY() - 6, c.getZ() - rad),
+                        new BlockPos(c.getX() + rad, showAt.getY() + 40, c.getZ() + rad))) {
+                    var st = level.getBlockState(b);
+                    if (st.is(net.minecraft.tags.BlockTags.LEAVES) || st.is(net.minecraft.tags.BlockTags.LOGS)
+                            || st.is(Blocks.TALL_GRASS) || st.is(Blocks.LARGE_FERN)) {
+                        level.setBlock(b, Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+            });
+            case 80 -> server.execute(() -> {
+                String command = inSky
+                        ? "place template foglurker:" + name + " " + showBox.minX() + " " + showBox.minY() + " " + showBox.minZ()
+                        : "place structure foglurker:" + name + " " + showAt.getX() + " " + showAt.getY() + " " + showAt.getZ();
+                int r = server.getCommands().performPrefixedCommand(cmds, command);
+                FogLurkerMod.LOGGER.info("Showcase: placed {} -> {} at {}", name, r, com.foglurker.world.FogStructures.box(showBox));
+            });
+            case 100 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                ServerLevel level = p.serverLevel();
+                var c = showBox.getCenter();
+                int span = Math.max(showBox.getXSpan(), showBox.getZSpan());
+                int height = showBox.getYSpan();
+                double back = inSky ? span * 0.8 + 3 + height * 0.25 : span > 30 ? span * 0.45 + 4 : span * 0.9 + 6;
+                double baseY = inSky ? showBox.minY() : level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, c.getX(), c.getZ());
+                double up = inSky ? height * 0.55 : span > 30 ? span * 0.35 + 6 : span * 0.5 + 5;
+                p.teleportTo(level, c.getX() - back, baseY + up, c.getZ() - back, -45F, 30F);
+                double lookY = inSky ? showBox.minY() + height * 0.45 : baseY + Math.min(8, height / 3.0);
+                p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                        new net.minecraft.world.phys.Vec3(c.getX() + 0.5, lookY, c.getZ() + 0.5));
+            });
+            case 150 -> shot(mc, "foglurker_structure_" + name + ".png");
+            default -> {
+            }
+        }
     }
 
     private static BlockPos showcaseBed;
