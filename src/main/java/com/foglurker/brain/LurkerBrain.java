@@ -1084,6 +1084,9 @@ public final class LurkerBrain {
         }
     }
 
+    /** When a player last hit it (its age in ticks). */
+    private long lastStruckAt = -100000;
+
     private void attack(ServerPlayer t, double dist) {
         ServerPlayer easier = easierPrey(t, dist);
         if (easier != null) {
@@ -1204,13 +1207,16 @@ public final class LurkerBrain {
         if (dist < bestAttackDist - 0.5) {
             bestAttackDist = dist;
             attackStall = 0;
-        } else if (breaking == null && !warded && !targetInWater) {
-            attackStall++;
+        } else if (breaking == null && !warded && !targetInWater && dist > 3.0) {
+            attackStall++; // (right next to you it is fighting, not stuck)
         }
-        if (hits >= difficulty().maxHitsPerEncounter()) {
+        // While you are fighting it (you hit it in the last 10 s) it stands its ground: it does not run off after its
+        // last bite, and the hunt is not cut short.
+        boolean fighting = age - lastStruckAt < 20 * 10;
+        if (hits >= difficulty().maxHitsPerEncounter() && !fighting) {
             setPhase(Phase.FLEE);
-        } else if (phaseAge > 20 * 120 || attackStall > 20 * 30 || dist > 48) {
-            vanish(false); // a long hunt, or 30 s without getting any closer
+        } else if (phaseAge > 20 * (fighting ? 300 : 120) || attackStall > 20 * 90 || dist > 48) {
+            vanish(false); // a long hunt, or a minute and a half without getting any closer
         }
     }
 
@@ -1472,6 +1478,7 @@ public final class LurkerBrain {
     // =================================================================== reactions
 
     public void onHurtBy(Player attacker) {
+        lastStruckAt = age; // (while you keep fighting it, it keeps fighting you: see attack())
         if (ended || phase == Phase.TRANSFORM || phase == Phase.ATTACK || phase == Phase.FLEE) {
             return;
         }
