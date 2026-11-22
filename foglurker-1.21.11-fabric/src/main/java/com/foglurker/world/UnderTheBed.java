@@ -59,12 +59,38 @@ public final class UnderTheBed {
     }
 
     static boolean allowed(ServerPlayer p) {
+        return whyNot(p).isEmpty();
+    }
+
+    /** Why it would not come for them right now ("" if it would). Public for the game tests. */
+    public static String whyNot(ServerPlayer p) {
         FogLurkerSavedData data = FogLurkerSavedData.get(p.level().getServer());
-        return FogLurkerConfig.COMMON.hauntings.get() && data.naturalSpawning() && !data.inGrace()
-                && !data.restingAt(p.level().getServer().overworld().getGameTime())
-                && !p.isCreative() && !p.isSpectator() && LurkerDirector.leftAloneTicks(p) == 0
-                // like every other haunting: not while it is hunting them, and not while they are AFK
-                && !LurkerDirector.isHunted(p.getUUID()) && !com.foglurker.world.AfkTracker.isAfk(p);
+        if (!FogLurkerConfig.COMMON.hauntings.get()) {
+            return "hauntings are off";
+        }
+        if (!data.naturalSpawning()) {
+            return "natural spawning is off";
+        }
+        if (data.inGrace()) {
+            return "grace period";
+        }
+        if (data.restingAt(p.level().getServer().overworld().getGameTime())) {
+            return "resting after a kill";
+        }
+        if (p.isCreative() || p.isSpectator()) {
+            return "creative or spectator";
+        }
+        if (LurkerDirector.leftAloneTicks(p) != 0) {
+            return "left alone for " + LurkerDirector.leftAloneTicks(p) + " more ticks";
+        }
+        // like every other haunting: not while it is hunting them, and not while they are AFK
+        if (LurkerDirector.isHunted(p.getUUID())) {
+            return "being hunted";
+        }
+        if (com.foglurker.world.AfkTracker.isAfk(p)) {
+            return "AFK";
+        }
+        return "";
     }
 
     /** Sends it, if they are still asleep and this is not a sleep paralysis night. Public for the game tests. */

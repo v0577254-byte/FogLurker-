@@ -576,7 +576,8 @@ public class FogLurkerEntity extends PathfinderMob {
         }
         // The Protector of the Fog: 10 (15 on a critical hit) straight through its armour.
         if (source.is(DamageTypes.PLAYER_ATTACK) && source.getEntity() instanceof Player p && source.getDirectEntity() == p
-                && p.getMainHandItem().getItem() instanceof com.foglurker.item.ProtectorOfTheFogItem) {
+                && p.getMainHandItem().getItem() instanceof com.foglurker.item.ProtectorOfTheFogItem
+                && amount > 1.0F) { // (a sweep from hitting something next to it does exactly 1: that is not a Protector hit)
             return super.hurt(com.foglurker.registry.ModDamageTypes.source(p, com.foglurker.registry.ModDamageTypes.PROTECTOR),
                     amount * com.foglurker.item.ProtectorOfTheFogItem.LURKER_MULTIPLIER);
         }
@@ -653,9 +654,9 @@ public class FogLurkerEntity extends PathfinderMob {
             if (!(target instanceof Player)) {
                 damage = Math.max(damage, 8.0F);
             }
-            if (this.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS)) {
-                damage *= 0.6F; // weakened by a scare burst
-            }
+        }
+        if (this.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS)) {
+            damage *= 0.6F; // weakened by a scare burst: 40% less, the Deathwish bite too
         }
         if (target instanceof LivingEntity living) {
             damage *= 1F - LurkerArmor.reduction(living); // only good armour stops it (see LurkerArmor)

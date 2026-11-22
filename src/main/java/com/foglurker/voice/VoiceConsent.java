@@ -500,11 +500,14 @@ public final class VoiceConsent {
             VoiceBridge.forget(player);
             return SnippetStore.deleteAll(player);
         }
-        OPTED_IN.remove(player);
-        LAST_SEEN.remove(player);
+        // (Only written to disk when it changes anything: repeating /fglurk optout cannot keep the server busy writing.)
+        boolean changed = OPTED_IN.remove(player);
+        changed |= LAST_SEEN.remove(player) != null;
         int deleted = 0;
         try {
-            save(true);
+            if (changed) {
+                save(true);
+            }
         } finally {
             // Even if writing the list failed unexpectedly, recording stops and the clips go now.
             VoiceBridge.forget(player);

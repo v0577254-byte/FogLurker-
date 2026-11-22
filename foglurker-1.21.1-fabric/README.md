@@ -8,6 +8,21 @@ opt-in voice snippets. Every command and config option works the same; see the m
 The same mod as the 1.21.11 Fabric beta (`../foglurker-1.21.11-fabric`), for Minecraft 1.21.1, where many
 modpacks are. Use the jar that matches your Minecraft version.
 
+## New in 0.3.1 (same as Forge 1.6.1)
+
+- **No structure is ever built on water.** Before one is built, the ground under every part of it (and 3 blocks
+  round) is checked; if any of it is sea, river or lake, it goes somewhere else.
+- Haunted Books: where you sleep only goes in a chest by your own bed that nobody else has opened; a furnace that is
+  still smelting gets no book; a book delayed by Gemini is not dropped where you no longer are.
+- Your copy under the bed never shows while it hunts you or while you are AFK.
+- A chest counts as one you opened only when it really opens for you (not a refused click, not sneak-placing
+  something against it).
+- Archer, witch, pillager and enderman copies no longer jump closer or vanish early for keeping their distance; a herd
+  copy stuck 5 to 10 blocks away gives up after a minute; villager copies only come from villages.
+- On Deathwish, a scare burst now takes 40% off its bite too; a sweep from hitting something next to it is not a
+  Protector hit; the Protector can never keep an enchantment (so Mending cannot refill it).
+- Admins cannot force sleep paralysis on an AFK player; repeating `/fglurk optout` no longer rewrites the consent file.
+
 ## New in 0.3.0 (same as Forge 1.6.0)
 
 - **Haunted Books**: a book called "Haunted Book" (in dark red) turns up in a chest or barrel you opened, in a

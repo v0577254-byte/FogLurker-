@@ -25,7 +25,8 @@ import java.util.Set;
 /**
  * One of the mod's structures, kept off water: it is laid out as usual (by the structure inside, a jigsaw), then the
  * ground under every piece of it, and a few blocks round, is checked in the world generator's own terrain. If any of it
- * is under water (the sea, a river, or a lake or pond in the terrain itself), the structure is not built there at all. Everything else
+ * is under water (the sea, a river, or a lake or pond: since 1.18 those are part of the terrain itself, not features
+ * added later), the structure is not built there at all. Everything else
  * (biomes, how the ground is blended in, the generation step) is the inner structure's.
  *
  * <pre>{"type": "foglurker:dry_land", "structure": { ...an ordinary "minecraft:jigsaw" structure... }}</pre>
@@ -44,7 +45,7 @@ public final class DryLandStructure extends Structure {
     /** How far round each piece the ground must be dry too (so no wall stands at the water's edge). */
     public static final int MARGIN = 3;
     /** Checked every this many blocks across each piece (and always at its edges). */
-    private static final int STEP = 6;
+    private static final int STEP = 4;
 
     private final Structure inner;
 

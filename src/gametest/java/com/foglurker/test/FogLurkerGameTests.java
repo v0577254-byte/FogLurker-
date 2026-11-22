@@ -87,6 +87,14 @@ public final class FogLurkerGameTests {
      */
     private static ServerPlayer player(GameTestHelper h, double x, double z) {
         LurkerDirector.naturalSpawnsPaused = true; // tests spawn what they need themselves
+        // (A config value a test flipped off and on again can be saved in the wrong order and come back off on the
+        // next run: every test starts with them on.)
+        if (!com.foglurker.config.FogLurkerConfig.COMMON.hauntings.get()) {
+            com.foglurker.config.FogLurkerConfig.COMMON.hauntings.set(true);
+        }
+        if (!com.foglurker.config.FogLurkerConfig.COMMON.jumpscares.get()) {
+            com.foglurker.config.FogLurkerConfig.COMMON.jumpscares.set(true);
+        }
         ServerLevel level = h.getLevel();
         ServerPlayer p = new ServerPlayer(level.getServer(), level, new GameProfile(UUID.randomUUID(), "fogtest" + (++playerCounter)));
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
@@ -2771,19 +2779,21 @@ public final class FogLurkerGameTests {
                         net.minecraft.world.level.block.state.properties.BedPart.HEAD));
                 p.startSleeping(head);
                 check(p.isSleeping(), "the test player did not lie down");
-                check(com.foglurker.world.UnderTheBed.lieDown(p, 0.0, 15), "a low roll should bring it this sleep");
+                check(com.foglurker.world.UnderTheBed.lieDown(p, 0.0, 15),
+                        "a low roll should bring it this sleep (" + com.foglurker.world.UnderTheBed.whyNot(p) + ")");
                 check(!com.foglurker.world.UnderTheBed.lieDown(p, 0.99, 15), "a high roll should be a quiet sleep");
                 check(com.foglurker.world.UnderTheBed.show(p), "it should show while they sleep");
                 // Never in a sleep that is sleep paralysis.
                 check(com.foglurker.world.SleepParalysis.lieDown(p, 0.0), "the test needs a sleep paralysis sleep");
                 check(!com.foglurker.world.UnderTheBed.show(p), "not in a sleep paralysis sleep");
                 com.foglurker.world.SleepParalysis.lieDown(p, 0.99);
-                // Nor with hauntings off.
-                com.foglurker.config.FogLurkerConfig.COMMON.hauntings.set(false);
+                // Nor with it switched off in this world. (The world's own switch, not the config file: a config value
+                // flipped off and on again in a test can be saved in the wrong order and stay off for the next run.)
+                data.setNaturalSpawning(false);
                 try {
-                    check(!com.foglurker.world.UnderTheBed.lieDown(p, 0.0, 15), "with hauntings off it never comes");
+                    check(!com.foglurker.world.UnderTheBed.lieDown(p, 0.0, 15), "with it switched off it never comes");
                 } finally {
-                    com.foglurker.config.FogLurkerConfig.COMMON.hauntings.set(true);
+                    data.setNaturalSpawning(true);
                 }
                 p.stopSleeping();
                 h.succeed();
@@ -2989,6 +2999,10 @@ public final class FogLurkerGameTests {
                     var start = structure.generate(server.registryAccess(), gen, gen.getBiomeSource(), rs,
                         level.getStructureManager(), level.getSeed(), sea, 0, level, b -> true);
                     check(!start.isValid(), n + " was built out at sea, at chunk " + sea);
+                    var inner = ((com.foglurker.world.DryLandStructure) structure).inner();
+                    var bare = inner.generate(server.registryAccess(), gen, gen.getBiomeSource(), rs,
+                            level.getStructureManager(), level.getSeed(), sea, 0, level, b -> true);
+                    check(bare.isValid(), n + ": out at sea the layout itself fits, so the dry-land check is what must refuse it");
                 }
                 com.foglurker.FogLurkerMod.LOGGER.info("None of the structures is built out at sea (chunk {})", sea);
             }

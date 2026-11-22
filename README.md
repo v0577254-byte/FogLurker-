@@ -43,7 +43,7 @@ Between appearances (after the grace period) one player gets a small scare every
 - **The edge of your vision.** It crouches at the edge of your screen. The moment you turn to look straight at it, it is gone without a sound. (It only ever exists on your own screen.)
 - **A torch goes out.** An ordinary torch you are not looking at is put out and drops as an item. Never a soul torch.
 - **A friend who is not online.** "Alex joined the game", a line of chat in Alex's typing style, and later "Alex left the game". Alex was never there. (Check the player list.) Off when the server sets `impersonateInChat = false`.
-- **Haunted Books.** A book called "Haunted Book" (in dark red) turns up in a chest or barrel you have opened yourself, in the output slot of a furnace you used, open on an empty lectern, or on the floor right behind you (with a page turning). Inside: your name over and over, things you said in chat, how many times you have died, how many steps you have taken ("some of them were mine"), what you were holding, a tally of the nights it watched you, a name that will not stay still, and lines like "do not look under the bed" or "every chest you open, i opened first". Only a book in your own chest at your base says where you sleep (a book on the floor could be picked up by anyone). Signed with your own name, or by "the fog". With a Gemini key its last page is written in your own typing style. At most one every 4 minutes.
+- **Haunted Books.** A book called "Haunted Book" (in dark red) turns up in a chest or barrel you have opened yourself, in the output slot of a furnace you used, open on an empty lectern, or on the floor right behind you (with a page turning). Inside: your name over and over, things you said in chat, how many times you have died, how many steps you have taken ("some of them were mine"), what you were holding, a tally of the nights it watched you, a name that will not stay still, and lines like "do not look under the bed" or "every chest you open, i opened first". Only a book in a chest by your own bed, that nobody else has opened, says where you sleep (a book on the floor, or in a shared chest, could be read by anyone). Signed with your own name, or by "the fog". With a Gemini key its last page is written in your own typing style. At most one every 4 minutes.
 - **Knocking.** Someone knocks on a door or a window near you: three knocks, two and two, slow ones, or five that wait for an answer. Sometimes again a few seconds later. Nobody is there.
 - **Jumpscares, for no reason at all** (config `jumpscares`):
   - **The fog pulls in.** Out of nowhere the fog rushes in around you within a second, something whispers right beside you in it, your heartbeat picks up, and a few seconds later it lifts again as if nothing happened.
@@ -57,7 +57,7 @@ Between appearances (after the grace period) one player gets a small scare every
 
 ## Under the bed
 
-Only while you sleep (about one sleep in three, after the grace period): a moment after you lie down, a copy of you, wearing your own skin, rises from under the foot of your bed. Only its head shows above the mattress, looking at you. One second later it is gone. It is only on your screen.
+Only while you sleep (about one sleep in three, after the grace period): a moment after you lie down, a copy of you, wearing your own skin, rises from under the foot of your bed. Only its head shows above the mattress, looking at you. One second later it is gone. It is only on your screen. (Never while it is hunting you, or while you are AFK.)
 
 ## Structures
 

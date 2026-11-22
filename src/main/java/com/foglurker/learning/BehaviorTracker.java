@@ -353,7 +353,7 @@ public final class BehaviorTracker {
     public static void onUseBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
         Player who = event.getEntity();
         // A click that does not open it: refused, or sneaking with something in hand (that places or uses the item).
-        if (event.isCanceled() || event.getUseBlock() == net.minecraftforge.eventbus.api.Event.Result.DENY
+        if (event.getUseBlock() == net.minecraftforge.eventbus.api.Event.Result.DENY
                 || (who.isSecondaryUseActive() && !(who.getMainHandItem().isEmpty() && who.getOffhandItem().isEmpty()))) {
             return;
         }

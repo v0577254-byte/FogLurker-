@@ -271,7 +271,7 @@ public final class GeminiClient {
             return CompletableFuture.completedFuture(Result.fail(0, "Gemini request failed: " + e.getClass().getSimpleName()));
         }
         return attempt
-                .exceptionally(t -> Result.fail(0, "Gemini request failed: " + rootMessage(t)))
+                .exceptionally(t -> scrubKey(Result.fail(0, "Gemini request failed: " + rootMessage(t)), chain.key()))
                 .completeOnTimeout(Result.fail(0, "Gemini took too long to answer"), overallTimeoutSeconds(), TimeUnit.SECONDS);
     }
 
@@ -406,6 +406,11 @@ public final class GeminiClient {
     }
 
     /** Google's error text is shown to operators and logged: never let it carry the key, should it ever quote it. */
+    /** Error text with the key (should it ever turn up in an exception's message) masked. */
+    private static String withoutKey(String text, String key) {
+        return text == null || key == null || key.isEmpty() ? text : text.replace(key, ApiKeyStore.masked(key));
+    }
+
     private static Result scrubKey(Result r, String key) {
         if (r.error() != null && key != null && !key.isEmpty() && r.error().contains(key)) {
             return new Result(r.text(), r.status(), r.error().replace(key, ApiKeyStore.masked(key)), r.reason());
@@ -481,12 +486,12 @@ public final class GeminiClient {
                 .thenApply(resp -> scrubKey(withRetryAfter(parse(resp.statusCode(), resp.body()),
                         resp.headers().firstValue("Retry-After").orElse(null)), key))
                 .exceptionally(t -> {
-                    FogLurkerMod.LOGGER.debug("Gemini request to {} failed: {}", model, rootMessage(t));
+                    FogLurkerMod.LOGGER.debug("Gemini request to {} failed: {}", model, withoutKey(rootMessage(t), key));
                     if (isTimeout(t)) {
                         return Result.fail(0, "Gemini model " + model + " did not answer within "
                                 + requestTimeoutSeconds() + " seconds", "TIMEOUT");
                     }
-                    return Result.fail(0, "Could not reach Gemini: " + rootMessage(t));
+                    return scrubKey(Result.fail(0, "Could not reach Gemini: " + rootMessage(t)), key);
                 });
     }
 

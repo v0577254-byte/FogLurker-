@@ -109,6 +109,17 @@ public class ProtectorOfTheFogItem extends net.minecraft.world.item.SwordItem {
         return false;
     }
 
+    /**
+     * It can never hold an enchantment, however one was put on it (a command, another mod): this version of the game
+     * has no switch to stop Mending refilling it from experience, so any enchantment is taken off again at once.
+     */
+    @Override
+    public void inventoryTick(ItemStack stack, Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
+        if (!level.isClientSide() && stack.isEnchanted()) {
+            stack.set(net.minecraft.core.component.DataComponents.ENCHANTMENTS, net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY);
+        }
+    }
+
     public static int charges(ItemStack stack) {
         return Math.max(0, stack.getMaxDamage() - stack.getDamageValue());
     }

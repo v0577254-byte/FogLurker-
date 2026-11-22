@@ -904,17 +904,17 @@ public final class LurkerBrain {
     /** A ranged shape was still walking in from further than 14 blocks. */
     private boolean wasFar = true;
 
-    /**
-     * A stolen hostile shape moves like that mob: zombies and husks walk straight at you, skeletons, strays, pillagers
-     * and witches keep their distance and circle you, spiders are quick, a creeper walks up without a sound and hisses
-     * before it shows what it really is, and an enderman wanders and only comes for you once you look at it.
-     */
     /** Hostile shapes that hang back (archers, witches) or wander (endermen) instead of walking straight at you. */
     private static boolean keepsItsDistance(Disguise d) {
         return d == Disguise.SKELETON || d == Disguise.STRAY || d == Disguise.PILLAGER || d == Disguise.WITCH
                 || d == Disguise.ENDERMAN;
     }
 
+    /**
+     * A stolen hostile shape moves like that mob: zombies and husks walk straight at you, skeletons, strays, pillagers
+     * and witches keep their distance and circle you, spiders are quick, a creeper walks up without a sound and hisses
+     * before it shows what it really is, and an enderman wanders and only comes for you once you look at it.
+     */
     private void hostile(ServerPlayer t, double dist) {
         Disguise d = mob.getDisguise();
         boolean attack = enc.willAttack() && canAttack(t);

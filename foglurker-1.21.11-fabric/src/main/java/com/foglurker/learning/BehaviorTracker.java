@@ -332,7 +332,6 @@ public final class BehaviorTracker {
         }
     }
 
-    /** Remembers which storage blocks a player opens with their own hands (a book only ever goes in one of those). */
     /** The storage block each player just right-clicked: it counts as opened only if a menu really opens this tick. */
     private static final java.util.Map<java.util.UUID, long[]> CLICKED = new java.util.HashMap<>();
 

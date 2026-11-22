@@ -274,6 +274,9 @@ public final class FogLurkerCommands {
 
     /** The next time they go to sleep, sleep paralysis (see SleepParalysis). */
     private static int forceSleepParalysis(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
+        if (refuseAfk(ctx.getSource(), target)) {
+            return 0; // like spawn and force: never sent after someone who is away from the keyboard
+        }
         com.foglurker.world.SleepParalysis.forceNext(target);
         boolean self = ctx.getSource().getEntity() == target;
         String text = self

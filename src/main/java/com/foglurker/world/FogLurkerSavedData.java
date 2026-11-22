@@ -249,7 +249,9 @@ public final class FogLurkerSavedData extends SavedData {
         if (pruneOk) profiles.entrySet().removeIf(e -> {
             PlayerBehaviorProfile p = e.getValue();
             if (p.lastSeenMillis == 0) {
-                p.lastSeenMillis = nowMillis;
+                // Not known (an old save): counted as a month ago, so the year before it is forgotten starts now but
+                // the fake friend does not name them as if they had just been on.
+                p.lastSeenMillis = nowMillis - 31L * 24 * 60 * 60 * 1000;
             }
             boolean online = server != null && server.getPlayerList().getPlayer(e.getKey()) != null;
             return !online && !p.chatLearningOff && nowMillis - p.lastSeenMillis > 365L * 24 * 60 * 60 * 1000;
