@@ -232,7 +232,7 @@ public final class FogLurkerCommands {
             case STALK -> "is stalking them (it drops flat whenever they look)";
             case ATTACK -> "is hunting them. Now.";
         };
-        reply(ctx.getSource(), Component.literal("The pale crawler " + doing + " " + target.getGameProfile().name()
+        reply(ctx.getSource(), Component.literal("The Fog Lurker " + doing + " " + target.getGameProfile().name()
                 + " (" + Math.round(lurker.distanceTo(target)) + " blocks away).").withStyle(ChatFormatting.GRAY));
         return 1;
     }
@@ -298,7 +298,7 @@ public final class FogLurkerCommands {
             ctx.getSource().sendFailure(Component.literal("Nowhere dry for it to appear near " + target.getGameProfile().name() + "."));
             return 0;
         }
-        reply(ctx.getSource(), Component.literal("The pale crawler steps out in front of " + target.getGameProfile().name()
+        reply(ctx.getSource(), Component.literal("The Fog Lurker steps out in front of " + target.getGameProfile().name()
                 + " (" + Math.round(lurker.distanceTo(target)) + " blocks away). Will it keep its promise? "
                 + (attack ? "No." : "Yes.")).withStyle(ChatFormatting.GRAY));
         return 1;
@@ -454,7 +454,7 @@ public final class FogLurkerCommands {
             case DOPPELGANGER -> "wearing their own face";
             case DOG -> (FogLurkerSavedData.get(src.getServer()).profile(target.getUUID()).dogUuid != null ? "as their dog" : "as a dog")
                     + (enc.dogName() != null ? " \"" + enc.dogName() + "\"" : "");
-            case WATCHER -> "as itself, the pale crawler, watching from the fog";
+            case WATCHER -> "as itself, the Fog Lurker in its real shape, watching from the fog";
             default -> "hiding as a " + enc.disguise().id();
         };
         boolean canHurt = target.level().getDifficulty() != net.minecraft.world.Difficulty.PEACEFUL

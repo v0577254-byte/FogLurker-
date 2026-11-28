@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "foglurker:item/ascension_from_the_fog_smithing_template"
+  }
+}

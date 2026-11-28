@@ -76,10 +76,20 @@ public final class SleepParalysis {
     public static boolean lieDown(ServerPlayer p, double roll) {
         FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
         PlayerBehaviorProfile prof = data.profile(p.getUUID());
+        // A full set of Armour of the Fog keeps it away while you sleep (unless an admin forced it: then it comes
+        // now, not on some later night after the armour is off).
+        if (!prof.sleepParalysisForced && com.foglurker.armor.FogArmor.hasFullSet(p)) {
+            THIS_SLEEP.put(p.getUUID(), false);
+            return false;
+        }
         long now = p.server.overworld().getGameTime();
         boolean calm = CALM_UNTIL.getOrDefault(p.getUUID(), Long.MIN_VALUE) > now;
+        // (Like the other hauntings: not with them switched off, while it rests after a kill, while they are AFK, at
+        // peace or being hunted.)
         boolean happens = prof.sleepParalysisForced
-                || !calm && data.naturalSpawning() && !p.isCreative() && !p.isSpectator() && roll < chance(p);
+                || !calm && data.naturalSpawning() && com.foglurker.config.FogLurkerConfig.COMMON.hauntings.get()
+                && !data.restingAt(now) && !p.isCreative() && !p.isSpectator() && !AfkTracker.isAfk(p)
+                && LurkerDirector.leftAloneTicks(p) == 0 && !LurkerDirector.isHunted(p.getUUID()) && roll < chance(p);
         THIS_SLEEP.put(p.getUUID(), happens);
         if (!happens && prof.sleepParalysisSeen) {
             ModNetwork.send(p, new SleepVisionPacket()); // it is still there when they close their eyes
@@ -91,6 +101,10 @@ public final class SleepParalysis {
     public static void strike(ServerPlayer p) {
         FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
         PlayerBehaviorProfile prof = data.profile(p.getUUID());
+        if (!prof.sleepParalysisForced && com.foglurker.armor.FogArmor.hasFullSet(p)) {
+            THIS_SLEEP.put(p.getUUID(), false);
+            return;
+        }
         prof.sleepParalysisForced = false;
         prof.sleepParalysisSeen = true;
         data.setDirty();
@@ -102,7 +116,9 @@ public final class SleepParalysis {
         }
         p.hurt(ModDamageTypes.source(p.level(), ModDamageTypes.SLEEP_PARALYSIS), 1.0F); // half a heart
         p.sendSystemMessage(Component.literal("FogLurker: Hmm Did I Do That?"));
-        LurkerDirector.leaveAlone(p, NO_VISIT_TICKS); // and it does not show up after it
+        if (LurkerDirector.leftAloneTicks(p) < NO_VISIT_TICKS) {
+            LurkerDirector.leaveAlone(p, NO_VISIT_TICKS); // and it does not show up after it (never shortens a longer peace)
+        }
     }
 
     /** True while this sleep is going to be (or was) sleep paralysis: nothing else happens in it. */

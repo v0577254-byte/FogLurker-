@@ -265,8 +265,7 @@ public final class Hauntings {
                 // Something runs past behind you, fast, and is gone.
                 for (int i = 0; i < 8; i++) {
                     Vec3 at = p.position().add(behind.scale(4)).add(side.scale(-6 + i * 1.7));
-                    BlockState ground = level.getBlockState(BlockPos.containing(at).below());
-                    SoundEvent step = ground.isAir() ? SoundEvents.GRASS_STEP : ground.getSoundType().getStepSound();
+                    SoundEvent step = stepSound(level, at);
                     later(server, i * 3, () -> play(p, level, step, SoundSource.HOSTILE, at, 1.0F, 1.15F));
                 }
             }
@@ -337,8 +336,7 @@ public final class Hauntings {
                 // Footsteps coming up behind you, then nothing.
                 for (int i = 0; i < 5; i++) {
                     Vec3 at = p.position().add(behind.scale(9 - i * 1.3));
-                    BlockState ground = level.getBlockState(BlockPos.containing(at).below());
-                    SoundEvent step = ground.isAir() ? SoundEvents.GRASS_STEP : ground.getSoundType().getStepSound();
+                    SoundEvent step = stepSound(level, at);
                     later(server, i * 6, () -> play(p, level, step, SoundSource.PLAYERS, at, 0.8F, 0.9F));
                 }
             }
@@ -405,6 +403,16 @@ public final class Hauntings {
 
     // =================================================================== a friend who is not online
 
+    /** The footstep sound of the ground at a spot (grass where the chunk is not loaded: never loads one). */
+    private static SoundEvent stepSound(ServerLevel level, Vec3 at) {
+        BlockPos below = BlockPos.containing(at).below();
+        if (!level.hasChunkAt(below)) {
+            return SoundEvents.GRASS_STEP;
+        }
+        BlockState ground = level.getBlockState(below);
+        return ground.isAir() ? SoundEvents.GRASS_STEP : ground.getSoundType().getStepSound();
+    }
+
     public static boolean ghostFriend(ServerPlayer p, FogLurkerSavedData data, RandomSource r) {
         MinecraftServer server = p.server;
         List<Map.Entry<UUID, PlayerBehaviorProfile>> offline = new ArrayList<>();
@@ -435,6 +443,9 @@ public final class Hauntings {
                     if (err == null && text != null && !text.isBlank() && !p.hasDisconnected()
                             && !LurkerDirector.isResting(server) && FogLurkerConfig.COMMON.impersonateInChat.get()
                             && FogLurkerConfig.COMMON.hauntings.get() && FogLurkerSavedData.get(server).naturalSpawning()
+                            // (not if the real one logged in meanwhile, or the listener died, went creative or is at peace)
+                            && server.getPlayerList().getPlayer(pick.getKey()) == null && p.isAlive()
+                            && !p.isCreative() && !p.isSpectator() && LurkerDirector.leftAloneTicks(p) == 0
                             && !LurkerDirector.isHunted(p.getUUID()) && !com.foglurker.world.AfkTracker.isAfk(p)) {
                         p.sendSystemMessage(Component.translatable("chat.type.text", name, text));
                     }
@@ -463,8 +474,11 @@ public final class Hauntings {
                                              @Nullable java.util.Collection<Long> onlyThese) {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
-        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-range, -4, -range), center.offset(range, 4, range))) {
-            if (!level.isLoaded(pos) || onlyThese != null && !onlyThese.contains(pos.asLong()) || !pos.closerThan(center, range)) {
+        // (With a list, only its few positions are looked at, not the whole box round the centre.)
+        for (BlockPos pos : onlyThese == null
+                ? BlockPos.betweenClosed(center.offset(-range, -4, -range), center.offset(range, 4, range))
+                : onlyThese.stream().map(BlockPos::of).toList()) {
+            if (!pos.closerThan(center, range) || !level.isLoaded(pos)) {
                 continue;
             }
             BlockEntity be = level.getBlockEntity(pos);
@@ -568,11 +582,14 @@ public final class Hauntings {
                                 && !p.hasDisconnected() && !com.foglurker.world.AfkTracker.isAfk(p) && !isBeingHunted(p)
                                 && LurkerDirector.leftAloneTicks(p) == 0 && !p.isCreative() && !p.isSpectator()
                                 && p.serverLevel() == level
+                                // (their own chest still: nobody else opened it while the note was being written)
+                                && (!where.atHome() || !openedByOthers(data, p, where.pos()))
                                 // (a floor or lectern spot only while they are still near it: they may have walked off)
                                 && (where.spot() == BookSpot.CONTAINER || where.spot() == BookSpot.FURNACE
                                 || where.pos().closerThan(p.blockPosition(), 16));
                         if (!allowed || !putBook(level, p, where, hauntedBook(author, pages))) {
                             prof.lastBookAt = previousBook;
+                            data.setDirty();
                             count = Math.max(0, count - 1); // it was counted as a haunting, but nothing happened
                         }
                     }));
@@ -580,6 +597,7 @@ public final class Hauntings {
             pages.add(Component.literal(lastPage(data, p, r)));
             if (!putBook(level, p, where, hauntedBook(author, pages))) {
                 prof.lastBookAt = previousBook;
+                data.setDirty();
                 return false;
             }
         }

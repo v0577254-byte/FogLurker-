@@ -1429,9 +1429,9 @@ public final class LurkerBrain {
         }
     }
 
-    /** It speaks as itself, "fogstalker", to everyone close enough to hear. */
+    /** It speaks as itself, "FogLurker", to everyone close enough to hear. */
     private void meetingSay(String text) {
-        Component line = Component.literal("fogstalker: ").withStyle(ChatFormatting.DARK_RED)
+        Component line = Component.literal("FogLurker: ").withStyle(ChatFormatting.DARK_RED)
                 .append(Component.literal(text).withStyle(text.equals("RUN!")
                         ? new ChatFormatting[]{ChatFormatting.RED, ChatFormatting.BOLD} : new ChatFormatting[]{ChatFormatting.GRAY}));
         for (ServerPlayer p : level().players()) {

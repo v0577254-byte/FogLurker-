@@ -231,6 +231,11 @@ public final class ClientEffects {
         // Works the same from 2 to 32 chunks of render distance: see FogCurve.
         float far = com.foglurker.util.FogCurve.far(f, event.getFarPlaneDistance());
         float near = com.foglurker.util.FogCurve.near(f, far, event.getNearPlaneDistance());
+        net.minecraft.client.player.LocalPlayer me = Minecraft.getInstance().player;
+        if (me != null && com.foglurker.armor.FogArmor.hasFullSet(me)) { // a full set of Armour of the Fog sees further
+            far = com.foglurker.util.FogCurve.clearFar(far, event.getFarPlaneDistance());
+            near = com.foglurker.util.FogCurve.clearNear(near, far, event.getNearPlaneDistance());
+        }
         lastFar = far;
         event.setFarPlaneDistance(far);
         event.setNearPlaneDistance(near);

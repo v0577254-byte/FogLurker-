@@ -28,17 +28,46 @@ public final class PlayerEvents {
         com.foglurker.voice.VoiceConsent.touch(event.getEntity().getUUID(), System.currentTimeMillis());
     }
 
-    /** Ringing a bell drives the Fog Lurker away. */
+    /** Ringing a bell drives the Fog Lurker away. Opening the lookout tower's chest puts its Ingot of the Fog in the middle. */
     @SubscribeEvent
     public static void onRightClickBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
         if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel level
-                && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
-                && level.getBlockState(event.getPos()).getBlock() instanceof net.minecraft.world.level.block.BellBlock) {
-            // Only a bell that really rang counts (sneak-clicking with a block in hand, or the wrong face, does not
-            // ring it). The click is handled first; the bell's state is checked right after.
-            net.minecraft.core.BlockPos pos = event.getPos().immutable();
-            ServerPlayer ringer = event.getEntity() instanceof ServerPlayer sp ? sp : null;
-            checkRungAfter(level, pos, ringer);
+                && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
+            var state = level.getBlockState(event.getPos());
+            if (state.getBlock() instanceof net.minecraft.world.level.block.BellBlock) {
+                // Only a bell that really rang counts (sneak-clicking with a block in hand, or the wrong face, does not
+                // ring it). The click is handled first; the bell's state is checked right after.
+                net.minecraft.core.BlockPos pos = event.getPos().immutable();
+                ServerPlayer ringer = event.getEntity() instanceof ServerPlayer sp ? sp : null;
+                checkRungAfter(level, pos, ringer);
+            } else if (state.getBlock() instanceof net.minecraft.world.level.block.ChestBlock) {
+                ServerPlayer sp = event.getEntity() instanceof ServerPlayer p ? p : null;
+                pinLookoutIngot(level, event.getPos(), sp);
+                if (state.getValue(net.minecraft.world.level.block.ChestBlock.TYPE) != net.minecraft.world.level.block.state.properties.ChestType.SINGLE) {
+                    pinLookoutIngot(level, event.getPos().relative(net.minecraft.world.level.block.ChestBlock.getConnectedDirection(state)), sp);
+                }
+            }
+        }
+    }
+
+    /** The lookout tower's chest, filled on first opening, with its Ingot of the Fog moved to the middle slot. */
+    private static void pinLookoutIngot(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos,
+                                        @javax.annotation.Nullable ServerPlayer player) {
+        if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest
+                && "foglurker:chests/lookout_tower".equals(chest.saveWithoutMetadata().getString("LootTable"))) {
+            chest.unpackLootTable(player);
+            for (int i = 0; i < chest.getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = chest.getItem(i);
+                if (st.is(com.foglurker.registry.ModItems.INGOT_OF_THE_FOG.get())) {
+                    if (i != 4) {
+                        net.minecraft.world.item.ItemStack prev = chest.getItem(4);
+                        chest.setItem(4, st);
+                        chest.setItem(i, prev);
+                        chest.setChanged();
+                    }
+                    break;
+                }
+            }
         }
     }
 

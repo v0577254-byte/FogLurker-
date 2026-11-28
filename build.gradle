@@ -2,6 +2,7 @@ plugins {
     id 'eclipse'
     id 'idea'
     id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.36'
 }
 
 version = mod_version
@@ -86,10 +87,17 @@ repositories {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    // Builds the mixins' refmap (dev names to the game's own) at compile time.
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     // Only needed at compile time: the voice features switch on automatically
     // when Simple Voice Chat is installed, and stay off when it is not.
     compileOnly "de.maxhenkel.voicechat:voicechat-api:${voicechat_api_version}"
+}
+
+mixin {
+    add sourceSets.main, 'foglurker.refmap.json'
+    config 'foglurker.mixins.json'
 }
 
 tasks.named('processResources', ProcessResources).configure {

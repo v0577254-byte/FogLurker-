@@ -2,71 +2,45 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "rolls": 1,
-      "entries": [
-        {
-          "type": "minecraft:item",
-          "name": "minecraft:written_book",
-          "weight": 1,
-          "functions": [
-            {
-              "function": "minecraft:set_nbt",
-              "tag": "{title:\"Ranger's Logbook\",author:\"Ranger Hale\",resolved:1b,pages:[\"{\\\"text\\\": \\\"Ranger's log, day 3.\\\\nThe fog came up the valley again at dusk. It does not move with the wind.\\\"}\",\"{\\\"text\\\": \\\"Day 6.\\\\nSomething walked the tree line all night. Same pace as me when I walk the deck.\\\"}\",\"{\\\"text\\\": \\\"Day 9.\\\\nThe soul lanterns help. Whatever it is will not step into their light.\\\"}\",\"{\\\"text\\\": \\\"Day 11.\\\\nIt wore Tom's face today. Tom left on day 2.\\\"}\",\"{\\\"text\\\": \\\"Day 12.\\\\nIf the fog rushes in for no reason, do not wait for it to lift. Get to the light.\\\"}\"]}"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "rolls": {
         "type": "minecraft:uniform",
-        "min": 2,
-        "max": 4
+        "min": 4,
+        "max": 8
       },
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "foglurker:foggy_stick",
-          "weight": 3,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1,
-                "max": 2
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "name": "minecraft:spyglass",
-          "weight": 2
-        },
-        {
-          "type": "minecraft:item",
-          "name": "minecraft:compass",
-          "weight": 2
-        },
-        {
-          "type": "minecraft:item",
-          "name": "minecraft:paper",
+          "name": "minecraft:cooked_beef",
           "weight": 4,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 2,
-                "max": 6
+                "min": 1,
+                "max": 10
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "name": "minecraft:book",
+          "name": "minecraft:cooked_porkchop",
+          "weight": 4,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 10
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:cooked_mutton",
           "weight": 3,
           "functions": [
             {
@@ -74,37 +48,7 @@
               "count": {
                 "type": "minecraft:uniform",
                 "min": 1,
-                "max": 2
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "name": "minecraft:bread",
-          "weight": 3,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1,
-                "max": 3
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "name": "minecraft:soul_torch",
-          "weight": 2,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2,
-                "max": 5
+                "max": 10
               }
             }
           ]
@@ -113,15 +57,65 @@
     },
     {
       "rolls": 1,
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.1
+        }
+      ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:iron_sword",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.09
+        }
+      ],
       "entries": [
         {
           "type": "minecraft:item",
           "name": "foglurker:foggy_stick",
-          "weight": 2
-        },
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "conditions": [
         {
-          "type": "minecraft:empty",
-          "weight": 98
+          "condition": "minecraft:random_chance",
+          "chance": 0.07
+        }
+      ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:chainmail_chestplate",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.06
+        }
+      ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "foglurker:ingot_of_the_fog",
+          "weight": 1
         }
       ]
     }

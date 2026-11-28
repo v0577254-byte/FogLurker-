@@ -7,7 +7,7 @@ A horror mod for **Minecraft 1.20.1 (Forge 47.x)**.
 Something in the fog has been watching you play. It learns how you move and how you type. It learns what your friends sound like and what your dog is called. Then it uses all of that to lure you into the woods.
 
 ![Every disguise, lined up](docs/images/disguises.jpg)
-*Left to right: the Fog Lurker itself (the pale crawler), a wolf, a zombie, a chicken, a pig, a sheep, a cow, **your dog** (collar and name copied) and **your friend** (skin, armour and held item copied).*
+*Left to right: the Fog Lurker itself (its real shape), a wolf, a zombie, a chicken, a pig, a sheep, a cow, **your dog** (collar and name copied) and **your friend** (skin, armour and held item copied).*
 
 ## What it does
 
@@ -20,7 +20,7 @@ Something in the fog has been watching you play. It learns how you move and how 
 - **It hides among animals and villagers.** It copies whatever is most common around you: a cow, sheep, pig, chicken, horse, donkey, llama, goat, rabbit, fox, cat or mooshroom in a real herd, or a villager in a village (any job, dressed for the biome) or a wandering trader. Wolves in forests, horses on plains, goats in the mountains. It acts like the real thing: it wanders a few blocks, stands about, looks around, a sheep puts its head down to eat grass, and it only glances at you as often as the real ones do (it learns all of that by watching them). When it means to get close, its wandering just happens to drift your way while you are not looking.
 - **In the dark it is a monster.** A zombie, skeleton (with its bow), creeper (silent, like a real one), spider, enderman, witch or pillager (with its crossbow), and a husk in the desert or a stray where it snows. It moves like one: zombies walk straight at you, skeletons, strays, pillagers and witches keep their distance and circle, spiders are quick, a creeper walks up without a sound and hisses before it shows what it really is, and an enderman wanders, ignoring you, until you look at it.
 - **It can be your dog.** It copies your tamed wolf's collar colour and name tag. It runs up to you, whines, then runs toward the trees and looks back, the way a dog that "found something" would.
-- **It watches.** Sometimes it is just itself, the pale crawler, crouched at the edge of your vision and staring. Look at it too long and it is gone.
+- **It watches.** Sometimes it is just itself, in its real shape, crouched at the edge of your vision and staring. Look at it too long and it is gone.
 - **The fog rolls in** while it hunts you. When it reveals itself the screen shakes and you hear a heartbeat.
 
 ![Fog while it hunts](docs/images/fog.jpg)
@@ -29,11 +29,11 @@ It can be killed, but it takes a lot (see Killing it below), and then it is gone
 
 ## What it really looks like
 
-The Fog Lurker's real shape is **the pale crawler**. When it stops pretending, its stolen shape flickers and peels away into it. The crawler is pale and albino with gray accents. It moves on all fours, with arms long enough to reach more than a block past its shoulders and grasshopper legs whose knees sit up by its ribs. Its long jaw hangs open, showing a blood-red mouth full of teeth with blood on them, and its eyes are pure white and glow in the dark.
+When the Fog Lurker stops pretending, its stolen shape flickers and peels away into **its real shape**. It is pale and albino with gray accents. It moves on all fours, with arms long enough to reach more than a block past its shoulders and grasshopper legs whose knees sit up by its ribs. Its long jaw hangs open, showing a blood-red mouth full of teeth with blood on them, and its eyes are pure white and glow in the dark.
 
 | Front | Side |
 |---|---|
-| ![The crawler, front](docs/images/crawler_front.jpg) | ![The crawler, side](docs/images/crawler_side.jpg) |
+| ![The Fog Lurker, front](docs/images/crawler_front.jpg) | ![The Fog Lurker, side](docs/images/crawler_side.jpg) |
 
 ## Hauntings
 
@@ -139,6 +139,16 @@ A spiky black, grey and white blade wrapped in a slowly drifting mist. **It cann
 - It holds **10 scare bursts** (the durability bar). Hitting things never wears it out, and it cannot be repaired with planks or merged with another Protector on an anvil (renaming is fine).
 - **Recharging:** put the sword in the **middle** of a crafting table and The Fog of the Day or The Fog of the Night in the slots around it. **Each fog item gives back one burst**, so you can put them in one at a time; day and night both work. One item per slot is used per craft (a stack in one slot gives one burst and the rest stays in the grid). If you put in more fog than it is missing, nothing is crafted until you take the extra out, and Mending (only possible with commands) does not refill it.
 
+### Armour of the Fog
+
+Made at a **smithing table**: the **Ascension From The Fog** smithing template, a piece of **netherite** (or **diamond**) armour, and an **Ingot of the Fog** give the Helmet, Chestplate, Leggings or Boots of the Fog. Enchantments on the piece carry over.
+
+- **The template** is found in fortified castle chests (rarely). Copy it in a crafting table: Foggy Stick, Ingot of the Fog, Foggy Stick / Teeth, the template, Teeth / The Fog of the Day, The Fog of the Night, The Fog of the Day gives **two**.
+- **Protection:** the same armour points as netherite, toughness 3, a little knockback resistance, and it does not burn. Each piece made from netherite takes away 4% of the damage per armour point (a full set: **80%**), one made from diamond 3.5% (a full set: **70%**). Protection IV adds 1.25% per piece. Holding the Protector of the Fog costs 10% of it. Damage that goes through armour (starving, the void, `/kill`) still goes through.
+- **It cannot be enchanted** (not at a table, not with books on an anvil). Repair it on an anvil with **Ingots of the Fog**: each one mends a quarter, so four mend it fully.
+- A faint mist drifts around you while you wear it (more with more pieces).
+- **A full set:** its bites never slow you or **maul** your leg, **sleep paralysis never happens to you**, and the fog clears a little for you (you see about half again as far). Putting on a full set for the first time earns the advancement **The Ascension From The Fog**.
+
 ## How to survive it
 
 Ordinary armour maths does not apply to its bite. Only good armour helps, by its own table (below). You can kill it (see above), but mostly you survive by knowing its rules.
@@ -187,8 +197,8 @@ The edges of your screen darken and a heartbeat gets faster and louder the close
 
 - **It never appears in, on or next to water.** Every spawn spot, and the "woods" it leads you to, is checked to be dry ground.
 - **In human form it swims like a player**, sprint-swimming flat through the water to cross rivers.
-- **The crawler cannot swim.** It will not path into water. If it ends up in water it sinks, thrashes toward the shore, takes damage, and after three seconds the water drives it away.
-- **Jump in water to escape.** If you are swimming, wading out of reach or in a boat, the crawler can only pace the nearest shore and scream. After 20 seconds it gives up. It also never sheds its human skin while you or it are in water, because it knows.
+- **In its real shape it cannot swim.** It will not path into a body of water (one poured bucket of water is only a puddle: it walks through those, and may dig through the block under one). If it ends up in water it sinks, thrashes toward the shore, takes damage, and after three seconds the water drives it away.
+- **Jump in water to escape.** If you are swimming, wading out of reach or in a boat, the Fog Lurker can only pace the nearest shore and scream. After 20 seconds it gives up. It also never sheds its human skin while you or it are in water, because it knows.
 
 ![A stolen player sprint-swimming](docs/images/swim.jpg)
 
@@ -238,14 +248,14 @@ It does **not** appear afterwards, and you can go straight back to bed and sleep
 
 **Deathwish only: the night meeting.** On Deathwish, at night, out in the open, about 3 in 10 of its appearances are a meeting: you walk straight into it. It stands a few steps in front of you, stares, and says:
 
-> fogstalker: hello *yourname*
-> fogstalker: please dont run
-> fogstalker: i will not hurt you
+> FogLurker: hello *yourname*
+> FogLurker: please dont run
+> FogLurker: i will not hurt you
 
 It is a coin flip whether it means it. It is less likely to mean it for each time you got away from it before (+10% per escape, up to +30%, like any attack), more likely if it fears you after a scare burst, and on Peaceful it always means it. If it does, it sinks flat into the ground and is gone. If not:
 
-> fogstalker: just kidding
-> fogstalker: **RUN!**
+> FogLurker: just kidding
+> FogLurker: **RUN!**
 
 **RUN!** also flashes above your hotbar. You get a **5 second head start**, then it comes, and **if it catches you, the bite takes a whole health bar** (good armour leaves you a little; a Totem of Undying saves you). If you get away (outrun it, water, soul fire, a bell, a scare burst from the Protector, or through a portal), it leaves you alone: **nothing comes for you on its own for 15 minutes**. Like the scare-burst fear and the bell cooldown, this is saved with the world, so quitting and coming back does not reset it. Try it with `/foglurker force meet [player]`.
 
@@ -284,11 +294,13 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | Command | Who | What it does |
 |---|---|---|
 | `/foglurker spawn [player] [disguise] [attack\|watch]` | cheats / op | Spawns it now. Disguises: `player`, `dog`, `cow`, `sheep`, `pig`, `chicken`, `wolf`, `horse`, `donkey`, `llama`, `goat`, `rabbit`, `fox`, `cat`, `mooshroom`, `villager`, `wandering_trader` (also `merchant`), `zombie`, `skeleton`, `creeper`, `spider`, `husk`, `stray`, `enderman`, `witch`, `pillager`, `crawler` (itself), `random` |
+| `/foglurker force spawn [disguise] [attack\|watch\|random] [player]` | cheats / op | The same as `spawn`, with the other `force` commands |
+| `/foglurker locate <tower\|campfire\|castle\|castle-abandoned\|bunker\|well>` | op | Finds the nearest of the mod's structures, like `/locate` (click the coordinates to teleport there) |
 | `/foglurker gracetimer` | everyone | Time left in the grace period |
 | `/foglurker endgrace` | cheats / op | Ends the grace period right now (stays ended even if you switch to a mode with a longer one). The first spawn roll comes `spawnRollMinutes` (10 by default) later |
-| `/foglurker force hide [player]` | cheats / op | The pale crawler appears, finds tall grass or a bush and lies down in it, watching. Never attacks |
-| `/foglurker force stalk [player]` | cheats / op | The pale crawler creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
-| `/foglurker force attack [player]` | cheats / op | The pale crawler appears nearby and hunts you immediately |
+| `/foglurker force hide [player]` | cheats / op | The Fog Lurker appears in its real shape, finds tall grass or a bush and lies down in it, watching. Never attacks |
+| `/foglurker force stalk [player]` | cheats / op | The Fog Lurker creeps closer from hiding spot to hiding spot. Whenever you look at it, it drops flat and freezes. Stare it down and it leaves |
+| `/foglurker force attack [player]` | cheats / op | The Fog Lurker appears nearby in its real shape and hunts you immediately |
 | `/foglurker fog [0-100\|default]` | view: everyone · set: op / host | How thick the fog that is always there is, for everyone in this world (0 = none, 100 = thickest). By default it follows the mode: Very Easy 15, Easy 25, Medium 45, Hard 55, Deathwish 60. `default` goes back to that. Saved with the world |
 | `/foglurker force sleep-paralysis [player]` | cheats / op | The next time that player goes to sleep they get sleep paralysis: "Done! the next time you go to sleep you will experience sleep paralysis" |
 | `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
@@ -298,7 +310,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker difficulty [mode]` | view: everyone · set: op / host | `very_easy`, `easy`, `medium`, `hard`, `deathwish` (clickable) |
 | `/foglurker geministatus` | op / host | Shows the masked key and tests it |
 | `/foglurker despawn` | cheats / op | Sends it away (this never counts as you getting away) |
-| `/foglurker-macarena [loops]` | cheats / op | The pale crawler appears in front of you and does the Macarena (default 3 loops, max 20), then vanishes. Harmless and invulnerable, never counts as a hunt. Also `/foglurker macarena` |
+| `/foglurker-macarena [loops]` | cheats / op | The Fog Lurker appears in front of you and does the Macarena (default 3 loops, max 20), then vanishes. Harmless and invulnerable, never counts as a hunt. Also `/foglurker macarena` |
 | `/foglurker debugeverything` | op / host | **Temporary.** Checks everything on the server *and* in your game, and lists what passed and failed in chat (see below) |
 | `/flurk voicesnippets terms` | everyone | Shows the voice snippet terms with **[YES] [NO]** buttons |
 | `/fglurk optin` | everyone | Opt in to voice snippets |
@@ -313,7 +325,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 
 ![The Fog Lurker doing the Macarena](docs/images/macarena.png)
 
-The pale crawler rears up on its hind legs and does the full 16-count dance with its far-too-long arms (its jaw chomps to the beat): arms out palm down, palms up, hands to the shoulders, behind the head, to the hips and to the back pockets, then a hip wiggle and a hop with a quarter turn, bouncing on every beat. The music is an original note-block groove, not the song.
+The Fog Lurker rears up on its hind legs and does the full 16-count dance with its far-too-long arms (its jaw chomps to the beat): arms out palm down, palms up, hands to the shoulders, behind the head, to the hips and to the back pockets, then a hip wiggle and a hop with a quarter turn, bouncing on every beat. The music is an original note-block groove, not the song.
 
 ### `/foglurker debugeverything` (temporary)
 
@@ -383,7 +395,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.6.2.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.7.3.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -425,7 +437,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.6.2.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.7.3.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -437,7 +449,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.6.2.jar
+./gradlew build               # -> build/libs/FogLurker-1.7.3.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 
@@ -449,13 +461,13 @@ The in-game tests (`src/gametest`, never shipped in the jar) check:
 - grace times, commands, encryption, tamper detection, consent and opt-out deletion
 - typing-style copying
 - hits are spaced exactly by the mode's cooldown (Very Easy: blocked at 1.5 s, allowed at 3 s)
-- water: spawn spots refuse water, the crawler will not path into it, and a crawler thrown in is driven off
+- water: spawn spots refuse water, the Fog Lurker will not path into it, and one thrown in is driven off
 - the spawn rolls: 50/50, a miss guarantees the next, a hit resets to 50/50; a 0% chance never spawns; `/foglurker naturalspawning off|on` is op-only, survives a save and restarts the countdown
 - it climbs a 6-block deepslate tower to reach you, digs into a stone shelter, and cannot get into a deepslate one
 - soul fire keeps it out of reach until the torch is removed; a bell makes it flee
 - AFK: 5 minutes of nothing makes you AFK (4:58 does not), knockback does not end it, a nudge of the mouse (under 45 degrees) or half a block of walking does not, but looking around 45 degrees or walking a block does, /afk and /AFK work at once and survive the jiggle of closing chat, /afk is refused mid-hunt, an AFK player is never picked, force commands refuse AFK players, and respawning does not end AFK
 - the fog at every render distance from 2 to 32 chunks: always visibly closer than your normal view, never further for thicker fog, attack fog within about 12 blocks, and it eases in without popping
-- a summoned creature stays the pale crawler, a flopped one has a flat hitbox, looking for dry ground never loads a chunk, a grace period that has run out stays over, and voice snippets with no opt-in on record are deleted at start-up
+- a summoned Fog Lurker stays in its real shape, a flopped one has a flat hitbox, looking for dry ground never loads a chunk, a grace period that has run out stays over, and voice snippets with no opt-in on record are deleted at start-up
 - the bite: Slowness I for 10 s on Easy; on Hard also Mauled, which cancels jumps, refuses boats and drags you out of the one you sit in, and both work again once it wears off
 - Deathwish cannot bite during its 1.5 s wind-up, then kills
 - a second bell within the cooldown does nothing, escaping with a bell adds +10% (capped at +30%), and a bite resets it

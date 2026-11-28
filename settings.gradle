@@ -1,10 +1,18 @@
 pluginManagement {
+    // MixinGradle (refmaps for the mixins) comes from Forge's maven, which mirrors it.
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == 'org.spongepowered.mixin') {
+                useModule("org.spongepowered:mixingradle:${requested.version}")
+            }
+        }
+    }
     repositories {
-        gradlePluginPortal()
         maven {
             name = 'MinecraftForge'
             url = 'https://maven.minecraftforge.net/'
         }
+        gradlePluginPortal()
     }
 }
 

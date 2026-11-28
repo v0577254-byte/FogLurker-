@@ -340,7 +340,7 @@ public final class DebugCommand {
             float crawler = e.getPathfindingMalus(PathType.WATER);
             e.discard();
             rep.check(w, human == 0 && crawler < 0 && animal > 0, "human form swims (cost " + human + "), animals avoid it ("
-                    + animal + "), crawler refuses water (" + crawler + ")");
+                    + animal + "), Fog Lurker refuses water (" + crawler + ")");
         });
         r.run("Protected blocks", (rep, w) -> {
             List<net.minecraft.world.level.block.Block> mustHold = List.of(net.minecraft.world.level.block.Blocks.DEEPSLATE,
@@ -367,7 +367,7 @@ public final class DebugCommand {
                     + (ward != null ? "protected by one at " + ward.toShortString() : "not near one"));
         });
         r.run("You are in water now", (rep, w) -> rep.pass(w, SpotFinder.isInOrOnWater(player)
-                ? "yes: the crawler cannot reach you here" : "no"));
+                ? "yes: the Fog Lurker cannot reach you here" : "no"));
     }
 
     private static void learning(Report r, ServerPlayer player, MinecraftServer server) {

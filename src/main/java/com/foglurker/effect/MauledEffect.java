@@ -23,8 +23,28 @@ public class MauledEffect extends MobEffect {
         super(MobEffectCategory.HARMFUL, 0x8A0A12);
     }
 
+    /** A full set of Armour of the Fog shakes it off. */
     public static boolean isMauled(LivingEntity e) {
-        return ModEffects.MAULED.isPresent() && e.hasEffect(ModEffects.MAULED.get());
+        return ModEffects.MAULED.isPresent() && e.hasEffect(ModEffects.MAULED.get())
+                && !com.foglurker.armor.FogArmor.hasFullSet(e);
+    }
+
+    @Override
+    public boolean isDurationEffectTick(int duration, int amplifier) {
+        return true;
+    }
+
+    @Override
+    public void applyEffectTick(LivingEntity entity, int amplifier) {
+        net.minecraft.server.MinecraftServer server = entity.getServer();
+        if (server != null && com.foglurker.armor.FogArmor.hasFullSet(entity)) {
+            // (Removed after this tick: an effect cannot remove itself while it is being ticked.)
+            server.tell(new net.minecraft.server.TickTask(server.getTickCount(), () -> {
+                if (com.foglurker.armor.FogArmor.hasFullSet(entity)) {
+                    entity.removeEffect(this);
+                }
+            }));
+        }
     }
 
     @SubscribeEvent

@@ -1425,7 +1425,7 @@ public final class FogLurkerGameTests {
                 case "garbage" -> reply = "{\"candidates\":\"what\"}";
                 case "hang", "hang2" -> {
                     try {
-                        Thread.sleep(6_000); // longer than the 2 s test timeout
+                        Thread.sleep(6_000); // longer than the 4 s test timeout
                     } catch (InterruptedException ignored) {
                     }
                     reply = "{}";
@@ -2348,6 +2348,13 @@ public final class FogLurkerGameTests {
                 if (ran[0]) {
                     return;
                 }
+                // Ticks can race by while the server catches up: wait for the saving thread itself (it runs its
+                // jobs in order, so once an empty job has run, both saves before it are done).
+                try {
+                    SnippetStore.io().submit(() -> { }).get(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new IllegalStateException("the snippet thread did not finish", e);
+                }
                 boolean saved = SnippetStore.count(gone) == 1 && SnippetStore.count(active) == 1;
                 if (!saved && !last) {
                     return;
@@ -2658,10 +2665,55 @@ public final class FogLurkerGameTests {
                 level.setBlock(byWater.above(), net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 2);
                 check(l.brain().canBreak(dry), "plain stone should be breakable");
                 check(!l.brain().canBreak(byLava), "stone holding back lava must never be broken");
-                check(!l.brain().canBreak(byWater), "stone holding back water must never be broken");
+                // One poured bucket is only a spill (it walks through those), so the stone under it may go...
+                check(l.brain().canBreak(byWater), "stone under a single bucket of water should be breakable");
+                // ...but not under a pool: two joined sources are a body of water.
+                net.minecraft.core.BlockPos pool = byWater.above().south();
+                level.setBlock(pool.below(), stone, 2);
+                level.setBlock(pool, net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 2);
+                check(!l.brain().canBreak(byWater), "stone holding back a body of water must never be broken");
                 level.setBlock(byLava.east(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
                 level.setBlock(byWater.above(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
+                level.setBlock(pool, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
                 l.brain().vanish(true);
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = "empty", batch = "waterfall", timeoutTicks = 300)
+    public static void waterfallFromALakeIsStillTheLake(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerLevel level = h.getLevel();
+            var stone = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+            var water = net.minecraft.world.level.block.Blocks.WATER.defaultBlockState();
+            // Two ledges 4 blocks high: a pool of two joined sources on one (a body of water), a lone poured bucket on
+            // the other (a spill). Each runs off the east edge, falls, and spreads out over the ground below.
+            for (int z0 : new int[] {0, 21}) {
+                for (int x = 0; x <= 3; x++) {
+                    for (int y = 0; y <= 3; y++) {
+                        for (int z = z0 - 1; z <= z0 + 1; z++) {
+                            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(x, y, z)), stone, 2);
+                        }
+                    }
+                }
+            }
+            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(2, 4, 0)), water, 3);
+            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(3, 4, 0)), water, 3);
+            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(3, 4, 21)), water, 3);
+            h.runAfterDelay(160, () -> logged(h, () -> {
+                net.minecraft.core.BlockPos fall = h.absolutePos(new net.minecraft.core.BlockPos(4, 1, 0));
+                net.minecraft.core.BlockPos run = h.absolutePos(new net.minecraft.core.BlockPos(6, 0, 0));
+                net.minecraft.core.BlockPos spillFall = h.absolutePos(new net.minecraft.core.BlockPos(4, 1, 21));
+                net.minecraft.core.BlockPos spillRun = h.absolutePos(new net.minecraft.core.BlockPos(6, 0, 21));
+                for (net.minecraft.core.BlockPos b : List.of(fall, run, spillFall, spillRun)) {
+                    check(level.getFluidState(b).is(net.minecraft.tags.FluidTags.WATER), "the water has not flowed to " + b.toShortString());
+                }
+                check(com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, fall), "a waterfall from a pool is part of the pool");
+                check(com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, run), "water run out from under a pool's waterfall is part of the pool");
+                check(!com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, spillFall), "a lone bucket's waterfall is only a spill");
+                check(!com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, spillRun), "the run of a lone bucket's water is only a spill");
                 h.succeed();
             }));
         });

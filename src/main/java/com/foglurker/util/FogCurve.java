@@ -13,6 +13,19 @@ package com.foglurker.util;
  * </ul>
  */
 public final class FogCurve {
+    /** A full set of Armour of the Fog lets you see this much further through it. */
+    public static final float FULL_SET_CLARITY_MULTIPLIER = 1.48F;
+
+    /** The far edge of the fog for someone in a full set of Armour of the Fog (never past the normal view). */
+    public static float clearFar(float far, float vanillaFar) {
+        return Math.min(vanillaFar, far * FULL_SET_CLARITY_MULTIPLIER);
+    }
+
+    /** ...and its near edge, kept inside the far one. */
+    public static float clearNear(float near, float clearFar, float vanillaNear) {
+        return Math.max(0.0F, Math.min(Math.min(vanillaNear, near * FULL_SET_CLARITY_MULTIPLIER), clearFar * 0.95F));
+    }
+
     /** Even the thickest fog leaves you this much (or your whole view, if that is shorter). */
     public static final float MIN_VIEW = 7.0F;
     /** Below this fog level it eases in from the normal view so it never pops. */

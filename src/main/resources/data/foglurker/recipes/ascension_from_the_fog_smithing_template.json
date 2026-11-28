@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "FIF",
+    "TST",
+    "DND"
+  ],
+  "key": {
+    "F": {
+      "item": "foglurker:foggy_stick"
+    },
+    "I": {
+      "item": "foglurker:ingot_of_the_fog"
+    },
+    "T": {
+      "item": "foglurker:teeth_of_the_lurker"
+    },
+    "S": {
+      "item": "foglurker:ascension_from_the_fog_smithing_template"
+    },
+    "D": {
+      "item": "foglurker:fog_of_the_day"
+    },
+    "N": {
+      "item": "foglurker:fog_of_the_night"
+    }
+  },
+  "result": {
+    "item": "foglurker:ascension_from_the_fog_smithing_template",
+    "count": 2
+  }
+}

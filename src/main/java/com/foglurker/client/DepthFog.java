@@ -126,6 +126,10 @@ public final class DepthFog {
         float vanillaNear = vanillaFar - Mth.clamp(vanillaFar / 10F, 4F, 64F);
         float far = FogCurve.far(f, vanillaFar);
         float near = FogCurve.near(f, far, vanillaNear);
+        if (mc.player != null && com.foglurker.armor.FogArmor.hasFullSet(mc.player)) { // a full set sees further
+            far = FogCurve.clearFar(far, vanillaFar);
+            near = FogCurve.clearNear(near, far, vanillaNear);
+        }
         float zNear = proj.m32() / (proj.m22() - 1F);
         float zFar = proj.m32() / (proj.m22() + 1F);
         int c = ClientEffects.fogColorRgb();

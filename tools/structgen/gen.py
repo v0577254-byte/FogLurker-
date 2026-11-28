@@ -5,6 +5,7 @@ usage: python gen.py <resources dir> <1.20.1|1.21.11|1.21.1> [--report]
 import json
 from nbtlib.tag import Byte
 import os
+import shutil
 import sys
 
 import structures as S
@@ -286,7 +287,19 @@ def main():
         tmpl.save(path, data_version, entity_fix(version))
     worldgen(res, version)
     loot(res, version, loot_dir)
-    print("wrote", len(t), "templates for", version, "to", base)
+    # Hand-made files (built in the game or by hand, not by this script) replace what was generated for them:
+    # overrides/<version>/ mirrors the resources folder. Currently the hand-built lookout tower and its loot, the
+    # bunker's secret chest (template, pool, processor, loot) and the fortified castle's loot with the smithing template.
+    over = os.path.join(os.path.dirname(os.path.abspath(__file__)), "overrides", version)
+    n = 0
+    for root, _, files in os.walk(over):
+        for f in files:
+            src = os.path.join(root, f)
+            dst = os.path.join(res, os.path.relpath(src, over))
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(src, dst)
+            n += 1
+    print("wrote", len(t), "templates for", version, "to", base, "and", n, "hand-made files")
 
 
 if __name__ == "__main__":

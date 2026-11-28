@@ -41,6 +41,7 @@ public final class BehaviorTracker {
     @SubscribeEvent
     public static void onServerStopped(net.minecraftforge.event.server.ServerStoppedEvent event) {
         WINDOWS.clear();
+        CLICKED.clear();
         WATCHED.clear(); // mob ids and positions from this world mean nothing in the next one
     }
     private static final Map<UUID, Watch> WATCHED = new HashMap<>();
@@ -348,35 +349,59 @@ public final class BehaviorTracker {
         }
     }
 
+    /** The storage block each player just right-clicked: it counts as opened only if its menu really opens. */
+    private static final Map<UUID, long[]> CLICKED = new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Remembers which storage blocks a player opens with their own hands (a book only ever goes in one of those). */
     @SubscribeEvent(priority = EventPriority.LOWEST) // (after claim mods have had their say: a refused click opens nothing)
     public static void onUseBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
-        Player who = event.getEntity();
         // A click that does not open it: refused, or sneaking with something in hand (that places or uses the item).
-        if (event.getUseBlock() == net.minecraftforge.eventbus.api.Event.Result.DENY
-                || (who.isSecondaryUseActive() && !(who.getMainHandItem().isEmpty() && who.getOffhandItem().isEmpty()))) {
+        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)
+                && event.getUseBlock() != net.minecraftforge.eventbus.api.Event.Result.DENY
+                && (!p.isSecondaryUseActive() || p.getMainHandItem().isEmpty() && p.getOffhandItem().isEmpty())) {
+            CLICKED.put(p.getUUID(), new long[]{event.getPos().asLong(), p.level().getGameTime()});
+        }
+    }
+
+    /** A menu opened right after a click on a chest, barrel or furnace, and it is that block's own: it was opened by hand. */
+    private static void openedByHand(ServerPlayer p, net.minecraft.world.inventory.AbstractContainerMenu menu) {
+        long[] clicked = CLICKED.remove(p.getUUID());
+        if (clicked == null || p.level().getGameTime() - clicked[1] > 5L) {
             return;
         }
-        var be = who.level().getBlockEntity(event.getPos());
+        net.minecraft.world.Container opened;
+        if (menu instanceof net.minecraft.world.inventory.ChestMenu chest) {
+            opened = chest.getContainer();
+        } else if (menu instanceof net.minecraft.world.inventory.AbstractFurnaceMenu) {
+            opened = menu.getSlot(0).container;
+        } else {
+            return;
+        }
+        net.minecraft.core.BlockPos pos = net.minecraft.core.BlockPos.of(clicked[0]);
+        var be = p.level().getBlockEntity(pos);
         // Only storage and furnaces (where a book can go): hoppers and dispensers must not push their chests out of the list.
-        if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)
-                && (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
+        if ((be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
                 || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
-                || be instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)) {
+                || be instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)
+                && (opened == be || opened instanceof net.minecraft.world.CompoundContainer both && both.contains((net.minecraft.world.Container) be))) {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
-            data.profile(p.getUUID()).openedContainer(event.getPos());
+            data.profile(p.getUUID()).openedContainer(pos);
             data.setDirty();
         }
     }
 
     @SubscribeEvent
     public static void onContainer(net.minecraftforge.event.entity.player.PlayerContainerEvent.Open event) {
-        // Only storage (chests, barrels, shulker boxes) marks a home: not crafting tables, furnaces or villagers.
+        if (!(event.getEntity() instanceof ServerPlayer p) || p instanceof FakePlayer) {
+            return;
+        }
         var menu = event.getContainer();
+        openedByHand(p, menu);
+        // Only storage (chests, barrels, shulker boxes) marks a home: not crafting tables, furnaces or villagers.
         boolean storage = (menu instanceof net.minecraft.world.inventory.ChestMenu chest
                 && !(chest.getContainer() instanceof net.minecraft.world.inventory.PlayerEnderChestContainer)) // an ender chest goes anywhere
                 || menu instanceof net.minecraft.world.inventory.ShulkerBoxMenu;
-        if (storage && event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)) {
+        if (storage) {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.server);
             data.profile(p.getUUID()).usedContainerAt(p.level().dimension().location().toString(), p.blockPosition());
             data.setDirty();
@@ -386,6 +411,7 @@ public final class BehaviorTracker {
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         WINDOWS.remove(event.getEntity().getUUID());
+        CLICKED.remove(event.getEntity().getUUID());
         // Seen today, even after a visit too short to finish a learning window.
         if (event.getEntity() instanceof ServerPlayer p && !(p instanceof FakePlayer)) {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.server);

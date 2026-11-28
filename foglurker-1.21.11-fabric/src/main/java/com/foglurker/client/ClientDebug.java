@@ -46,9 +46,9 @@ public final class ClientDebug {
         }
         try {
             mc.getEntityModels().bakeLayer(CrawlerModel.LAYER);
-            check("Crawler model", true, "long limbs, jaw and teeth baked");
+            check("Fog Lurker model", true, "long limbs, jaw and teeth baked");
         } catch (Throwable t) {
-            check("Crawler model", false, t.toString());
+            check("Fog Lurker model", false, t.toString());
         }
         List<String> missingTex = new ArrayList<>();
         for (Identifier tex : List.of(CrawlerRenderer.TEXTURE, CrawlerRenderer.EYES_TEXTURE)) {
@@ -56,7 +56,7 @@ public final class ClientDebug {
                 missingTex.add(tex.getPath());
             }
         }
-        check("Textures", missingTex.isEmpty(), missingTex.isEmpty() ? "pale crawler and its glowing eyes" : "missing " + missingTex);
+        check("Textures", missingTex.isEmpty(), missingTex.isEmpty() ? "the Fog Lurker and its glowing eyes" : "missing " + missingTex);
         List<String> missingSounds = new ArrayList<>();
         for (String s : List.of("lurker.scream", "lurker.reveal", "lurker.whisper", "lurker.vanish", "lurker.heartbeat",
                 "lurker.hurt", "lurker.attack")) {

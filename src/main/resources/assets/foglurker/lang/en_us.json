@@ -20,5 +20,20 @@
   "item.foglurker.protector_of_the_fog": "The Protector of the Fog",
   "death.attack.foglurker.protector": "%1$s was cut down by %2$s",
   "death.attack.foglurker.protector.item": "%1$s was cut down by %2$s using %3$s",
-  "death.attack.foglurker.sleep_paralysis": "%1$s never woke up"
+  "death.attack.foglurker.sleep_paralysis": "%1$s never woke up",
+  "item.foglurker.helmet_of_the_fog": "Helmet of the Fog",
+  "item.foglurker.chestplate_of_the_fog": "Chestplate of the Fog",
+  "item.foglurker.leggings_of_the_fog": "Leggings of the Fog",
+  "item.foglurker.boots_of_the_fog": "Boots of the Fog",
+  "item.foglurker.diamond_helmet_of_the_fog": "Helmet of the Fog",
+  "item.foglurker.diamond_chestplate_of_the_fog": "Chestplate of the Fog",
+  "item.foglurker.diamond_leggings_of_the_fog": "Leggings of the Fog",
+  "item.foglurker.diamond_boots_of_the_fog": "Boots of the Fog",
+  "item.foglurker.ascension_from_the_fog_smithing_template": "Smithing Template",
+  "upgrade.foglurker.ascension_from_the_fog": "The Ascension From The Fog",
+  "item.foglurker.smithing_template.ascension_from_the_fog.applies_to": "Diamond & Netherite Armor",
+  "item.foglurker.smithing_template.ascension_from_the_fog.ingredients": "Ingot of the Fog",
+  "item.foglurker.smithing_template.ascension_from_the_fog.base_slot_description": "Add diamond or netherite armor",
+  "item.foglurker.smithing_template.ascension_from_the_fog.additions_slot_description": "Add Ingot of the Fog",
+  "advancements.foglurker.ascension_from_the_fog.description": "Equip a full set of Fog Armor"
 }
