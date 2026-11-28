@@ -74,6 +74,10 @@ public final class ClientShowcase {
             snowScene(mc, server);
             return;
         }
+        if ("armor".equals(System.getProperty("foglurker.scene"))) {
+            armorScene(mc, server);
+            return;
+        }
         if ("sleepwords".equals(System.getProperty("foglurker.scene"))) {
             sleepWordsScene(mc, server);
             return;
@@ -762,6 +766,54 @@ public final class ClientShowcase {
             case 140 -> shot(mc, "foglurker_surge_in.png");
             case 400 -> shot(mc, "foglurker_surge_after.png");
             case 420 -> mc.stop();
+            default -> {
+            }
+        }
+    }
+
+    /** Armour of the Fog on two stands, made from netherite (left) and from diamond (right, outlined). */
+    private static void armorScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> {
+                mc.options.hideGui = true;
+                server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    ServerLevel level = p.serverLevel();
+                    level.setDayTime(6000);
+                    p.setGameMode(GameType.SPECTATOR);
+                    int gx = p.getBlockX();
+                    int gz = p.getBlockZ();
+                    int gy = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz);
+                    for (int x = gx - 4; x <= gx + 4; x++) {
+                        for (int z = gz - 2; z <= gz + 6; z++) {
+                            level.setBlock(new BlockPos(x, gy - 1, z), Blocks.GRASS_BLOCK.defaultBlockState(), 2);
+                            for (int dy = 0; dy < 4; dy++) {
+                                level.setBlock(new BlockPos(x, gy + dy, z), Blocks.AIR.defaultBlockState(), 2);
+                            }
+                        }
+                    }
+                    BlockPos at = new BlockPos(gx, gy, gz);
+                    for (int i = 0; i < 2; i++) {
+                        var stand = net.minecraft.world.entity.EntityType.ARMOR_STAND.create(level);
+                        stand.moveTo(at.getX() + 0.5 + (i == 0 ? -0.9 : 0.9), at.getY(), at.getZ() + 3.5, 180F, 0F);
+                        net.minecraft.world.entity.EquipmentSlot[] slots = {net.minecraft.world.entity.EquipmentSlot.HEAD,
+                                net.minecraft.world.entity.EquipmentSlot.CHEST, net.minecraft.world.entity.EquipmentSlot.LEGS,
+                                net.minecraft.world.entity.EquipmentSlot.FEET};
+                        for (int k = 0; k < 4; k++) {
+                            stand.setItemSlot(slots[k], new net.minecraft.world.item.ItemStack(com.foglurker.armor.FogArmor.supplier(i * 4 + k).get()));
+                        }
+                        level.addFreshEntity(stand);
+                    }
+                    p.teleportTo(level, at.getX() + 0.5, at.getY() + 0.4, at.getZ() + 0.6, 0F, 10F);
+                });
+            }
+            case 110 -> shot(mc, "foglurker_armor_worn.png");
+            case 115 -> server.execute(() -> {
+                ServerPlayer p = sp(server);
+                p.teleportTo(p.serverLevel(), p.getX(), p.getY(), p.getZ() + 5.8, 180F, 10F);
+            });
+            case 170 -> shot(mc, "foglurker_armor_worn_back.png");
+            case 180 -> mc.stop();
             default -> {
             }
         }

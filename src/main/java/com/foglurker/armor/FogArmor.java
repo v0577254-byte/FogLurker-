@@ -248,5 +248,13 @@ public final class FogArmor {
          this.diamond = diamond;
          this.points = material.getDefenseForType(type);
       }
+
+      /** Worn, the pieces made from diamond have the light-blue outline their icons have. */
+      @Override
+      public String getArmorTexture(ItemStack stack, net.minecraft.world.entity.Entity entity, EquipmentSlot slot, String type) {
+         return this.diamond && type == null
+            ? FogLurkerMod.MOD_ID + ":textures/models/armor/fog_diamond_layer_" + (slot == EquipmentSlot.LEGS ? 2 : 1) + ".png"
+            : null;
+      }
    }
 }

@@ -66,11 +66,16 @@ public final class FogArmor {
                 new ArmorMaterial(defense, 0, ArmorMaterials.NETHERITE.value().equipSound(),
                         () -> Ingredient.of(ModItems.INGOT_OF_THE_FOG.get()),
                         List.of(new ArmorMaterial.Layer(FogLurkerMod.id("fog"))), 3.0F, 0.1F));
+        // The same, worn with the light-blue outline of the pieces made from diamond.
+        Holder<ArmorMaterial> diamondMaterial = Registry.registerForHolder(BuiltInRegistries.ARMOR_MATERIAL, FogLurkerMod.id("fog_diamond"),
+                new ArmorMaterial(defense, 0, ArmorMaterials.NETHERITE.value().equipSound(),
+                        () -> Ingredient.of(ModItems.INGOT_OF_THE_FOG.get()),
+                        List.of(new ArmorMaterial.Layer(FogLurkerMod.id("fog_diamond"))), 3.0F, 0.1F));
         for (boolean diamond : List.of(false, true)) {
             for (ArmorItem.Type type : List.of(ArmorItem.Type.HELMET, ArmorItem.Type.CHESTPLATE, ArmorItem.Type.LEGGINGS, ArmorItem.Type.BOOTS)) {
                 String name = (diamond ? "diamond_" : "") + type.getName() + "_of_the_fog";
                 Piece piece = Registry.register(BuiltInRegistries.ITEM, ResourceKey.create(Registries.ITEM, FogLurkerMod.id(name)),
-                        new Piece(material, type, diamond));
+                        new Piece(diamond ? diamondMaterial : material, type, diamond));
                 ITEMS.add(() -> piece);
             }
         }

@@ -53,6 +53,9 @@ loom {
             // Dev only: ./gradlew runClient -Pshowcase  (makes a test world, runs the mod's commands, takes screenshots)
             if (project.hasProperty('showcase')) {
                 vmArg '-Dfoglurker.showcase=true'
+                if (project.hasProperty('showcaseScene')) {
+                    vmArg "-Dfoglurker.showcase.scene=${project.property('showcaseScene')}"
+                }
                 programArgs '--width', '1280', '--height', '720'
             }
         }

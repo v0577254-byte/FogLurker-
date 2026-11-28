@@ -5,7 +5,8 @@ import net.minecraft.resources.ResourceLocation;
 
 public final class FogArmorFrames {
    private static final int FRAME_COUNT = 32;
-   private static final String[] LAYERS = new String[]{"textures/models/armor/fog_layer_1", "textures/models/armor/fog_layer_2"};
+   private static final String[] LAYERS = new String[]{"textures/models/armor/fog_layer_1", "textures/models/armor/fog_layer_2",
+      "textures/models/armor/fog_diamond_layer_1", "textures/models/armor/fog_diamond_layer_2"};
    private static final ResourceLocation[] BASE = new ResourceLocation[LAYERS.length];
    private static final ResourceLocation[][] FRAMES = new ResourceLocation[LAYERS.length][32];
 

@@ -61,12 +61,15 @@ public final class FogArmor {
         // (Enchantment value 1 only because the record wants one; the enchantable component is taken off each piece.)
         material = new ArmorMaterial(37, ArmorMaterials.NETHERITE.defense(), 1, ArmorMaterials.NETHERITE.equipSound(), 3.0F, 0.1F,
                 REPAIRS, net.minecraft.resources.ResourceKey.create(EquipmentAssets.ROOT_ID, FogLurkerMod.id("fog")));
+        // The same, worn with the light-blue outline of the pieces made from diamond.
+        ArmorMaterial diamondMaterial = new ArmorMaterial(37, ArmorMaterials.NETHERITE.defense(), 1, ArmorMaterials.NETHERITE.equipSound(),
+                3.0F, 0.1F, REPAIRS, net.minecraft.resources.ResourceKey.create(EquipmentAssets.ROOT_ID, FogLurkerMod.id("fog_diamond")));
         for (boolean diamond : List.of(false, true)) {
             for (ArmorType type : List.of(ArmorType.HELMET, ArmorType.CHESTPLATE, ArmorType.LEGGINGS, ArmorType.BOOTS)) {
                 String name = (diamond ? "diamond_" : "") + type.getName() + "_of_the_fog";
                 ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, FogLurkerMod.id(name));
                 Piece piece = Registry.register(BuiltInRegistries.ITEM, key, new Piece(new Item.Properties().setId(key)
-                        .humanoidArmor(material, type).durability(durability(type)).fireResistant()
+                        .humanoidArmor(diamond ? diamondMaterial : material, type).durability(durability(type)).fireResistant()
                         .component(net.minecraft.core.component.DataComponents.ENCHANTABLE, null), type, diamond));
                 ITEMS.add(() -> piece);
             }

@@ -14,7 +14,8 @@ modpacks are. Use the jar that matches your Minecraft version.
   armour, an Ingot of the Fog and the **Ascension From The Fog** template (found in fortified castles, copied with fog
   items). Netherite's armour points, toughness 3, it does not burn and its mist drifts as you move; it takes 80% off
   (70% from diamond), is mended with Ingots of the Fog and cannot be enchanted. A full set stops Mauled and the bite's
-  slowness, keeps sleep paralysis away and lets you see further into the fog.
+  slowness, keeps sleep paralysis away and lets you see further into the fog. The pieces made from diamond have a
+  light-blue outline (icon and worn).
 - **Its own advancement tab**: seeing it, getting away, killing it, sleep paralysis, the Protector, the ingot, a bell,
   a scare burst, each of its six places and all of them (see the main README).
 - **Structures stand level on the ground** (set at the middle height of the ground under all of it, the land shaped

@@ -147,6 +147,7 @@ Made at a **smithing table**: the **Ascension From The Fog** smithing template, 
 - **Protection:** the same armour points as netherite, toughness 3, a little knockback resistance, and it does not burn. Each piece made from netherite takes away 4% of the damage per armour point (a full set: **80%**), one made from diamond 3.5% (a full set: **70%**). Protection IV adds 1.25% per piece. Holding the Protector of the Fog costs 10% of it. Damage that goes through armour (starving, the void, `/kill`) still goes through.
 - **It cannot be enchanted** (not at a table, not with books on an anvil). Repair it on an anvil with **Ingots of the Fog**: each one mends a quarter, so four mend it fully.
 - A faint mist drifts around you while you wear it (more with more pieces).
+- The pieces made from diamond are the **Diamond** Helmet (Chestplate, Leggings, Boots) of the Fog, and have a **light-blue outline**, on their icons and as worn.
 - **A full set:** its bites never slow you or **maul** your leg, **sleep paralysis never happens to you**, and the fog clears a little for you (you see about half again as far). Putting on a full set for the first time earns the advancement **The Ascension From The Fog**.
 
 ## Advancements

@@ -114,7 +114,7 @@ public final class DryLandStructure extends Structure {
             int dz = nudge[1] - movedZ;
             if (dx != 0 || dz != 0) {
                 for (StructurePiece piece : list) {
-                    piece.move(dx, 0, dz);
+                    shift(piece, dx, 0, dz);
                 }
                 movedX = nudge[0];
                 movedZ = nudge[1];
@@ -127,7 +127,7 @@ public final class DryLandStructure extends Structure {
             }
             int want = list.get(0).getBoundingBox().minY() + ground.get();
             for (StructurePiece piece : list) {
-                piece.move(0, level - want, 0);
+                shift(piece, 0, level - want, 0);
             }
             int groundY = level;
             for (StructurePiece piece : list) {
@@ -140,6 +140,22 @@ public final class DryLandStructure extends Structure {
             return Optional.of(new GenerationStub(at, Either.right(pieces)));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Moves a piece, and its jigsaw joints with it: the terrain is shaped round those too, so left behind they would
+     * raise a lump (or dig a dent) where the piece used to be.
+     */
+    static void shift(StructurePiece piece, int dx, int dy, int dz) {
+        piece.move(dx, dy, dz);
+        if (piece instanceof net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece pool) {
+            List<net.minecraft.world.level.levelgen.structure.pools.JigsawJunction> joints = pool.getJunctions();
+            for (int i = 0; i < joints.size(); i++) {
+                var j = joints.get(i);
+                joints.set(i, new net.minecraft.world.level.levelgen.structure.pools.JigsawJunction(j.getSourceX() + dx,
+                        j.getSourceGroundY() + dy, j.getSourceZ() + dz, j.getDeltaY(), j.getDestProjection()));
+            }
+        }
     }
 
     /**

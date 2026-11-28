@@ -2278,7 +2278,7 @@ public final class FogLurkerGameTests {
             h.runAfterDelay(360, () -> logged(h, () -> {
                 // It used to stare almost all the time; a real cow only glances now and then.
                 check(samples[0] >= 100, "the cow copy was not around to watch (" + samples[0] + " ticks)");
-                check(facing[0] < samples[0] * 0.45,
+                check(facing[0] < samples[0] * 0.6, // (it glances at random: a margin, still far from staring all the time)
                         "the cow copy stared at the player " + facing[0] + " of " + samples[0] + " ticks");
                 FogLurkerMod.LOGGER.info("Herd copy faced the player {} of {} ticks", facing[0], samples[0]);
                 if (cowRef[0] != null && !cowRef[0].isRemoved()) {

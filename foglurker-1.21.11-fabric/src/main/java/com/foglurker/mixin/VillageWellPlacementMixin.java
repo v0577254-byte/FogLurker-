@@ -25,6 +25,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Structure.class)
 public abstract class VillageWellPlacementMixin {
+   /** The well's ground: its stone ring (y 13) is level with the grass, so the first air is 14 above its bottom. */
+   private static final int VILLAGE_WELL_GROUND = 14;
+
+   private static boolean isVillageWell(PoolElementStructurePiece piece) {
+      if (piece.getElement() instanceof FogWellTemplateAccessor accessor) {
+         Object template = accessor.foglurker$getTemplate().left().orElse(null);
+         return template != null && "foglurker:fog_well_village".equals(template.toString());
+      }
+      return false;
+   }
+
    @Inject(method = "generate", at = @At("RETURN"), cancellable = true)
    private void foglurker$checkVillageWells(
       Holder<Structure> self,
@@ -57,6 +68,11 @@ public abstract class VillageWellPlacementMixin {
                }
                continue;
             }
+         }
+
+         if (piece instanceof PoolElementStructurePiece wellPiece && isVillageWell(wellPiece)) {
+            // The well reaches 13 blocks down: the village's terrain is shaped to its stone ring, not its bottom.
+            ((PoolPieceGroundAccessor) wellPiece).foglurker$setGroundLevelDelta(VILLAGE_WELL_GROUND);
          }
 
          if (filtered != null) {
