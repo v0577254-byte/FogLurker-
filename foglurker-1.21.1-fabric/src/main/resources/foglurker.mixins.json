@@ -15,7 +15,12 @@
     "ServerPlayerMixin",
     "TridentItemMixin",
     "WolfInvoker",
-    "StructureTemplatePoolAccessor"
+    "StructureTemplatePoolAccessor",
+    "FogArmorAnvilMixin",
+    "FogArmorDefenseMixin",
+    "FogWellTemplateAccessor",
+    "VillageWellPlacementMixin",
+    "PoolPieceGroundAccessor"
   ],
   "client": [
     "FogRendererMixin",
@@ -23,7 +28,8 @@
     "GuiMixin",
     "ChatComponentMixin",
     "CommandHistoryMixin",
-    "SheepAccessor"
+    "SheepAccessor",
+    "FogArmorTextureMixin"
   ],
   "injectors": {
     "defaultRequire": 1

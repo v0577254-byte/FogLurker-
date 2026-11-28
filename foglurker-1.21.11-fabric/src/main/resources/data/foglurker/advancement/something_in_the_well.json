@@ -1,0 +1,42 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:cobweb"
+    },
+    "title": {
+      "translate": "advancements.foglurker.something_in_the_well.title"
+    },
+    "description": {
+      "translate": "advancements.foglurker.something_in_the_well.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "found": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "structures": "foglurker:fog_well"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "parent": "foglurker:off_the_map",
+  "requirements": [
+    [
+      "found"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

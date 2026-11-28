@@ -240,6 +240,11 @@ final class FogWisps {
         float vanillaNear = vanillaFar - Mth.clamp(vanillaFar / 10F, 4F, 64F);
         float far = FogCurve.far(Math.max(fog, 0.05F), vanillaFar);
         float near = FogCurve.near(Math.max(fog, 0.05F), far, vanillaNear);
+        net.minecraft.client.player.LocalPlayer me = net.minecraft.client.Minecraft.getInstance().player;
+        if (me != null && com.foglurker.armor.FogArmor.hasFullSet(me)) { // a full set of Armour of the Fog sees further
+            far = FogCurve.clearFar(far, vanillaFar);
+            near = FogCurve.clearNear(near, far, vanillaNear);
+        }
         org.joml.Vector3fc left = camera.leftVector();
         org.joml.Vector3fc up = camera.upVector();
 

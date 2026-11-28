@@ -35,6 +35,9 @@ public final class LurkerArmor {
     /** What a full set of this piece's material stops (0 to 0.65). */
     public static float materialReduction(ItemStack stack) {
         var equippable = stack.get(net.minecraft.core.component.DataComponents.EQUIPPABLE);
+        if (stack.getItem() instanceof com.foglurker.armor.FogArmor.Piece piece) {
+            return piece.diamond ? 0.45F : 0.65F; // Armour of the Fog: like diamond, or like netherite
+        }
         if (equippable == null || equippable.assetId().isEmpty()
                 || !stack.has(net.minecraft.core.component.DataComponents.ATTRIBUTE_MODIFIERS)) {
             return 0F; // nothing, or a pumpkin

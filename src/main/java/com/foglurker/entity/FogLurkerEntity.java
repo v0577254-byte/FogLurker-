@@ -317,6 +317,9 @@ public class FogLurkerEntity extends PathfinderMob {
             clientTicker.accept(this);
         } else {
             updateClimbingState();
+            if ((this.tickCount + this.getId()) % 10 == 0) {
+                noteWhoSeesItsRealShape();
+            }
             if (flopLeft > 0 && --flopLeft == 0) {
                 if (this.level() instanceof ServerLevel level) {
                     level.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF, getX(), getY() + 0.1, getZ(),
@@ -478,6 +481,26 @@ public class FogLurkerEntity extends PathfinderMob {
             this.setCustomName(null);
         }
         this.refreshDimensions();
+    }
+
+    /**
+     * Anyone looking straight at it while it is itself (its pale shape, not a disguise) has now seen it: from then on
+     * a faint picture of it shows whenever they sleep.
+     */
+    private void noteWhoSeesItsRealShape() {
+        if (getDisguise() != Disguise.CRAWLER || this.isInvisible() || !(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        for (net.minecraft.server.level.ServerPlayer p : level.players()) {
+            if (p.isSpectator() || p instanceof net.minecraftforge.common.util.FakePlayer || p.distanceToSqr(this) > 64 * 64) {
+                continue;
+            }
+            Vec3 to = new Vec3(getX(), getY(0.5), getZ()).subtract(p.getEyePosition());
+            double len = to.length();
+            if (len > 1e-3 && p.getViewVector(1F).dot(to.scale(1 / len)) > 0.85 && p.hasLineOfSight(this)) {
+                com.foglurker.world.SleepParalysis.sawRealShape(p);
+            }
+        }
     }
 
     public boolean isAttackForm() {

@@ -1,0 +1,22 @@
+{
+  "parent": "foglurker:pressed_fog",
+  "display": {
+    "icon": {
+      "id": "foglurker:ascension_from_the_fog_smithing_template"
+    },
+    "title": {
+      "translate": "upgrade.foglurker.ascension_from_the_fog"
+    },
+    "description": {
+      "translate": "advancements.foglurker.ascension_from_the_fog.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "full_fog_armor": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

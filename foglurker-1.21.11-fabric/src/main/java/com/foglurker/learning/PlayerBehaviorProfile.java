@@ -80,6 +80,10 @@ public final class PlayerBehaviorProfile {
     public boolean sleepParalysisSeen;
     /** /foglurker force sleep-paralysis: the next time they sleep it happens for sure. */
     public boolean sleepParalysisForced;
+    /** Has looked straight at the creature in its own pale shape (not one of its disguises). */
+    public boolean sawRealShape;
+    /** World time (day time) they are counted from for "days passed", Long.MIN_VALUE until first needed. */
+    public long firstDayTime = Long.MIN_VALUE;
     /** Storage blocks they opened themselves (newest last, at most 16): the only places a book is left. */
     public final java.util.ArrayDeque<Long> openedContainers = new java.util.ArrayDeque<>();
 
@@ -231,6 +235,8 @@ public final class PlayerBehaviorProfile {
         t.putLong("lastSeen", lastSeenMillis);
         t.putBoolean("spSeen", sleepParalysisSeen);
         t.putBoolean("spForced", sleepParalysisForced);
+        t.putBoolean("sawReal", sawRealShape);
+        t.putLong("firstDay", firstDayTime);
         t.putLongArray("opened", openedContainers.stream().mapToLong(Long::longValue).toArray());
         t.putBoolean("noChatLearn", chatLearningOff);
         if (homeKnown) {
@@ -290,6 +296,8 @@ public final class PlayerBehaviorProfile {
         p.lastSeenMillis = t.getLongOr("lastSeen", 0L);
         p.sleepParalysisSeen = t.getBooleanOr("spSeen", false);
         p.sleepParalysisForced = t.getBooleanOr("spForced", false);
+        p.sawRealShape = t.getBooleanOr("sawReal", false);
+        p.firstDayTime = t.getLongOr("firstDay", Long.MIN_VALUE);
         long[] opened = t.getLongArray("opened").orElse(new long[0]);
         for (int i = Math.max(0, opened.length - 16); i < opened.length; i++) {
             p.openedContainers.addLast(opened[i]);

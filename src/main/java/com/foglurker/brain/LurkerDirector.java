@@ -232,6 +232,9 @@ public final class LurkerDirector {
             }
             driven++;
         }
+        if (driven > 0 && ringer != null) {
+            com.foglurker.world.ModAdvancements.award(ringer, com.foglurker.world.ModAdvancements.BELL);
+        }
         if (ignored && driven == 0 && ringer != null) {
             ringer.displayClientMessage(net.minecraft.network.chat.Component.literal("The bell rings out... nothing runs this time.")
                     .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC), true);

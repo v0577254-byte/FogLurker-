@@ -1,0 +1,36 @@
+{
+  "display": {
+    "icon": {
+      "id": "foglurker:protector_of_the_fog"
+    },
+    "title": {
+      "translate": "advancements.foglurker.forged_in_fog.title"
+    },
+    "description": {
+      "translate": "advancements.foglurker.forged_in_fog.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "sword": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "foglurker:protector_of_the_fog"
+          }
+        ]
+      }
+    }
+  },
+  "parent": "foglurker:pressed_fog",
+  "requirements": [
+    [
+      "sword"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

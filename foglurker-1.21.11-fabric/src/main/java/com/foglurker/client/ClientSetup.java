@@ -56,7 +56,7 @@ public final class ClientSetup implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(ScarePacket.TYPE, (p, ctx) -> ctx.client().execute(() -> ClientEffects.scare(p.durationTicks())));
         ClientPlayNetworking.registerGlobalReceiver(ApparitionPacket.TYPE, (p, ctx) -> ctx.client().execute(Apparitions::spawn));
         ClientPlayNetworking.registerGlobalReceiver(AlwaysFogPacket.TYPE, (p, ctx) -> ctx.client().execute(() -> ClientEffects.setAlwaysFog(p.level())));
-        ClientPlayNetworking.registerGlobalReceiver(SleepVisionPacket.TYPE, (p, ctx) -> ctx.client().execute(SleepVision::show));
+        ClientPlayNetworking.registerGlobalReceiver(SleepVisionPacket.TYPE, (p, ctx) -> ctx.client().execute(() -> SleepVision.show(p.picture(), p.words())));
         // TEMPORARY: /foglurker debugeverything
         ClientPlayNetworking.registerGlobalReceiver(DebugPacket.TYPE, (p, ctx) -> ctx.client().execute(ClientDebug::run));
         ClientPlayNetworking.registerGlobalReceiver(com.foglurker.network.FogSurgePacket.TYPE,

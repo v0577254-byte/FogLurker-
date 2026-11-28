@@ -165,6 +165,9 @@ public class ProtectorOfTheFogItem extends SwordItem {
             }
         }
         LurkerDirector.scare(player); // whatever happens now, it remembers this
+        if (fled > 0) {
+            com.foglurker.world.ModAdvancements.award(player, com.foglurker.world.ModAdvancements.BEGONE);
+        }
         if (reached > 0) {
             player.displayClientMessage(Component.literal(fled == reached ? "It shrieks and flees into the fog."
                     : fled > 0 ? "Some of it fled. The rest is weakened." : "It shrugs it off... but it is weakened.")

@@ -1,0 +1,127 @@
+{
+  "display": {
+    "icon": {
+      "item": "minecraft:map"
+    },
+    "title": {
+      "translate": "advancements.foglurker.off_the_map.title"
+    },
+    "description": {
+      "translate": "advancements.foglurker.off_the_map.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "lookout_tower": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "structure": "foglurker:lookout_tower"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "abandoned_campfire": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "structure": "foglurker:abandoned_campfire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "abandoned_castle": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "structure": "foglurker:abandoned_castle"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "fortified_castle": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "structure": "foglurker:fortified_castle"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "hunters_bunker": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "structure": "foglurker:hunters_bunker"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "fog_well": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "structure": "foglurker:fog_well"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "parent": "foglurker:root",
+  "requirements": [
+    [
+      "lookout_tower",
+      "abandoned_campfire",
+      "abandoned_castle",
+      "fortified_castle",
+      "hunters_bunker",
+      "fog_well"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

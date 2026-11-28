@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smithing_transform",
+  "addition": "foglurker:ingot_of_the_fog",
+  "base": "minecraft:netherite_helmet",
+  "result": {
+    "id": "foglurker:helmet_of_the_fog"
+  },
+  "template": "foglurker:ascension_from_the_fog_smithing_template"
+}

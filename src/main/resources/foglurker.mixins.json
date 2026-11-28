@@ -6,6 +6,7 @@
   "refmap": "foglurker.refmap.json",
   "mixins": [
     "FogWellTemplateAccessor",
+    "PoolPieceGroundAccessor",
     "VillageWellPlacementMixin",
     "FogArmorAnvilMixin",
     "FogArmorDefenseMixin",

@@ -34,7 +34,10 @@ import java.util.Set;
  */
 public final class DryLandStructure extends Structure {
     public static final Codec<DryLandStructure> CODEC = RecordCodecBuilder.create(i -> i.group(
-            Structure.DIRECT_CODEC.fieldOf("structure").forGetter(DryLandStructure::inner)).apply(i, DryLandStructure::new));
+            Structure.DIRECT_CODEC.fieldOf("structure").forGetter(DryLandStructure::inner),
+            Codec.INT.optionalFieldOf("ground").forGetter(DryLandStructure::ground),
+            Codec.INT.optionalFieldOf("max_slope", 8).forGetter(DryLandStructure::maxSlope))
+            .apply(i, DryLandStructure::new));
 
     public static final DeferredRegister<StructureType<?>> TYPES = DeferredRegister.create(Registries.STRUCTURE_TYPE, FogLurkerMod.MOD_ID);
     public static final RegistryObject<StructureType<DryLandStructure>> TYPE = TYPES.register("dry_land", () -> () -> CODEC);
@@ -44,15 +47,41 @@ public final class DryLandStructure extends Structure {
     /** Checked every this many blocks across each piece (and always at its edges). */
     private static final int STEP = 4;
 
-    private final Structure inner;
+    /** The most the ground under it may rise and fall (blocks) before a flatter spot is looked for. */
+    public static final int DEFAULT_MAX_SLOPE = 8;
+    /** Where else it may stand if the ground is too steep where it was laid out (blocks, in steps of the grid). */
+    private static final int[][] NUDGES = {{0, 0}, {16, 0}, {-16, 0}, {0, 16}, {0, -16}, {16, 16}, {-16, -16}, {16, -16},
+            {-16, 16}, {32, 0}, {-32, 0}, {0, 32}, {0, -32}};
 
-    public DryLandStructure(Structure inner) {
+    private final Structure inner;
+    /**
+     * Where its ground is: the first air above the ground, in blocks above the bottom of its first piece (for a
+     * castle, the keep's hall floor over its crypt). Empty: placed as the inner structure says, not levelled.
+     */
+    private final Optional<Integer> ground;
+    private final int maxSlope;
+
+    public DryLandStructure(Structure inner, Optional<Integer> ground, int maxSlope) {
         super(new StructureSettings(inner.biomes(), inner.spawnOverrides(), inner.step(), inner.terrainAdaptation()));
         this.inner = inner;
+        this.ground = ground;
+        this.maxSlope = maxSlope;
+    }
+
+    public DryLandStructure(Structure inner) {
+        this(inner, Optional.empty(), DEFAULT_MAX_SLOPE);
     }
 
     public Structure inner() {
         return inner;
+    }
+
+    public Optional<Integer> ground() {
+        return ground;
+    }
+
+    public int maxSlope() {
+        return maxSlope;
     }
 
     @Override
@@ -64,10 +93,76 @@ public final class DryLandStructure extends Structure {
         // Lay it out once, look at where its pieces would stand, and hand on that same layout (laying it out again
         // would draw new random numbers and could give a different one).
         StructurePiecesBuilder pieces = stub.get().getPiecesBuilder();
-        if (!onDryLand(context.chunkGenerator(), context.heightAccessor(), context.randomState(), pieces.build().pieces())) {
-            return Optional.empty();
+        List<StructurePiece> list = pieces.build().pieces();
+        if (ground.isEmpty()) {
+            if (!onDryLand(context.chunkGenerator(), context.heightAccessor(), context.randomState(), list)) {
+                return Optional.empty();
+            }
+            return Optional.of(new GenerationStub(stub.get().position(), Either.right(pieces)));
         }
-        return Optional.of(new GenerationStub(stub.get().position(), Either.right(pieces)));
+        // Stood on the ground as a whole, not by the one spot under its middle: at the middle height of the ground
+        // under all of it, somewhere (here, or a little way off) the ground is flat enough and dry.
+        java.util.Map<Long, Integer> heights = new java.util.HashMap<>();
+        int movedX = 0;
+        int movedZ = 0;
+        for (int[] nudge : NUDGES) {
+            int dx = nudge[0] - movedX;
+            int dz = nudge[1] - movedZ;
+            if (dx != 0 || dz != 0) {
+                for (StructurePiece piece : list) {
+                    piece.move(dx, 0, dz);
+                }
+                movedX = nudge[0];
+                movedZ = nudge[1];
+            }
+            int[] lowHigh = new int[2];
+            int level = groundLevel(context, list, heights, lowHigh);
+            if (lowHigh[1] - lowHigh[0] > maxSlope
+                    || !onDryLand(context.chunkGenerator(), context.heightAccessor(), context.randomState(), list)) {
+                continue;
+            }
+            int want = list.get(0).getBoundingBox().minY() + ground.get();
+            for (StructurePiece piece : list) {
+                piece.move(0, level - want, 0);
+            }
+            int groundY = level;
+            for (StructurePiece piece : list) {
+                if (piece instanceof net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece pool) {
+                    // The terrain round each piece is shaped to meet the structure's ground, not the bottom of its box.
+                    ((com.foglurker.mixin.PoolPieceGroundAccessor) pool).foglurker$setGroundLevelDelta(groundY - piece.getBoundingBox().minY());
+                }
+            }
+            net.minecraft.core.BlockPos at = stub.get().position().offset(movedX, level - want, movedZ);
+            return Optional.of(new GenerationStub(at, Either.right(pieces)));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The middle height of the ground (first air above the terrain, before anything is built) under these pieces;
+     * {@code lowHigh} gets the lowest and highest. Heights are kept in {@code heights} by column.
+     */
+    private static int groundLevel(GenerationContext context, List<StructurePiece> pieces, java.util.Map<Long, Integer> heights,
+                                   int[] lowHigh) {
+        java.util.List<Integer> all = new java.util.ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        for (StructurePiece piece : pieces) {
+            BoundingBox b = piece.getBoundingBox();
+            for (int x : across(b.minX(), b.maxX())) {
+                for (int z : across(b.minZ(), b.maxZ())) {
+                    long key = ((long) x << 32) ^ (z & 0xFFFFFFFFL);
+                    if (seen.add(key)) {
+                        all.add(heights.computeIfAbsent(key, k -> context.chunkGenerator().getFirstFreeHeight(x, z,
+                                net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE_WG, context.heightAccessor(),
+                                context.randomState())));
+                    }
+                }
+            }
+        }
+        java.util.Collections.sort(all);
+        lowHigh[0] = all.get(0);
+        lowHigh[1] = all.get(all.size() - 1);
+        return all.get(all.size() / 2);
     }
 
     /** No water under any of these pieces, or within {@link #MARGIN} blocks of them. */

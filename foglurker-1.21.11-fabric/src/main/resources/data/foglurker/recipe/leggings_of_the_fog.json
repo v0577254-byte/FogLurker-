@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smithing_transform",
+  "addition": "foglurker:ingot_of_the_fog",
+  "base": "minecraft:netherite_leggings",
+  "result": {
+    "id": "foglurker:leggings_of_the_fog"
+  },
+  "template": "foglurker:ascension_from_the_fog_smithing_template"
+}

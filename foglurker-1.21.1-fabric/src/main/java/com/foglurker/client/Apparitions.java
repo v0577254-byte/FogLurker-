@@ -36,7 +36,14 @@ public final class Apparitions {
     }
 
     public static void clear() {
+        ACTIVE.forEach(Apparitions::remove); // (taken out of the world too, not just forgotten)
         ACTIVE.clear();
+    }
+
+    private static void remove(FogLurkerEntity e) {
+        if (e.level() instanceof ClientLevel level) {
+            level.removeEntity(e.getId(), Entity.RemovalReason.DISCARDED);
+        }
     }
 
     /** @return true if a place for it was found */
@@ -122,7 +129,7 @@ public final class Apparitions {
         LocalPlayer player = mc.player;
         ClientLevel level = mc.level;
         if (player == null || level == null) {
-            ACTIVE.clear();
+            clear();
             return;
         }
         Vec3 eye = player.getEyePosition();
@@ -136,7 +143,7 @@ public final class Apparitions {
             // so at a narrow field of view it is not "looked at" the moment it appears at the edge.
             boolean lookedAt = len > 1e-3 && look.dot(to.scale(1 / len)) > lookCone;
             if (lookedAt || len < 5 || e.tickCount > 240 || e.isRemoved() || e.level() != level) {
-                level.removeEntity(e.getId(), Entity.RemovalReason.DISCARDED);
+                remove(e);
                 it.remove();
             }
         }

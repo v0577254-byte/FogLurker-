@@ -61,11 +61,11 @@ Only while you sleep (about one sleep in three, after the grace period): a momen
 
 ## Structures
 
-Six places in the world belong to it. Their chests hold the mod's own items. **None of them is ever built on water:** before one is built, the ground under every part of it (and 3 blocks round) is checked, and if any of it is sea, river or lake, it is built somewhere else instead.
+Six places in the world belong to it. Their chests hold the mod's own items. **None of them is ever built on water:** before one is built, the ground under every part of it (and 3 blocks round) is checked, and if any of it is sea, river or lake, it is built somewhere else instead. **They also stand level on the ground:** each is set at the middle height of the ground under all of it (not just the spot under its middle), a little way off if the ground there is too steep, and the land round it is shaped to meet its floor, so nothing floats over a slope or sinks into a hill.
 
 | Structure | Where | What is there |
 | --- | --- | --- |
-| **Lookout tower** (uncommon) | forests, taigas, windswept hills | A tall ranger tower: four splayed legs grown over with vines, cross-braced, a ladder up the middle past a halfway landing, lanterns hung under the deck, and a cabin on top under a steep roof with an aerial: broken windows, shutters, a bed, a "radio" and a chest with the ranger's logbook, a Foggy Stick, a spyglass. From up there you see it standing out at the edge of the fog. |
+| **Lookout tower** (uncommon) | forests, taigas, windswept hills | A tall ranger tower: four splayed legs grown over with vines, cross-braced, a ladder up the middle past a halfway landing, lanterns hung under the deck, and a cabin on top under a steep roof with an aerial: broken windows, shutters, a bed, a "radio" and a chest with food, an old iron sword and chainmail, a Foggy Stick and an Ingot of the Fog (always in the middle slot). From up there you see it standing out at the edge of the fog. |
 | **Abandoned campfire** (common) | forests, taigas | A trampled clearing with a cold campfire in a ring of stones, log benches, a tent still standing (a bed and a barrel inside), another fallen in over someone's bones, a drying rack, a woodpile, a lamp post someone keeps lit, and a ward ring never finished. Food, coal, iron, sometimes a Fog of the Day or Night. |
 | **Abandoned castle** (rare) | dark forests, plains, taigas | A ruined keep with a deepslate crypt under it, its roof fallen in to the beams, broken turrets, a gatehouse with a broken portcullis, two curtain walls and corner towers with jagged broken tops, crumbling, mossy and full of cobwebs. Ingots of the Fog, its teeth, a worn Protector of the Fog, enchanted books, iron and diamond gear. |
 | **Fortified castle** (very rare) | plains, meadows, forests | The same castle kept up and warded: a stepped roof over the hall, roofed corner turrets, towers with pointed roofs and spires, wide arched doors, soul lanterns along the walls, banners, a lord's seat and long tables, armour stands, villagers and an iron golem living in it. A full Protector of the Fog, diamond and iron gear, golden apples, emeralds. |
@@ -148,6 +148,30 @@ Made at a **smithing table**: the **Ascension From The Fog** smithing template, 
 - **It cannot be enchanted** (not at a table, not with books on an anvil). Repair it on an anvil with **Ingots of the Fog**: each one mends a quarter, so four mend it fully.
 - A faint mist drifts around you while you wear it (more with more pieces).
 - **A full set:** its bites never slow you or **maul** your leg, **sleep paralysis never happens to you**, and the fog clears a little for you (you see about half again as far). Putting on a full set for the first time earns the advancement **The Ascension From The Fog**.
+
+## Advancements
+
+The Fog Lurker has its own advancement tab:
+
+| Advancement | How |
+|---|---|
+| **The Fog Lurker** | Join a world with the mod |
+| **Did You See That?** | See the Fog Lurker as it really is (its pale shape, not a disguise) |
+| **Still Breathing** | Get away from it while it hunts you (water, soul fire, a bell, a scare burst...) |
+| **The Fog Lifts** (challenge) | Kill it |
+| **Teeth in the Leg** | Be Mauled by its bite |
+| **For Whom the Bell Tolls** | Drive it away by ringing a bell |
+| **Hmm Did I Do That?** | Wake up from sleep paralysis |
+| **€AN Y0UU $EE M33?** (hidden challenge) | See the red words in your sleep |
+| **Pressed Fog** | Get an Ingot of the Fog |
+| **Forged in Fog** | Craft the Protector of the Fog |
+| **Begone!** | Make it flee with a scare burst |
+| **The Ascension From The Fog** (challenge) | Wear a full set of Armour of the Fog |
+| **Off the Map** | Find any of the places it haunts |
+| **Lookout**, **Cold Ashes**, **Fallen Keep**, **Last Light**, **Dug In**, **Something in the Well** | Find a lookout tower, abandoned campfire, abandoned castle, fortified castle, hunters' bunker, fog-choked well |
+| **Mapped the Fog** (challenge) | Find all six |
+
+They are written by `tools/advancements.py` (the same tab for every Minecraft version).
 
 ## How to survive it
 
@@ -242,6 +266,14 @@ A rare encounter in **every mode**: each time you lie down to sleep there is a *
 
 It does **not** appear afterwards, and you can go straight back to bed and sleep normally. But from then on, **whenever you go to bed, a faint picture of it shows** while you fall asleep. Try it with `/foglurker force sleep-paralysis [player]`.
 
+The same faint picture also shows **every time you sleep** once **3 days have passed** for you (played, or slept through) or once you have **seen the creature itself**: its own pale shape, not one of its disguises, looked at straight on.
+
+And rarely (**1 sleep in 25**), as you fall asleep, big red letters tear and flicker across the dark:
+
+> €AN Y0UU $EE M33?
+
+Try it with `/foglurker force sleep-words [player]`. A full set of Armour of the Fog keeps sleep paralysis away, but not the pictures.
+
 ## Night
 
 **The fog is thicker at night:** +10% on Very Easy, +15% Easy, +25% Medium, +35% Hard, +50% Deathwish. (Once it attacks, the fog is already close to as thick as it gets, so at night it can only thicken up to that limit.)
@@ -303,6 +335,7 @@ Minecraft commands use spaces, so `foglurker→spawn` is typed `/foglurker spawn
 | `/foglurker force attack [player]` | cheats / op | The Fog Lurker appears nearby in its real shape and hunts you immediately |
 | `/foglurker fog [0-100\|default]` | view: everyone · set: op / host | How thick the fog that is always there is, for everyone in this world (0 = none, 100 = thickest). By default it follows the mode: Very Easy 15, Easy 25, Medium 45, Hard 55, Deathwish 60. `default` goes back to that. Saved with the world |
 | `/foglurker force sleep-paralysis [player]` | cheats / op | The next time that player goes to sleep they get sleep paralysis: "Done! the next time you go to sleep you will experience sleep paralysis" |
+| `/foglurker force sleep-words [player]` | cheats / op | The next time that player goes to sleep, the red words show |
 | `/foglurker force meet [player]` | cheats / op | The Deathwish night meeting, right now: "hello", "please dont run", "i will not hurt you"... and a coin flip whether it means it |
 | `/foglurker naturalspawning [on\|off]` | view: everyone · set: op / host | Whether it appears on its own. `off`: it only comes when you summon it with `spawn` or `force`, and the hauntings stop too. Saved with the world. Turning it back `on` starts a fresh 10-minute countdown |
 | `/foglurker spawntimer` | cheats / op | Time until the next spawn roll and whether it is guaranteed (or who it is hunting right now) |
@@ -395,7 +428,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 ## Installing
 
 1. Install **Minecraft Forge 1.20.1** (47.x).
-2. Put `FogLurker-1.7.3.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
+2. Put `FogLurker-1.7.4.jar` in `mods/` on the **server and every client**. It adds an entity with its own renderer, so clients need it too.
 3. Optional, for voices: install **Simple Voice Chat** for Forge 1.20.1 on the server and every client.
 
 ## Configuration
@@ -437,7 +470,7 @@ What it learns about play style (movement habits, recent chat lines, your dog's 
 
 ## Versioning
 
-Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.7.3.jar`:
+Jars are named `FogLurker-<version>.<features>.<patch>.jar`, for example `FogLurker-1.7.4.jar`:
 - **version** (the first number) is 1;
 - **features** goes up by one whenever something new is added (and patch starts again at 0);
 - **patch** goes up by one for every release that only fixes bugs.
@@ -449,7 +482,7 @@ The number lives in `mod_version` in `gradle.properties`.
 Requires Java 17.
 
 ```bash
-./gradlew build               # -> build/libs/FogLurker-1.7.3.jar
+./gradlew build               # -> build/libs/FogLurker-1.7.4.jar
 ./gradlew runGameTestServer   # boots a real server and runs the in-game tests
 ```
 

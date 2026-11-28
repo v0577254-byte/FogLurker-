@@ -138,8 +138,13 @@
           "weight": 2
         },
         {
+          "type": "minecraft:item",
+          "name": "foglurker:ascension_from_the_fog_smithing_template",
+          "weight": 2
+        },
+        {
           "type": "minecraft:empty",
-          "weight": 96
+          "weight": 94
         }
       ]
     }

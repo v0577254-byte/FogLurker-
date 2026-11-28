@@ -1,0 +1,43 @@
+{
+  "display": {
+    "icon": {
+      "item": "foglurker:fog_of_the_day"
+    },
+    "title": {
+      "translate": "advancements.foglurker.the_fog_lifts.title"
+    },
+    "description": {
+      "translate": "advancements.foglurker.the_fog_lifts.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "killed": {
+      "trigger": "minecraft:player_killed_entity",
+      "conditions": {
+        "entity": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "type": "foglurker:fog_lurker"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "parent": "foglurker:still_breathing",
+  "requirements": [
+    [
+      "killed"
+    ]
+  ],
+  "rewards": {
+    "experience": 100
+  },
+  "sends_telemetry_event": false
+}

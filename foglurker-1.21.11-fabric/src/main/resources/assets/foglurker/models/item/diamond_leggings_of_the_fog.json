@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "foglurker:item/diamond_leggings_of_the_fog"
+  }
+}

@@ -7,7 +7,7 @@
         "element_type": "minecraft:single_pool_element",
         "location": "foglurker:hunters_bunker",
         "projection": "rigid",
-        "processors": "minecraft:empty"
+        "processors": "foglurker:hunters_bunker_secret_chest"
       }
     }
   ]

@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "foglurker:fog"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "foglurker:fog"
+      }
+    ]
+  }
+}

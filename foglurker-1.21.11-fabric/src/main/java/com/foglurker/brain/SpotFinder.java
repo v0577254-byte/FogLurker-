@@ -218,14 +218,215 @@ public final class SpotFinder {
         return bestScore >= 6 ? best : null;
     }
 
-    /** True if the player is swimming, in a boat, or standing in water: somewhere the attacking form cannot follow. */
-    public static boolean isInOrOnWater(Entity e) {
-        if (e.isInWater() || e.getVehicle() != null && e.getVehicle().isInWater()) {
+    // ---- water: only a real body of water counts (a single bucket poured on the ground does not stop it)
+
+    private static boolean blockLoaded(net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+        return !(level instanceof ServerLevel sl && !loaded(sl, pos.getX(), pos.getZ()));
+    }
+
+    /** A water source block (in a loaded chunk). */
+    public static boolean isWaterSource(net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+        if (!blockLoaded(level, pos)) {
+            return false;
+        }
+        net.minecraft.world.level.material.FluidState fs = level.getFluidState(pos);
+        return fs.is(FluidTags.WATER) && fs.isSource();
+    }
+
+    /** Water can flow from {@code a} into its neighbour {@code b} (no solid face between them). */
+    private static boolean waterConnects(net.minecraft.world.level.BlockGetter level, BlockPos a, BlockPos b, Direction dirFromA) {
+        net.minecraft.world.phys.shapes.VoxelShape shapeA = level.getBlockState(a).getCollisionShape(level, a);
+        net.minecraft.world.phys.shapes.VoxelShape shapeB = level.getBlockState(b).getCollisionShape(level, b);
+        return shapeA.isEmpty() && shapeB.isEmpty() || !net.minecraft.world.phys.shapes.Shapes.mergedFaceOccludes(shapeA, shapeB, dirFromA);
+    }
+
+    /** A source block joined to at least one other source: part of a pond, river or sea, not one poured bucket. */
+    public static boolean isWaterBodySource(net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+        if (!isWaterSource(level, pos)) {
+            return false;
+        }
+        for (Direction dir : Direction.values()) {
+            BlockPos nb = pos.relative(dir);
+            if (isWaterSource(level, nb) && waterConnects(level, pos, nb, dir)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Water that belongs to a body of water (a source in one, or water flowing straight out of one). */
+    public static boolean isWaterBodyBlock(net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+        if (!blockLoaded(level, pos)) {
+            return false;
+        }
+        net.minecraft.world.level.material.FluidState fs = level.getFluidState(pos);
+        if (!fs.is(FluidTags.WATER)) {
+            return false;
+        }
+        if (fs.isSource()) {
+            return isWaterBodySource(level, pos);
+        }
+        // Flowing water: follow it upstream (from above while it falls, else toward fuller water) to where it comes
+        // from, so a waterfall or the run of a river is part of its body even many blocks below or away from it.
+        BlockPos cur = pos;
+        net.minecraft.world.level.material.FluidState here = fs;
+        for (int step = 0; step < UPSTREAM_STEPS; step++) {
+            BlockPos next = null;
+            int best = here.getAmount();
+            for (Direction dir : Direction.values()) {
+                if (dir == Direction.DOWN) {
+                    continue; // water never flows up
+                }
+                BlockPos nb = cur.relative(dir);
+                if (!blockLoaded(level, nb) || !waterConnects(level, cur, nb, dir)) {
+                    continue;
+                }
+                net.minecraft.world.level.material.FluidState f = level.getFluidState(nb);
+                if (!f.is(FluidTags.WATER)) {
+                    continue;
+                }
+                if (f.isSource()) {
+                    if (isWaterBodySource(level, nb)) {
+                        return true;
+                    }
+                    continue; // a lone poured bucket: only a spill
+                }
+                if (dir == Direction.UP) {
+                    next = nb; // falling water is fed from above
+                    break;
+                }
+                if (f.getAmount() > best) {
+                    best = f.getAmount();
+                    next = nb;
+                }
+            }
+            if (next == null) {
+                return false;
+            }
+            cur = next;
+            here = level.getFluidState(cur);
+        }
+        return false;
+    }
+
+    /** How far flowing water is followed back toward its source (a bucket's spill spreads at most 7 blocks). */
+    private static final int UPSTREAM_STEPS = 24;
+
+    /** A body of water touching this block (the 26 around it). */
+    public static boolean hasAdjacentWaterBody(net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    if ((dx != 0 || dy != 0 || dz != 0) && isWaterBodyBlock(level, pos.offset(dx, dy, dz))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Part of the entity is below the surface of a body of water. */
+    public static boolean isInWaterBody(Entity e) {
+        net.minecraft.world.level.Level level = e.level();
+        net.minecraft.world.phys.AABB box = e.getBoundingBox().deflate(0.001);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
+            for (int y = Mth.floor(box.minY); y <= Mth.floor(box.maxY); y++) {
+                for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
+                    pos.set(x, y, z);
+                    if (blockLoaded(level, pos)) {
+                        net.minecraft.world.level.material.FluidState fs = level.getFluidState(pos);
+                        if (fs.is(FluidTags.WATER) && box.minY < y + fs.getHeight(level, pos) && isWaterBodyBlock(level, pos)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** A boat (or anything ridden) floating on a body of water. */
+    public static boolean isHullOnWaterBody(Entity vehicle) {
+        if (isInWaterBody(vehicle)) {
             return true;
         }
-        BlockPos p = e.blockPosition();
-        return e.level().getFluidState(p).is(FluidTags.WATER)
-                || !e.onGround() && e.level().getFluidState(p.below()).is(FluidTags.WATER);
+        if (!vehicle.isInWater() && vehicle.onGround()) {
+            return false;
+        }
+        net.minecraft.world.level.Level level = vehicle.level();
+        net.minecraft.world.phys.AABB box = vehicle.getBoundingBox().deflate(0.001);
+        int y = Mth.floor(box.minY - 0.15);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
+            for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
+                pos.set(x, y, z);
+                if (blockLoaded(level, pos)) {
+                    net.minecraft.world.level.material.FluidState fs = level.getFluidState(pos);
+                    if (fs.is(FluidTags.WATER) && box.minY - 0.15 < y + fs.getHeight(level, pos) && isWaterBodyBlock(level, pos)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True if the player is swimming in, boating on or standing in a body of water: somewhere the attacking form cannot
+     * follow. A single poured bucket does not count.
+     */
+    public static boolean isInOrOnWater(Entity e) {
+        if (isInWaterBody(e)) {
+            return true;
+        }
+        Entity vehicle = e.getVehicle();
+        if (vehicle != null && isHullOnWaterBody(vehicle)) {
+            return true;
+        }
+        if (!e.onGround()) {
+            BlockPos below = e.blockPosition().below();
+            return isWaterBodyBlock(e.level(), below) && e.level().getBlockState(below).getCollisionShape(e.level(), below).isEmpty();
+        }
+        return false;
+    }
+
+    /** Whether a step from where the mob stands toward {@code toward} would put its feet in (or over) a body of water. */
+    public static boolean stepEntersWaterBody(ServerLevel level, Entity mob, Vec3 toward) {
+        Vec3 dir = toward.subtract(mob.position()).multiply(1.0, 0.0, 1.0);
+        double len = dir.length();
+        if (len < 0.001) {
+            return false;
+        }
+        net.minecraft.world.phys.AABB base = mob.getBoundingBox().deflate(0.05);
+        double maxDist = Math.min(1.0, len);
+        for (double frac : new double[]{0.5, 1.0}) {
+            double d = maxDist * frac;
+            double ox = dir.x * d / len;
+            double oz = dir.z * d / len;
+            int footY = Mth.floor(mob.getY() + 0.2);
+            for (int x = Mth.floor(base.minX + ox); x <= Mth.floor(base.maxX + ox); x++) {
+                for (int z = Mth.floor(base.minZ + oz); z <= Mth.floor(base.maxZ + oz); z++) {
+                    BlockPos feet = new BlockPos(x, footY, z);
+                    if (!blockLoaded(level, feet) || isWaterBodyBlock(level, feet)) {
+                        return true; // (an unloaded chunk counts as water: never walks into the unknown)
+                    }
+                    if (level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()) {
+                        for (int dy = 1; dy <= 12; dy++) { // a drop: what is it falling into?
+                            BlockPos below = feet.below(dy);
+                            if (isWaterBodyBlock(level, below)) {
+                                return true;
+                            }
+                            if (!level.getBlockState(below).getCollisionShape(level, below).isEmpty()) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** The closest dry ground near {@code toward}, searched in rings: where it paces when you hide in water. */

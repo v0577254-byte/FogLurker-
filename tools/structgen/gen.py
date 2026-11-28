@@ -115,8 +115,19 @@ STRUCTURES = {
                          ["minecraft:plains", "minecraft:meadow", "#minecraft:is_forest"]),
     "hunters_bunker": ("foglurker:hunters_bunker/start", 1, "bury", -13,
                        ["#minecraft:is_hill", "#minecraft:is_mountain", "#minecraft:is_taiga"]),
-    "fog_well": ("foglurker:fog_well/start", 1, "none", -13,
+    "fog_well": ("foglurker:fog_well/start", 1, "beard_thin", -13,
                  ["minecraft:plains", "minecraft:sunflower_plains", "#minecraft:is_taiga", "#minecraft:is_savanna"]),
+}
+
+# name: (ground: the first air above the ground, in blocks above the bottom of the first piece; max rise and fall)
+# The tower's legs stand on the ground; the campfire's clearing is its bottom layer; a castle's keep has its hall
+# floor (y 4) over the crypt; the well's stone ring (y 13) is level with the grass. The bunker is buried: not here.
+GROUND = {
+    "lookout_tower": (0, 8),
+    "abandoned_campfire": (1, 8),
+    "abandoned_castle": (5, 10),
+    "fortified_castle": (5, 10),
+    "fog_well": (14, 6),
 }
 
 SETS = {
@@ -151,7 +162,13 @@ def worldgen(res, version):
             s["step"] = "underground_structures"
         # Wrapped so it is never built on water: the mod's "dry_land" type lays the jigsaw out, then refuses the spot
         # if any of its pieces (or the ground a few blocks round them) is under water.
-        write_json(os.path.join(d, "worldgen", "structure", name + ".json"), {"type": "foglurker:dry_land", "structure": s})
+        # It is also stood level on the ground: "ground" is where its ground is (first air, in blocks above the bottom
+        # of its first piece), so it is set at the middle height of the ground under all of it (a little way off if
+        # the ground there rises and falls more than "max_slope"), and the terrain round it is shaped to meet it.
+        outer = {"type": "foglurker:dry_land", "structure": s}
+        if name in GROUND:
+            outer["ground"], outer["max_slope"] = GROUND[name]
+        write_json(os.path.join(d, "worldgen", "structure", name + ".json"), outer)
         write_json(os.path.join(d, "tags", "worldgen", "biome", "has_structure", name + ".json"),
                    {"replace": False, "values": biomes})
     for name in ("lookout_tower", "abandoned_campfire", "hunters_bunker", "fog_well"):

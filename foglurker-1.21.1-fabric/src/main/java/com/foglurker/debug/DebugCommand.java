@@ -155,6 +155,7 @@ public final class DebugCommand {
         modes(r, server);
         spawning(r, player);
         combatAndWater(r, player);
+        fogArmor(r, player);
         learning(r, player, server);
         voiceAndSecurity(r, player);
         gemini(r, server, src);
@@ -174,6 +175,21 @@ public final class DebugCommand {
 
     private static void registration(Report r, ServerPlayer player, MinecraftServer server) {
         r.section("Registration");
+        r.run("Armour of the Fog items registered", (rep, w) -> {
+            List<String> missing = new ArrayList<>();
+            for (String prefix : List.of("", "diamond_")) {
+                for (String piece : List.of("helmet", "chestplate", "leggings", "boots")) {
+                    String path = prefix + piece + "_of_the_fog";
+                    if (!net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(FogLurkerMod.id(path))) {
+                        missing.add(path);
+                    }
+                }
+            }
+            if (!net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(FogLurkerMod.id("ascension_from_the_fog_smithing_template"))) {
+                missing.add("ascension_from_the_fog_smithing_template");
+            }
+            rep.check(w, missing.isEmpty(), missing.isEmpty() ? "8 armour pieces and the smithing template" : "missing: " + missing);
+        });
         r.run("Entity registered", (rep, w) -> {
             var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(ModEntities.FOG_LURKER.get());
             rep.check(w, FogLurkerMod.id("fog_lurker").equals(key), String.valueOf(key));
@@ -321,7 +337,7 @@ public final class DebugCommand {
             LurkerDifficulty d = FogLurkerSavedData.get(player.level().getServer()).difficulty();
             boolean mauls = d == LurkerDifficulty.HARD || d == LurkerDifficulty.DEATHWISH;
             boolean registered = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.containsKey(FogLurkerMod.id("mauled"));
-            rep.check(w, registered, (registered ? "" : "the Mauled effect is not registered! ") + "Slowness I for 10 s"
+            rep.check(w, registered, (registered ? "" : "the Mauled effect is not registered! ") + "Without the full Armour of the Fog: Slowness I for 10 s"
                     + (mauls ? " + Mauled (no jumping, no boats) on " + d.displayName() : " (Mauled only on Hard/Deathwish)"));
         });
         r.run("Damage source", (rep, w) -> {
@@ -340,7 +356,7 @@ public final class DebugCommand {
             float crawler = e.getPathfindingMalus(PathType.WATER);
             e.discard();
             rep.check(w, human == 0 && crawler < 0 && animal > 0, "human form swims (cost " + human + "), animals avoid it ("
-                    + animal + "), Fog Lurker refuses water (" + crawler + ")");
+                    + animal + "), Fog Lurker refuses bodies of water (" + crawler + "; single-bucket spills ignored)");
         });
         r.run("Protected blocks", (rep, w) -> {
             List<net.minecraft.world.level.block.Block> mustHold = List.of(net.minecraft.world.level.block.Blocks.DEEPSLATE,
@@ -367,7 +383,8 @@ public final class DebugCommand {
                     + (ward != null ? "protected by one at " + ward.toShortString() : "not near one"));
         });
         r.run("You are in water now", (rep, w) -> rep.pass(w, SpotFinder.isInOrOnWater(player)
-                ? "yes: the Fog Lurker cannot reach you here" : "no"));
+                ? "yes (body of water): the Fog Lurker will not follow you in (stay >2.3 blocks from shore)"
+                : player.isInWater() ? "single-bucket spill only: the Fog Lurker will cross this" : "no"));
     }
 
     private static void learning(Report r, ServerPlayer player, MinecraftServer server) {
@@ -521,6 +538,19 @@ public final class DebugCommand {
     }
 
     /** The six structures: registered, their loot, the village wells, where you are, and the nearest of each kind. */
+    private static void fogArmor(Report r, ServerPlayer player) {
+        r.section("Armour of the Fog");
+        boolean full = com.foglurker.armor.FogArmor.hasFullSet(player);
+        String status = full ? "active" : "inactive";
+        r.pass("Equipped", com.foglurker.armor.FogArmor.pieceCount(player) + "/4" + (full ? " (full set)" : " pieces"));
+        r.pass("Armour of the Fog damage reduction", com.foglurker.armor.FogArmor.damageReductionPercent(player) + "% on ordinary hits");
+        r.pass("Bite effects / Mauled immunity", status);
+        r.pass("Fog clarity", status);
+        r.pass("Sleep paralysis protection", status);
+        r.pass("Knockback resistance", String.format(java.util.Locale.ROOT, "%.2f total",
+                player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE)));
+    }
+
     private static void structures(Report r, ServerPlayer player) {
         r.section("Structures");
         ServerLevel level = player.serverLevel();

@@ -1443,7 +1443,7 @@ public final class FogLurkerGameTests implements FabricGameTest {
                 case "garbage" -> reply = "{\"candidates\":\"what\"}";
                 case "hang", "hang2" -> {
                     try {
-                        Thread.sleep(6_000); // longer than the 2 s test timeout
+                        Thread.sleep(6_000); // longer than the 4 s test timeout
                     } catch (InterruptedException ignored) {
                     }
                     reply = "{}";
@@ -2709,6 +2709,13 @@ public final class FogLurkerGameTests implements FabricGameTest {
                 if (ran[0]) {
                     return;
                 }
+                // Ticks can race by while the server catches up: wait for the saving thread itself (it runs its
+                // jobs in order, so once an empty job has run, both saves before it are done).
+                try {
+                    SnippetStore.io().submit(() -> { }).get(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new IllegalStateException("the snippet thread did not finish", e);
+                }
                 boolean saved = SnippetStore.count(gone) == 1 && SnippetStore.count(active) == 1;
                 if (!saved && !last) {
                     return;
@@ -3017,12 +3024,145 @@ public final class FogLurkerGameTests implements FabricGameTest {
                 level.setBlock(byWater.above(), net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 2);
                 check(l.brain().canBreak(dry), "plain stone should be breakable");
                 check(!l.brain().canBreak(byLava), "stone holding back lava must never be broken");
-                check(!l.brain().canBreak(byWater), "stone holding back water must never be broken");
+                // One poured bucket is only a spill (it walks through those), so the stone under it may go...
+                check(l.brain().canBreak(byWater), "stone under a single bucket of water should be breakable");
+                // ...but not under a pool: two joined sources are a body of water.
+                net.minecraft.core.BlockPos pool = byWater.above().south();
+                level.setBlock(pool.below(), stone, 2);
+                level.setBlock(pool, net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 2);
+                check(!l.brain().canBreak(byWater), "stone holding back a body of water must never be broken");
                 level.setBlock(byLava.east(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
                 level.setBlock(byWater.above(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
+                level.setBlock(pool, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
                 l.brain().vanish(true);
                 h.succeed();
             }));
+        });
+    }
+
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE, batch = "waterfall", timeoutTicks = 300)
+    public static void waterfallFromALakeIsStillTheLake(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerLevel level = h.getLevel();
+            var stone = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+            var water = net.minecraft.world.level.block.Blocks.WATER.defaultBlockState();
+            // Two ledges 4 blocks high: a pool of two joined sources on one (a body of water), a lone poured bucket on
+            // the other (a spill). Each runs off the east edge, falls, and spreads out over the ground below.
+            for (int z0 : new int[] {0, 21}) {
+                for (int x = 0; x <= 3; x++) {
+                    for (int y = 0; y <= 3; y++) {
+                        for (int z = z0 - 1; z <= z0 + 1; z++) {
+                            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(x, y, z)), stone, 2);
+                        }
+                    }
+                }
+            }
+            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(2, 4, 0)), water, 3);
+            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(3, 4, 0)), water, 3);
+            level.setBlock(h.absolutePos(new net.minecraft.core.BlockPos(3, 4, 21)), water, 3);
+            h.runAfterDelay(160, () -> logged(h, () -> {
+                net.minecraft.core.BlockPos fall = h.absolutePos(new net.minecraft.core.BlockPos(4, 1, 0));
+                net.minecraft.core.BlockPos run = h.absolutePos(new net.minecraft.core.BlockPos(6, 0, 0));
+                net.minecraft.core.BlockPos spillFall = h.absolutePos(new net.minecraft.core.BlockPos(4, 1, 21));
+                net.minecraft.core.BlockPos spillRun = h.absolutePos(new net.minecraft.core.BlockPos(6, 0, 21));
+                for (net.minecraft.core.BlockPos b : List.of(fall, run, spillFall, spillRun)) {
+                    check(level.getFluidState(b).is(net.minecraft.tags.FluidTags.WATER), "the water has not flowed to " + b.toShortString());
+                }
+                check(com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, fall), "a waterfall from a pool is part of the pool");
+                check(com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, run), "water run out from under a pool's waterfall is part of the pool");
+                check(!com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, spillFall), "a lone bucket's waterfall is only a spill");
+                check(!com.foglurker.brain.SpotFinder.isWaterBodyBlock(level, spillRun), "the run of a lone bucket's water is only a spill");
+                h.succeed();
+            }));
+        });
+    }
+
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE, batch = "sleepvision", timeoutTicks = 200)
+    public static void sleepPictureAfterThreeDaysOrSeeingIt(GameTestHelper h) {
+        logged(h, () -> {
+            flatten(h, 24);
+            ServerLevel level = h.getLevel();
+            MinecraftServer server = level.getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            kickOtherPlayers(server, p);
+            var data = com.foglurker.world.FogLurkerSavedData.get(server);
+            var prof = data.profile(p.getUUID());
+            prof.sleepParalysisSeen = false;
+            prof.sawRealShape = false;
+            long now = server.overworld().getDayTime();
+            prof.firstDayTime = now;
+            check(com.foglurker.world.SleepParalysis.daysPassed(p, prof) < 3 && !com.foglurker.world.SleepParalysis.seesPicture(p, prof),
+                    "someone who just started should not see the picture yet");
+            prof.firstDayTime = now - 3 * 24000L;
+            check(com.foglurker.world.SleepParalysis.seesPicture(p, prof), "after three days the picture shows every time they sleep");
+            prof.firstDayTime = now;
+            // In a disguise it does not count; seen as itself (its pale shape), it does.
+            FogLurkerEntity l = com.foglurker.registry.ModEntities.FOG_LURKER.get().create(level);
+            Vec3 at = h.absoluteVec(new Vec3(1.5, 0, 9.5));
+            l.moveTo(at.x, at.y, at.z, 0F, 0F);
+            l.setNoAi(true);
+            l.setDisguise(Disguise.COW);
+            level.addFreshEntity(l);
+            Vec3 eye = p.getEyePosition();
+            double dx = l.getX() - eye.x;
+            double dz = l.getZ() - eye.z;
+            p.teleportTo(level, p.getX(), p.getY(), p.getZ(), java.util.Set.of(),
+                    (float) Math.toDegrees(Math.atan2(dz, dx)) - 90F, 5F);
+            h.runAfterDelay(30, () -> logged(h, () -> {
+                check(!prof.sawRealShape, "seeing it as a cow is not seeing it");
+                l.setDisguise(Disguise.CRAWLER);
+                h.runAfterDelay(30, () -> logged(h, () -> {
+                    check(prof.sawRealShape, "looking straight at its pale shape should count as seeing it");
+                    check(com.foglurker.world.SleepParalysis.seesPicture(p, prof), "once seen, the picture shows every time they sleep");
+                    prof.sawRealShape = false;
+                    l.discard();
+                    h.succeed();
+                }));
+            }));
+        });
+    }
+
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE, batch = "fogarmor", timeoutTicks = 100)
+    public static void armourOfTheFogProtects(GameTestHelper h) {
+        logged(h, () -> {
+            MinecraftServer server = h.getLevel().getServer();
+            ServerPlayer p = player(h, 1.5, 1.5);
+            net.minecraft.world.entity.EquipmentSlot[] slots = {net.minecraft.world.entity.EquipmentSlot.HEAD,
+                    net.minecraft.world.entity.EquipmentSlot.CHEST, net.minecraft.world.entity.EquipmentSlot.LEGS,
+                    net.minecraft.world.entity.EquipmentSlot.FEET};
+            for (int i = 0; i < 4; i++) {
+                p.setItemSlot(slots[i], new net.minecraft.world.item.ItemStack(com.foglurker.armor.FogArmor.supplier(i).get()));
+            }
+            check(com.foglurker.armor.FogArmor.hasFullSet(p), "four pieces of Armour of the Fog should be a full set");
+            check(com.foglurker.armor.FogArmor.damageReductionPercent(p) == 80,
+                    "a full set made from netherite should take 80% off, took " + com.foglurker.armor.FogArmor.damageReductionPercent(p));
+            p.addEffect(new net.minecraft.world.effect.MobEffectInstance(com.foglurker.registry.ModEffects.MAULED, 200));
+            check(!com.foglurker.effect.MauledEffect.isMauled(p), "a full set should shake off Mauled");
+            check(server.getRecipeManager().byKey(fid("helmet_of_the_fog")).isPresent(), "the smithing recipe is not loaded");
+            check(server.getRecipeManager().byKey(fid("ascension_from_the_fog_smithing_template")).isPresent(), "the template recipe is not loaded");
+            com.foglurker.armor.FogArmor.checkFullSetAdvancement(p);
+            var adv = server.getAdvancements().get(fid("ascension_from_the_fog"));
+            check(adv != null && p.getAdvancements().getOrStartProgress(adv).isDone(), "the full set should earn its advancement");
+            for (var slot : slots) {
+                p.setItemSlot(slot, net.minecraft.world.item.ItemStack.EMPTY);
+            }
+            h.succeed();
+        });
+    }
+
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE, batch = "advancements", timeoutTicks = 100)
+    public static void ownAdvancementsLoadAndAreGranted(GameTestHelper h) {
+        logged(h, () -> {
+            MinecraftServer server = h.getLevel().getServer();
+            for (String n : List.of("root", "first_sighting", "still_breathing", "the_fog_lifts", "teeth_in_the_leg", "for_whom_the_bell_tolls", "hmm_did_i_do_that", "can_you_see_me", "pressed_fog", "forged_in_fog", "begone", "off_the_map", "lookout", "cold_ashes", "fallen_keep", "last_light", "dug_in", "something_in_the_well", "mapped_the_fog", "ascension_from_the_fog")) {
+                check(server.getAdvancements().get(fid(n)) != null, "advancement foglurker:" + n + " did not load");
+            }
+            ServerPlayer p = player(h, 1.5, 1.5);
+            com.foglurker.world.ModAdvancements.award(p, com.foglurker.world.ModAdvancements.BEGONE);
+            check(com.foglurker.world.ModAdvancements.has(p, com.foglurker.world.ModAdvancements.BEGONE), "a granted advancement should be done");
+            com.foglurker.world.ModAdvancements.award(p, "no_such_advancement"); // (a missing one is skipped, never thrown)
+            h.succeed();
         });
     }
 
@@ -3152,4 +3292,102 @@ public final class FogLurkerGameTests implements FabricGameTest {
             h.succeed();
         });
     }
+    /** Each structure's ground (first air above it), in blocks above the bottom of its first piece (as in gen.py). */
+    private static final java.util.Map<String, Integer> GROUND_DEPTH = java.util.Map.of("lookout_tower", 0,
+            "abandoned_campfire", 1, "abandoned_castle", 5, "fortified_castle", 5, "fog_well", 14);
+
+    /** The top of the natural ground here (first air above it), skipping trees, plants and snow layers. */
+    private static int naturalSurface(ServerLevel level, int x, int z, int fromY) {
+        var pos = new net.minecraft.core.BlockPos.MutableBlockPos(x, fromY, z);
+        for (int y = fromY; y > level.getMinBuildHeight(); y--) {
+            pos.setY(y);
+            var st = level.getBlockState(pos);
+            if (st.is(net.minecraft.tags.BlockTags.DIRT) || st.is(net.minecraft.tags.BlockTags.BASE_STONE_OVERWORLD)
+                    || st.is(net.minecraft.tags.BlockTags.SAND) || st.is(net.minecraft.world.level.block.Blocks.GRAVEL)
+                    || st.is(net.minecraft.world.level.block.Blocks.SNOW_BLOCK) || st.is(net.minecraft.tags.BlockTags.TERRACOTTA)
+                    || st.is(net.minecraft.world.level.block.Blocks.GRASS_BLOCK) || st.is(net.minecraft.world.level.block.Blocks.MUD)) {
+                return y + 1;
+            }
+        }
+        return Integer.MIN_VALUE;
+    }
+
+    /**
+     * Real, naturally generated copies of each structure in the test world: the ground just outside every piece
+     * must meet the structure's own ground (it must not stand on stilts over a slope, or sink into one).
+     */
+    @GameTest(template = FabricGameTest.EMPTY_STRUCTURE, batch = "structureheights", timeoutTicks = 40000)
+    public static void structuresSitOnTheGround(GameTestHelper h) {
+        logged(h, () -> {
+            ServerLevel level = h.getLevel();
+            MinecraftServer server = level.getServer();
+            var reg = server.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+            var gen = level.getChunkSource().getGenerator();
+            StringBuilder bad = new StringBuilder();
+            for (var e : GROUND_DEPTH.entrySet()) {
+                String n = e.getKey();
+                var key = net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, fid(n));
+                var holder = reg.getHolderOrThrow(key);
+                var structure = holder.value();
+                java.util.Set<Long> seen = new java.util.HashSet<>();
+                int copies = 0;
+                int worst = 0;
+                java.util.List<Integer> all = new java.util.ArrayList<>();
+                for (int o = 0; o < 6; o++) {
+                    var origin = new net.minecraft.core.BlockPos(6000 + o * 2600, 64, -4000 + o * 1700);
+                    var found = gen.findNearestMapStructure(level, net.minecraft.core.HolderSet.direct(holder), origin, 60, false);
+                    if (found == null || !seen.add(net.minecraft.world.level.ChunkPos.asLong(found.getFirst().getX() >> 4, found.getFirst().getZ() >> 4))) {
+                        continue;
+                    }
+                    var start = level.getChunk(found.getFirst().getX() >> 4, found.getFirst().getZ() >> 4).getStartForStructure(structure);
+                    if (start == null || !start.isValid()) {
+                        continue;
+                    }
+                    var box = start.getBoundingBox();
+                    for (int cx = (box.minX() - 3) >> 4; cx <= (box.maxX() + 3) >> 4; cx++) {
+                        for (int cz = (box.minZ() - 3) >> 4; cz <= (box.maxZ() + 3) >> 4; cz++) {
+                            level.getChunk(cx, cz); // generated in full: terrain shaped round it, the pieces placed
+                        }
+                    }
+                    copies++;
+                    int lo = Integer.MAX_VALUE;
+                    int hi = Integer.MIN_VALUE;
+                    int ground = start.getPieces().get(0).getBoundingBox().minY() + e.getValue();
+                    for (var piece : start.getPieces()) {
+                        var b = piece.getBoundingBox();
+                        for (int x = b.minX() - 1; x <= b.maxX() + 1; x++) {
+                            for (int z = b.minZ() - 1; z <= b.maxZ() + 1; z++) {
+                                boolean ring = x == b.minX() - 1 || x == b.maxX() + 1 || z == b.minZ() - 1 || z == b.maxZ() + 1;
+                                var at = new net.minecraft.core.BlockPos(x, ground, z);
+                                if (!ring || start.getPieces().stream().anyMatch(q -> q != piece && q.getBoundingBox().inflatedBy(1).isInside(at))) {
+                                    continue;
+                                }
+                                int top = naturalSurface(level, x, z, b.maxY() + 12);
+                                if (top != Integer.MIN_VALUE) {
+                                    int d = top - ground;
+                                    lo = Math.min(lo, d);
+                                    hi = Math.max(hi, d);
+                                    all.add(d);
+                                }
+                            }
+                        }
+                    }
+                    com.foglurker.FogLurkerMod.LOGGER.info("Structure height {} at {}: ground outside it {}..{} blocks from its own",
+                            n, box.getCenter().toShortString(), lo, hi);
+                    worst = Math.max(worst, Math.max(Math.abs(lo), Math.abs(hi)));
+                }
+                java.util.Collections.sort(all);
+                int p90 = all.isEmpty() ? 0 : Math.max(Math.abs(all.get(all.size() / 20)), Math.abs(all.get(all.size() - 1 - all.size() / 20)));
+                com.foglurker.FogLurkerMod.LOGGER.info("Structure heights {}: {} copies, worst {}, 90% within {}", n, copies, worst, p90);
+                if (p90 > MAX_GROUND_STEP) {
+                    bad.append(n).append(" (90% within ").append(p90).append(", worst ").append(worst).append(") ");
+                }
+            }
+            check(bad.length() == 0, "structures off the ground: " + bad);
+            h.succeed();
+        });
+    }
+
+    /** How far the ground round a structure may be from its own ground (a step you can walk up). */
+    private static final int MAX_GROUND_STEP = 1;
 }

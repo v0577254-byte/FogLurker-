@@ -199,6 +199,105 @@ public class FogLurkerEntity extends PathfinderMob {
 
     /** Like a spider: in its attacking form it climbs any wall it runs into, including the tower you built. */
     private boolean climbing;
+    /** Climbing up a column of poured water (a bucket spill is not a body of water: it goes straight up it). */
+    private boolean climbingSpill;
+    /** Walking through a poured bucket: not slowed or pushed by it. */
+    private boolean inSpillTravel;
+    private int lastSpillJumpTick = -100;
+
+    /**
+     * The attacking form plans its path knowing water: a real body of water stays off-limits, but a single poured
+     * bucket is just ground to walk through (it is not fooled by a puddle).
+     */
+    @Override
+    protected net.minecraft.world.entity.ai.navigation.PathNavigation createNavigation(Level level) {
+        return new GroundPathNavigation(this, level) {
+            @Override
+            protected net.minecraft.world.level.pathfinder.PathFinder createPathFinder(int maxVisitedNodes) {
+                this.nodeEvaluator = new net.minecraft.world.level.pathfinder.WalkNodeEvaluator() {
+                    @Override
+                    public PathType getPathType(net.minecraft.world.level.pathfinder.PathfindingContext context, int x, int y, int z) {
+                        PathType type = super.getPathType(context, x, y, z);
+                        net.minecraft.world.level.BlockGetter getter = context.level();
+                        if (!FogLurkerEntity.this.isAttackForm()) {
+                            return type;
+                        }
+                        if (type == PathType.WATER) {
+                            net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(x, y, z);
+                            if (com.foglurker.brain.SpotFinder.isWaterBodyBlock(getter, pos)) {
+                                return type;
+                            }
+                            // A spill: what is under it decides.
+                            if (!getter.getBlockState(pos).getCollisionShape(getter, pos).isEmpty()) {
+                                return PathType.BLOCKED;
+                            }
+                            net.minecraft.core.BlockPos below = pos.below();
+                            net.minecraft.world.level.material.FluidState belowFluid = getter.getFluidState(below);
+                            if (com.foglurker.brain.SpotFinder.isWaterBodyBlock(getter, below)) {
+                                return PathType.WATER;
+                            }
+                            if (!belowFluid.isEmpty() && !belowFluid.is(net.minecraft.tags.FluidTags.WATER)) {
+                                return PathType.LAVA;
+                            }
+                            BlockState belowState = getter.getBlockState(below);
+                            if (belowState.is(net.minecraft.world.level.block.Blocks.MAGMA_BLOCK) || belowState.is(net.minecraft.tags.BlockTags.CAMPFIRES)) {
+                                return PathType.DAMAGE_FIRE;
+                            }
+                            if (belowState.is(net.minecraft.world.level.block.Blocks.CACTUS) || belowState.is(net.minecraft.world.level.block.Blocks.SWEET_BERRY_BUSH)) {
+                                return PathType.DAMAGE_OTHER;
+                            }
+                            if (belowState.getCollisionShape(getter, below).isEmpty()) {
+                                return PathType.OPEN;
+                            }
+                            return com.foglurker.brain.SpotFinder.hasAdjacentWaterBody(getter, pos) ? PathType.WATER_BORDER : PathType.WALKABLE;
+                        }
+                        if (type == PathType.WATER_BORDER
+                                && !com.foglurker.brain.SpotFinder.hasAdjacentWaterBody(getter, new net.minecraft.core.BlockPos(x, y, z))) {
+                            return PathType.WALKABLE; // only a spill beside it
+                        }
+                        return type;
+                    }
+                };
+                this.nodeEvaluator.setCanPassDoors(true);
+                return new net.minecraft.world.level.pathfinder.PathFinder(this.nodeEvaluator, maxVisitedNodes);
+            }
+        };
+    }
+
+    @Override
+    protected boolean isAffectedByFluids() {
+        return !this.inSpillTravel && super.isAffectedByFluids();
+    }
+
+    @Override
+    protected void jumpInLiquid(net.minecraft.tags.TagKey<net.minecraft.world.level.material.Fluid> fluid) {
+        if (fluid == net.minecraft.tags.FluidTags.WATER && isAttackForm() && this.onGround()
+                && !com.foglurker.brain.SpotFinder.isInWaterBody(this)) {
+            // In a spill it hops over the lip of the water like any step, but no faster than twice a second.
+            if (this.tickCount - this.lastSpillJumpTick >= 10) {
+                this.lastSpillJumpTick = this.tickCount;
+                this.jumpFromGround();
+            }
+            return;
+        }
+        super.jumpInLiquid(fluid);
+    }
+
+    @Override
+    public boolean isPushedByFluid() {
+        return !(isAttackForm() && this.isInWater() && !com.foglurker.brain.SpotFinder.isInWaterBody(this)) && super.isPushedByFluid();
+    }
+
+    private void updateClimbingState() {
+        boolean inWaterBody = isAttackForm() && com.foglurker.brain.SpotFinder.isInWaterBody(this);
+        net.minecraft.core.BlockPos pos = this.blockPosition();
+        boolean inVerticalSpill = this.level().getFluidState(pos.above()).is(net.minecraft.tags.FluidTags.WATER)
+                || !this.onGround() && this.level().getFluidState(pos).is(net.minecraft.tags.FluidTags.WATER)
+                && this.level().getFluidState(pos.below()).is(net.minecraft.tags.FluidTags.WATER);
+        this.climbingSpill = isAttackForm() && !isFlopped() && !inWaterBody && this.isInWater()
+                && this.brain != null && this.brain.wantsClimbSpill() && inVerticalSpill;
+        this.climbing = isAttackForm() && !isFlopped() && !inWaterBody && (this.horizontalCollision || this.climbingSpill);
+    }
 
     @Override
     public void tick() {
@@ -217,7 +316,10 @@ public class FogLurkerEntity extends PathfinderMob {
             }
             clientTicker.accept(this);
         } else {
-            this.climbing = isAttackForm() && this.horizontalCollision && !isFlopped();
+            updateClimbingState();
+            if ((this.tickCount + this.getId()) % 10 == 0) {
+                noteWhoSeesItsRealShape();
+            }
             if (flopLeft > 0 && --flopLeft == 0) {
                 if (this.level() instanceof ServerLevel level) {
                     level.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF, getX(), getY() + 0.1, getZ(),
@@ -238,13 +340,25 @@ public class FogLurkerEntity extends PathfinderMob {
 
     @Override
     public void travel(net.minecraft.world.phys.Vec3 input) {
-        super.travel(input);
+        if (!this.level().isClientSide) {
+            updateClimbingState();
+        }
+        // Through a poured bucket it walks as on dry ground (not slowed, not floated).
+        this.inSpillTravel = isAttackForm() && !this.isInLava() && this.isInWater() && !com.foglurker.brain.SpotFinder.isInWaterBody(this);
+        try {
+            super.travel(input);
+        } finally {
+            this.inSpillTravel = false;
+        }
         // Minecraft resets a climber's speed to its own fixed value every tick: scale that up while it is on a wall.
         if (this.climbing && this.horizontalCollision) {
             net.minecraft.world.phys.Vec3 v = getDeltaMovement();
             if (v.y > 0) {
                 setDeltaMovement(v.x, v.y * CLIMB_BOOST, v.z);
             }
+        } else if (this.climbingSpill && !this.horizontalCollision) {
+            net.minecraft.world.phys.Vec3 v = getDeltaMovement();
+            setDeltaMovement(v.x, Math.max(v.y, 0.22), v.z); // up the column of water
         }
     }
 
@@ -344,6 +458,13 @@ public class FogLurkerEntity extends PathfinderMob {
 
     public void setDisguise(Disguise disguise) {
         this.entityData.set(DATA_DISGUISE, disguise.ordinal());
+        // A sitting dog or a grazing sheep that changes shape does not carry the pose into the new one.
+        if (disguise != Disguise.DOG) {
+            setFlag(FLAG_SITTING, false);
+        }
+        if (disguise != Disguise.SHEEP) {
+            setFlag(FLAG_GRAZING, false);
+        }
         if (disguise != Disguise.PLAYER) {
             setCrouching(false);
             this.setSwimming(false);
@@ -354,6 +475,26 @@ public class FogLurkerEntity extends PathfinderMob {
             this.setCustomName(null);
         }
         this.refreshDimensions();
+    }
+
+    /**
+     * Anyone looking straight at it while it is itself (its pale shape, not a disguise) has now seen it: from then on
+     * a faint picture of it shows whenever they sleep.
+     */
+    private void noteWhoSeesItsRealShape() {
+        if (getDisguise() != Disguise.CRAWLER || this.isInvisible() || !(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        for (net.minecraft.server.level.ServerPlayer p : level.players()) {
+            if (p.isSpectator() || p instanceof net.fabricmc.fabric.api.entity.FakePlayer || p.distanceToSqr(this) > 64 * 64) {
+                continue;
+            }
+            Vec3 to = new Vec3(getX(), getY(0.5), getZ()).subtract(p.getEyePosition());
+            double len = to.length();
+            if (len > 1e-3 && p.getViewVector(1F).dot(to.scale(1 / len)) > 0.85 && p.hasLineOfSight(this)) {
+                com.foglurker.world.SleepParalysis.sawRealShape(p);
+            }
+        }
     }
 
     public boolean isAttackForm() {
@@ -680,8 +821,8 @@ public class FogLurkerEntity extends PathfinderMob {
      * out of a boat you are sitting in on land.
      */
     private void chomp(LivingEntity victim, LurkerDifficulty diff) {
-        if (!victim.isAlive()) {
-            return;
+        if (!victim.isAlive() || com.foglurker.armor.FogArmor.hasFullSet(victim)) {
+            return; // (a full set of Armour of the Fog shrugs off the bite's slowness and mauling)
         }
         victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN,
                 200, 0, false, true, true), this);
@@ -690,7 +831,7 @@ public class FogLurkerEntity extends PathfinderMob {
         if (mauls) {
             victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(com.foglurker.registry.ModEffects.MAULED,
                     200, 0, false, true, true), this);
-            if (victim.getVehicle() instanceof net.minecraft.world.entity.vehicle.Boat boat && !boat.isInWater()) {
+            if (victim.getVehicle() instanceof net.minecraft.world.entity.vehicle.Boat boat && !com.foglurker.brain.SpotFinder.isHullOnWaterBody(boat)) {
                 victim.stopRiding(); // on land only: a boat that is afloat is your way out
             }
         }

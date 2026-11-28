@@ -1,5 +1,5 @@
 {
-  "parent": "minecraft:adventure/root",
+  "parent": "foglurker:pressed_fog",
   "display": {
     "icon": {
       "item": "foglurker:ascension_from_the_fog_smithing_template"

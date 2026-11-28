@@ -224,6 +224,11 @@ public final class ClientEffects {
         float end = com.mojang.blaze3d.systems.RenderSystem.getShaderFogEnd();
         float far = com.foglurker.util.FogCurve.far(f, renderDistance);
         float near = com.foglurker.util.FogCurve.near(f, far, start);
+        net.minecraft.client.player.LocalPlayer me = Minecraft.getInstance().player;
+        if (me != null && com.foglurker.armor.FogArmor.hasFullSet(me)) { // a full set of Armour of the Fog sees further
+            far = com.foglurker.util.FogCurve.clearFar(far, end);
+            near = com.foglurker.util.FogCurve.clearNear(near, far, start);
+        }
         lastFar = far;
         com.mojang.blaze3d.systems.RenderSystem.setShaderFogStart(Math.min(start, near));
         com.mojang.blaze3d.systems.RenderSystem.setShaderFogEnd(Math.min(end, far));

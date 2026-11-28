@@ -1454,6 +1454,9 @@ public final class LurkerBrain {
 
     /** The target got away from an attack: it remembers, and is a little more likely to attack next time. */
     private void noteEscape(@Nullable ServerPlayer t) {
+        if (t != null) {
+            com.foglurker.world.ModAdvancements.award(t, com.foglurker.world.ModAdvancements.STILL_BREATHING);
+        }
         if (t == null || escaped || !FogLurkerConfig.COMMON.escapeEscalation.get()) {
             return;
         }

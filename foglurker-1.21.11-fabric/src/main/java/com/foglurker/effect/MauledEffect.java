@@ -25,8 +25,20 @@ public class MauledEffect extends MobEffect {
         super(MobEffectCategory.HARMFUL, 0x8A0A12);
     }
 
+    /** A full set of Armour of the Fog shakes it off. */
     public static boolean isMauled(LivingEntity e) {
-        return e.hasEffect(ModEffects.MAULED);
+        return e.hasEffect(ModEffects.MAULED) && !com.foglurker.armor.FogArmor.hasFullSet(e);
+    }
+
+    @Override
+    public boolean shouldApplyEffectTickThisTick(int duration, int amplifier) {
+        return true;
+    }
+
+    /** Ends at once (returns false) on someone wearing a full set of Armour of the Fog. */
+    @Override
+    public boolean applyEffectTick(net.minecraft.server.level.ServerLevel level, LivingEntity entity, int amplifier) {
+        return !com.foglurker.armor.FogArmor.hasFullSet(entity);
     }
 
     /** Right after a jump started (LivingEntityMixin): the leg gives way. */

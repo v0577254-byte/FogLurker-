@@ -221,6 +221,11 @@ public final class ClientEffects {
         // the old near / far planes were; the environmental fog is where the creature's fog goes now.)
         float far = com.foglurker.util.FogCurve.far(f, data.renderDistanceEnd);
         float near = com.foglurker.util.FogCurve.near(f, far, data.renderDistanceStart);
+        net.minecraft.client.player.LocalPlayer me = Minecraft.getInstance().player;
+        if (me != null && com.foglurker.armor.FogArmor.hasFullSet(me)) { // a full set of Armour of the Fog sees further
+            far = com.foglurker.util.FogCurve.clearFar(far, data.renderDistanceEnd);
+            near = com.foglurker.util.FogCurve.clearNear(near, far, data.renderDistanceStart);
+        }
         lastFar = far;
         data.environmentalStart = Math.min(data.environmentalStart, near);
         data.environmentalEnd = Math.min(data.environmentalEnd, far);

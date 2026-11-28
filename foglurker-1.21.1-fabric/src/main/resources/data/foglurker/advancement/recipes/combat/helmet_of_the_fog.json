@@ -1,0 +1,36 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "foglurker:helmet_of_the_fog"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    },
+    "has_fog_ingredient": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "foglurker:ascension_from_the_fog_smithing_template",
+              "foglurker:ingot_of_the_fog"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_fog_ingredient",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "foglurker:helmet_of_the_fog"
+    ]
+  },
+  "sends_telemetry_event": false
+}

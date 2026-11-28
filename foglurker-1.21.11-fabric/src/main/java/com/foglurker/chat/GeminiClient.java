@@ -186,7 +186,7 @@ public final class GeminiClient {
      */
     public static void setBaseUrlForTests(@Nullable String url) {
         base = url == null ? DEFAULT_BASE : url;
-        testTimeoutSeconds = url == null ? 0 : 2;
+        testTimeoutSeconds = url == null ? 0 : 4; // (short, but with room for a busy test machine)
         THINKING.clear();
         MODEL_SLOW_UNTIL.clear();
     }

@@ -119,7 +119,11 @@ public final class FogLurkerCommands {
                         .then(Commands.literal("sleep-paralysis")
                                 .executes(cheats(ctx -> forceSleepParalysis(ctx, ctx.getSource().getPlayerOrException())))
                                 .then(Commands.argument("target", EntityArgument.player())
-                                        .executes(cheats(ctx -> forceSleepParalysis(ctx, EntityArgument.getPlayer(ctx, "target")))))))
+                                        .executes(cheats(ctx -> forceSleepParalysis(ctx, EntityArgument.getPlayer(ctx, "target"))))))
+                        .then(Commands.literal("sleep-words")
+                                .executes(cheats(ctx -> forceSleepWords(ctx, ctx.getSource().getPlayerOrException())))
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .executes(cheats(ctx -> forceSleepWords(ctx, EntityArgument.getPlayer(ctx, "target")))))))
                 .then(Commands.literal("spawntimer")
                         .executes(cheats(FogLurkerCommands::spawnTimer)))
                 .then(Commands.literal("fog")
@@ -310,6 +314,14 @@ public final class FogLurkerCommands {
                 ? "Done! the next time you go to sleep you will experience sleep paralysis"
                 : "Done! the next time " + target.getGameProfile().getName() + " goes to sleep he/she will experience sleep paralysis";
         ctx.getSource().sendSuccess(() -> Component.literal(text), false); // exactly this, no prefix
+        return 1;
+    }
+
+    /** The next time they go to sleep, the rare red words (see SleepParalysis). */
+    private static int forceSleepWords(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
+        com.foglurker.world.SleepParalysis.forceWords(target);
+        String who = ctx.getSource().getEntity() == target ? "you go" : target.getGameProfile().getName() + " goes";
+        ctx.getSource().sendSuccess(() -> Component.literal("The next time " + who + " to sleep, something will ask a question"), false);
         return 1;
     }
 

@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "foglurker:fog_of_the_night"
+    },
+    "title": {
+      "translate": "advancements.foglurker.root.title"
+    },
+    "description": {
+      "translate": "advancements.foglurker.root.description"
+    },
+    "frame": "task",
+    "show_toast": false,
+    "announce_to_chat": false,
+    "hidden": false,
+    "background": "minecraft:textures/block/gray_concrete_powder.png"
+  },
+  "criteria": {
+    "joined": {
+      "trigger": "minecraft:tick"
+    }
+  },
+  "requirements": [
+    [
+      "joined"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

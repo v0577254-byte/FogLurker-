@@ -32,6 +32,7 @@ public final class BehaviorTracker {
 
     public static void onServerStopped() {
         WINDOWS.clear();
+        CLICKED.clear();
         WATCHED.clear(); // mob ids and positions from this world mean nothing in the next one
     }
     private static final Map<UUID, Watch> WATCHED = new HashMap<>();
@@ -345,17 +346,27 @@ public final class BehaviorTracker {
     }
 
     /** Remembers a storage block a player really opened with their own hands (a book only ever goes in one of those). */
-    private static void openedByHand(ServerPlayer p) {
+    private static void openedByHand(ServerPlayer p, net.minecraft.world.inventory.AbstractContainerMenu menu) {
         long[] clicked = CLICKED.remove(p.getUUID());
         if (clicked == null || clicked[1] != p.level().getGameTime() || p instanceof FakePlayer) {
             return; // (a menu that did not come from clicking a block, or a click a claim mod refused: no menu opened)
         }
+        // ...and it is that block's own menu (not one another mod opened on the same click).
+        net.minecraft.world.Container opened;
+        if (menu instanceof net.minecraft.world.inventory.ChestMenu chest) {
+            opened = chest.getContainer();
+        } else if (menu instanceof net.minecraft.world.inventory.AbstractFurnaceMenu) {
+            opened = menu.getSlot(0).container;
+        } else {
+            return;
+        }
         net.minecraft.core.BlockPos pos = net.minecraft.core.BlockPos.of(clicked[0]);
         var be = p.level().getBlockEntity(pos);
         // Only storage and furnaces (where a book can go): hoppers and dispensers must not push their chests out of the list.
-        if (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
+        if ((be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
                 || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
-                || be instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) {
+                || be instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)
+                && (opened == be || opened instanceof net.minecraft.world.CompoundContainer both && both.contains((net.minecraft.world.Container) be))) {
             FogLurkerSavedData data = FogLurkerSavedData.get(p.level().getServer());
             data.profile(p.getUUID()).openedContainer(pos);
             data.setDirty();
@@ -364,7 +375,7 @@ public final class BehaviorTracker {
 
     /** A menu opened for a player (ServerPlayerMixin). */
     public static void onContainer(ServerPlayer player, net.minecraft.world.inventory.AbstractContainerMenu menu) {
-        openedByHand(player);
+        openedByHand(player, menu);
         // Only storage (chests, barrels, shulker boxes) marks a home: not crafting tables, furnaces or villagers.
         boolean storage = (menu instanceof net.minecraft.world.inventory.ChestMenu chest
                 && !(chest.getContainer() instanceof net.minecraft.world.inventory.PlayerEnderChestContainer)) // an ender chest goes anywhere

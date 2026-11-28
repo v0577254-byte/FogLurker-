@@ -74,6 +74,10 @@ public final class ClientShowcase {
             snowScene(mc, server);
             return;
         }
+        if ("sleepwords".equals(System.getProperty("foglurker.scene"))) {
+            sleepWordsScene(mc, server);
+            return;
+        }
         if ("scares".equals(System.getProperty("foglurker.scene"))) {
             scaresScene(mc, server);
             return;
@@ -758,6 +762,40 @@ public final class ClientShowcase {
             case 140 -> shot(mc, "foglurker_surge_in.png");
             case 400 -> shot(mc, "foglurker_surge_after.png");
             case 420 -> mc.stop();
+            default -> {
+            }
+        }
+    }
+
+    /** Lying down in a bed at night with the picture earned and the red words forced: what the sleeper sees. */
+    private static void sleepWordsScene(Minecraft mc, MinecraftServer server) {
+        switch (ticks) {
+            case 40 -> {
+                mc.options.hideGui = false;
+                server.execute(() -> {
+                    ServerPlayer p = sp(server);
+                    ServerLevel level = p.serverLevel();
+                    level.setDayTime(18000);
+                    p.setGameMode(GameType.CREATIVE);
+                    var data = com.foglurker.world.FogLurkerSavedData.get(server);
+                    data.setNaturalSpawning(false); // (no sleep paralysis roll in the way)
+                    data.profile(p.getUUID()).sawRealShape = true;
+                    com.foglurker.world.SleepParalysis.forceWords(p);
+                    BlockPos foot = p.blockPosition().east(2);
+                    level.setBlock(foot.below(), Blocks.STONE.defaultBlockState(), 2);
+                    level.setBlock(foot.below().east(), Blocks.STONE.defaultBlockState(), 2);
+                    level.setBlock(foot, Blocks.RED_BED.defaultBlockState()
+                            .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST)
+                            .setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
+                    level.setBlock(foot.east(), Blocks.RED_BED.defaultBlockState()
+                            .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST)
+                            .setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+                    var result = p.startSleepInBed(foot.east());
+                    FogLurkerMod.LOGGER.info("Showcase: sleeping {}", result.left().map(Object::toString).orElse("ok"));
+                });
+            }
+            case 75, 82, 90, 97 -> shot(mc, "foglurker_sleep_words_" + ticks + ".png");
+            case 110 -> mc.stop();
             default -> {
             }
         }

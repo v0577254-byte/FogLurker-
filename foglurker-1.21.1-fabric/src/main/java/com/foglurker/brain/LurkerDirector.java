@@ -220,6 +220,9 @@ public final class LurkerDirector {
             }
             driven++;
         }
+        if (driven > 0 && ringer != null) {
+            com.foglurker.world.ModAdvancements.award(ringer, com.foglurker.world.ModAdvancements.BELL);
+        }
         if (ignored && driven == 0 && ringer != null) {
             ringer.displayClientMessage(net.minecraft.network.chat.Component.literal("The bell rings out... nothing runs this time.")
                     .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC), true);
@@ -896,21 +899,24 @@ public final class LurkerDirector {
     @Nullable
     private static ServerPlayer pickFriend(ServerPlayer target, RandomSource r) {
         int minSep = FogLurkerConfig.COMMON.minPlayerSeparation.get();
-        List<ServerPlayer> far = new ArrayList<>();
+        List<ServerPlayer> sameDimension = new ArrayList<>();
+        List<ServerPlayer> otherDimensions = new ArrayList<>();
         for (ServerPlayer p : target.level().getServer().getPlayerList().getPlayers()) {
             if (p == target || p instanceof FakePlayer || p.isSpectator() || !p.isAlive()) {
                 continue;
             }
-            if (p.level() != target.level() || p.distanceTo(target) >= minSep) {
-                far.add(p);
+            if (p.level() != target.level()) {
+                otherDimensions.add(p);
+            } else if (p.distanceTo(target) >= minSep) {
+                sameDimension.add(p);
             }
         }
-        if (far.isEmpty()) {
-            return null;
+        // Prefer someone in the same dimension ("they went to get wood"), any of them, not always the same one.
+        List<ServerPlayer> candidates = otherDimensions;
+        if (!sameDimension.isEmpty() && (otherDimensions.isEmpty() || r.nextFloat() < 0.8F)) {
+            candidates = sameDimension;
         }
-        // Prefer someone in the same dimension: "they went to get wood".
-        far.sort((a, b) -> Boolean.compare(b.level() == target.level(), a.level() == target.level()));
-        return r.nextFloat() < 0.8F ? far.get(0) : far.get(r.nextInt(far.size()));
+        return candidates.isEmpty() ? null : candidates.get(r.nextInt(candidates.size()));
     }
 
     @Nullable

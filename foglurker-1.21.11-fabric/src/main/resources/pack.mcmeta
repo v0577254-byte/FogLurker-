@@ -1,6 +1,8 @@
 {
   "pack": {
     "description": "Fog Lurker resources",
+    "pack_format": 75,
+    "supported_formats": [75, 81],
     "min_format": 75,
     "max_format": [94, 1]
   }

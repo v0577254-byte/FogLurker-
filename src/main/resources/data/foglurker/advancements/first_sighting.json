@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "item": "foglurker:teeth_of_the_lurker"
+    },
+    "title": {
+      "translate": "advancements.foglurker.first_sighting.title"
+    },
+    "description": {
+      "translate": "advancements.foglurker.first_sighting.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "parent": "foglurker:root",
+  "requirements": [
+    [
+      "done"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

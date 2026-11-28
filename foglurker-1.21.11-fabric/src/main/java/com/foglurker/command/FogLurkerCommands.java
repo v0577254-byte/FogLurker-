@@ -55,11 +55,28 @@ public final class FogLurkerCommands {
 
     private static final SuggestionProvider<CommandSourceStack> DIFFICULTIES = (ctx, b) ->
             SharedSuggestionProvider.suggest(Arrays.stream(LurkerDifficulty.values()).map(LurkerDifficulty::id), b);
-    private static final SuggestionProvider<CommandSourceStack> DISGUISES = (ctx, b) ->
-            SharedSuggestionProvider.suggest(Stream.concat(Stream.of("random"),
-                    Arrays.stream(Disguise.values()).map(Disguise::id)), b);
-    private static final SuggestionProvider<CommandSourceStack> BEHAVIORS = (ctx, b) ->
-            SharedSuggestionProvider.suggest(List.of("random", "attack", "watch"), b);
+    private static final List<String> DISGUISE_NAMES =
+            Stream.concat(Stream.of("random"), Arrays.stream(Disguise.values()).map(Disguise::id)).toList();
+    private static final SuggestionProvider<CommandSourceStack> DISGUISES = (ctx, b) -> SharedSuggestionProvider.suggest(DISGUISE_NAMES, b);
+    private static final List<String> BEHAVIOR_NAMES = List.of("random", "attack", "watch");
+    private static final SuggestionProvider<CommandSourceStack> BEHAVIORS = (ctx, b) -> SharedSuggestionProvider.suggest(BEHAVIOR_NAMES, b);
+    /** /foglurker locate <name>: the mod's structures by short name. */
+    private static final java.util.Map<String, net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.structure.Structure>> LOCATE_ALIASES =
+            java.util.Map.of("tower", com.foglurker.world.FogStructures.LOOKOUT_TOWER,
+                    "campfire", structureKey("abandoned_campfire"),
+                    "castle", structureKey("fortified_castle"),
+                    "castle-abandoned", structureKey("abandoned_castle"),
+                    "bunker", structureKey("hunters_bunker"),
+                    "well", structureKey("fog_well"));
+
+    private static net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.structure.Structure> structureKey(String path) {
+        return net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, FogLurkerMod.id(path));
+    }
+
+    @org.jetbrains.annotations.Nullable
+    public static net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.structure.Structure> resolveLocateAlias(String alias) {
+        return LOCATE_ALIASES.get(alias.toLowerCase(java.util.Locale.ROOT));
+    }
 
     private FogLurkerCommands() {
     }
@@ -67,6 +84,10 @@ public final class FogLurkerCommands {
     /** CommandRegistrationCallback (ModEvents). */
     public static void register(CommandDispatcher<CommandSourceStack> d) {
         d.register(Commands.literal("foglurker")
+                .then(Commands.literal("locate") // (shown to everyone, like the other admin commands: cheats() says what is needed)
+                        .then(Commands.argument("structure", StringArgumentType.word())
+                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(LOCATE_ALIASES.keySet(), b))
+                                .executes(cheats(ctx -> locate(ctx.getSource(), StringArgumentType.getString(ctx, "structure"))))))
                 .then(Commands.literal("spawn")
                         .executes(cheats(ctx -> spawn(ctx, ctx.getSource().getPlayerOrException(), "random", "random")))
                         .then(Commands.argument("target", EntityArgument.player())
@@ -82,6 +103,7 @@ public final class FogLurkerCommands {
                 .then(Commands.literal("endgrace")
                         .executes(cheats(FogLurkerCommands::endGrace)))
                 .then(Commands.literal("force")
+                        .then(forceSpawnNode())
                         .then(forceNode("hide", LurkerDirector.Forced.HIDE))
                         .then(forceNode("stalk", LurkerDirector.Forced.STALK))
                         .then(forceNode("attack", LurkerDirector.Forced.ATTACK))
@@ -92,7 +114,11 @@ public final class FogLurkerCommands {
                         .then(Commands.literal("sleep-paralysis")
                                 .executes(cheats(ctx -> forceSleepParalysis(ctx, ctx.getSource().getPlayerOrException())))
                                 .then(Commands.argument("target", EntityArgument.player())
-                                        .executes(cheats(ctx -> forceSleepParalysis(ctx, EntityArgument.getPlayer(ctx, "target")))))))
+                                        .executes(cheats(ctx -> forceSleepParalysis(ctx, EntityArgument.getPlayer(ctx, "target"))))))
+                        .then(Commands.literal("sleep-words")
+                                .executes(cheats(ctx -> forceSleepWords(ctx, ctx.getSource().getPlayerOrException())))
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .executes(cheats(ctx -> forceSleepWords(ctx, EntityArgument.getPlayer(ctx, "target")))))))
                 .then(Commands.literal("spawntimer")
                         .executes(cheats(FogLurkerCommands::spawnTimer)))
                 .then(Commands.literal("fog")
@@ -286,6 +312,14 @@ public final class FogLurkerCommands {
         return 1;
     }
 
+    /** The next time they go to sleep, the rare red words (see SleepParalysis). */
+    private static int forceSleepWords(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
+        com.foglurker.world.SleepParalysis.forceWords(target);
+        String who = ctx.getSource().getEntity() == target ? "you go" : target.getGameProfile().name() + " goes";
+        ctx.getSource().sendSuccess(() -> Component.literal("The next time " + who + " to sleep, something will ask a question"), false);
+        return 1;
+    }
+
     private static int forceMeet(CommandContext<CommandSourceStack> ctx, ServerPlayer target) {
         if (refuseAfk(ctx.getSource(), target)) {
             return 0;
@@ -416,6 +450,57 @@ public final class FogLurkerCommands {
 
     // =================================================================== /foglurker
 
+    /** /foglurker locate <tower|campfire|castle|castle-abandoned|bunker|well>: like /locate, with a click-to-teleport. */
+    private static int locate(CommandSourceStack src, String alias) {
+        var key = resolveLocateAlias(alias);
+        if (key == null) {
+            src.sendFailure(Component.literal("Unknown Fog Lurker structure: " + alias + ". Try: " + String.join(", ", LOCATE_ALIASES.keySet())));
+            return 0;
+        }
+        net.minecraft.server.level.ServerLevel level = src.getLevel();
+        var holder = level.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE).get(key);
+        net.minecraft.core.BlockPos origin = net.minecraft.core.BlockPos.containing(src.getPosition());
+        var found = holder.isPresent()
+                ? level.getChunkSource().getGenerator().findNearestMapStructure(level, net.minecraft.core.HolderSet.direct(holder.get()), origin, 100, false)
+                : null;
+        if (found == null) {
+            src.sendFailure(Component.translatable("commands.locate.structure.not_found", key.identifier().toString()));
+            return 0;
+        }
+        net.minecraft.core.BlockPos pos = found.getFirst();
+        long dx = (long) pos.getX() - origin.getX();
+        long dz = (long) pos.getZ() - origin.getZ();
+        int distance = net.minecraft.util.Mth.floor(Math.sqrt((double) (dx * dx + dz * dz)));
+        String command = "/tp @s " + pos.getX() + " ~ " + pos.getZ();
+        Component coordinates = net.minecraft.network.chat.ComponentUtils.wrapInSquareBrackets(
+                        Component.translatable("chat.coordinates", pos.getX(), "~", pos.getZ()))
+                .withStyle(net.minecraft.network.chat.Style.EMPTY.withColor(ChatFormatting.GREEN)
+                        .withClickEvent(new net.minecraft.network.chat.ClickEvent.SuggestCommand(command))
+                        .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.translatable("chat.coordinates.tooltip"))));
+        src.sendSuccess(() -> Component.translatable("commands.locate.structure.success", key.identifier().toString(), coordinates, distance), false);
+        return distance;
+    }
+
+    /** /foglurker force spawn [disguise] [attack|watch|random] [player]: the same as spawn, in the force family. */
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> forceSpawnNode() {
+        var disguise = Commands.argument("disguise", StringArgumentType.word()).suggests(DISGUISES)
+                .executes(cheats(ctx -> spawn(ctx, ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "disguise"), "random")));
+        for (String behavior : BEHAVIOR_NAMES) {
+            disguise.then(Commands.literal(behavior)
+                    .executes(cheats(ctx -> spawn(ctx, ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "disguise"), behavior)))
+                    .then(Commands.argument("target", EntityArgument.player())
+                            .executes(cheats(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"), StringArgumentType.getString(ctx, "disguise"), behavior)))));
+        }
+        disguise.then(Commands.argument("target", EntityArgument.player())
+                .executes(cheats(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"), StringArgumentType.getString(ctx, "disguise"), "random")))
+                .then(Commands.argument("behavior", StringArgumentType.word()).suggests(BEHAVIORS)
+                        .executes(cheats(ctx -> spawn(ctx, EntityArgument.getPlayer(ctx, "target"),
+                                StringArgumentType.getString(ctx, "disguise"), StringArgumentType.getString(ctx, "behavior"))))));
+        return Commands.literal("spawn")
+                .executes(cheats(ctx -> spawn(ctx, ctx.getSource().getPlayerOrException(), "random", "random")))
+                .then(disguise);
+    }
+
     private static int spawn(CommandContext<CommandSourceStack> ctx, ServerPlayer target, String disguiseArg,
                              String behaviorArg) {
         CommandSourceStack src = ctx.getSource();
@@ -426,7 +511,7 @@ public final class FogLurkerCommands {
         if (!disguiseArg.equalsIgnoreCase("random")) {
             disguise = Disguise.byName(disguiseArg);
             if (disguise == null) {
-                src.sendFailure(Component.literal("Unknown disguise '" + disguiseArg + "'. Try: player, dog, cow, sheep, pig, chicken, zombie, wolf, watcher, crawler"));
+                src.sendFailure(Component.literal("Unknown disguise '" + disguiseArg + "'. Try: " + String.join(", ", DISGUISE_NAMES)));
                 return 0;
             }
         }
